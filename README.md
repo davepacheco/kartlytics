@@ -108,29 +108,6 @@ combination of player boxes.  So for simplicity, we'll just create masks for the
 1P box's zoomed-in and zoomed-out views.  (The rest of the mask will be black.)
 
 
-# Repo
-
-The repo has:
-
-- src: C code
-
-Building will create:
-
-- out: generated binaries
-
-At runtime it will eventually be assumed that you've manually set up your
-workspace with:
-
-- assets/install/bin/ffmpeg (install ffmpeg into assets/install)
-- assets/masks (mask files)
-
-This part is totally optional, but I also set mine up with:
-
-- build: where I keep my ffmpeg source
-- assets/captures: captured video files
-- assets/mask\_sources: original source stills and videos for masks
-
-
 # Roadmap
 
 This project is just a skeleton today.  The plan is:
@@ -153,19 +130,17 @@ This project is just a skeleton today.  The plan is:
 
 ## Masks so far
 
-We have actual masks for these:
-
-- Lap text for lap 1 in each 4P box.
-- Non-final position numbers 1-4 in each 4P box.
-
 We have sources (screen captures) from which we can create the masks for:
 
 - Characters: each one in each box in 4P mode, both zoomed in and zoomed out.
-- Tracks: several of the tracks (but not all).
+- Tracks: several of the tracks, as viewed in P1 in 4P mode, both zoomed in and
+  zoomed out.
+- Non-final position numbers 1-4 in each 4P box.
+- Lap text for lap 1 in each 4P box.
 
 The next set of data to capture are:
 
-- final position numbers (so we can detect the end of the race)
+- final position numbers in each box (so we can detect the end of the race)
 - lap text for laps 2-3 in each box
 - real race videos
 
