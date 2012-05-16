@@ -14,9 +14,11 @@ available.
 
 The most important dependency is:
 
-- [ffmpeg](http://ffmpeg.org/).  I built v0.10.3 from source using a stock
-  configuration.  This is used to decode screen capture videos to portable
-  network bitmaps, which can be processed directly by kartvid.
+- [ffmpeg](http://ffmpeg.org/).  I've successfully used homebrew to install it,
+  as well as built v0.10.3 from source using a stock configuration (but only
+  after using homebrew to try to install it, which installed its dependencies).
+  ffmpeg is used to decode screen capture videos to portable network bitmaps,
+  which can be processed directly by kartvid.
 
 You may also want:
 
