@@ -129,6 +129,14 @@ This project is just a skeleton today.  The plan is:
     - bonus: how long each character took for each lap 
 - Make the rest of the masks.  Test for false positives.
 
+Later, it will be useful to get more complex statistics:
+- Billing: spending most of the race in 1st place, but losing due to weapon
+  usage late in the race.
+- Keithing: spending much of the race in 4th place, attaining 2nd place briefly
+  near the end of the race, and losing due to weapon usage at the end.
+- Average, median, Nth percentile race and lap times, per player per track (per
+  racer?)
+
 
 ## Masks so far
 
