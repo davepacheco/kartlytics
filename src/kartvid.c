@@ -8,149 +8,205 @@
 #include <string.h>
 #include <sys/types.h>
 
-typedef struct ppm {
-	unsigned int	ppm_width;
-	unsigned int	ppm_height;
-	uint8_t	*ppm_pixels;
-} ppm_file_t;
+typedef struct img_pixel {
+	uint8_t	r;
+	uint8_t g;
+	uint8_t b;
+} img_pixel_t;
 
-static ppm_file_t *ppm_read(const char *);
-static void ppm_free(ppm_file_t *);
-inline unsigned int ppm_coord(ppm_file_t *, unsigned int, unsigned int);
-static double ppm_compare(ppm_file_t *, ppm_file_t *);
+typedef struct img {
+	unsigned int	img_width;
+	unsigned int	img_height;
+	img_pixel_t	*img_pixels;
+} img_t;
+
+static img_t *img_read_ppm(const char *);
+static int img_write_ppm(img_t *, FILE *);
+static void img_free(img_t *);
+inline unsigned int img_coord(img_t *, unsigned int, unsigned int);
+static double img_compare(img_t *, img_t *);
+
+static int cmd_compare(int, char *[]);
+static int cmd_rewrite(int, char *[]);
 
 int
 main(int argc, char *argv[])
 {
-	ppm_file_t *image, *mask;
+	int status;
 
-	if (argc < 3) {
-		(void) fprintf(stderr, "usage: %s file mask\n", argv[0]);
+	if (argc < 2) {
+		(void) fprintf(stderr, "usage: %s compare file mask\n",
+		    argv[0]);
 		return (2);
 	}
 
-	if ((image = ppm_read(argv[1])) == NULL ||
-	    (mask = ppm_read(argv[2])) == NULL) {
-		ppm_free(image);
-		return (1);
+	if (strcmp(argv[1], "compare") == 0)
+		status = cmd_compare(argc - 2, argv + 2);
+	else if (strcmp(argv[1], "rewrite") == 0)
+		status = cmd_rewrite(argc - 2, argv + 2);
+	else {
+		(void) fprintf(stderr, "usage: %s compare file mask\n",
+		    argv[0]);
+		status = 1;
 	}
 
-	if (image->ppm_width != mask->ppm_width ||
-	    image->ppm_height != mask->ppm_height) {
-		(void) fprintf(stderr, "error: images are different sizes\n");
-		ppm_free(image);
-		ppm_free(mask);
-		return (1);
-	}
-
-	(void) ppm_compare(image, mask);
-
-	return (0);
+	return (status);
 }
 
-static ppm_file_t *
-ppm_read(const char *filename)
+static int
+cmd_compare(int argc, char *argv[])
+{
+	img_t *image, *mask;
+	int rv;
+
+	if (argc < 2) {
+		(void) fprintf(stderr, "missing files\n");
+		return (2);
+	}
+
+	if ((image = img_read_ppm(argv[0])) == NULL ||
+	    (mask = img_read_ppm(argv[1])) == NULL) {
+		img_free(image);
+		return (1);
+	}
+
+	if (image->img_width != mask->img_width ||
+	    image->img_height != mask->img_height) {
+		(void) fprintf(stderr, "image dimensions do not match\n");
+		rv = 1;
+	} else {
+		(void) img_compare(image, mask);
+		rv = 0;
+	}
+
+	img_free(image);
+	img_free(mask);
+	return (rv);
+}
+
+static int
+cmd_rewrite(int argc, char *argv[])
+{
+	img_t *image;
+	FILE *outfp;
+	int rv;
+
+	if (argc < 2) {
+		(void) fprintf(stderr, "missing files\n");
+		return (2);
+	}
+
+	if ((image = img_read_ppm(argv[0])) == NULL)
+		return (1);
+
+	if ((outfp = fopen(argv[1], "w")) == NULL) {
+		perror("fopen");
+		img_free(image);
+		return (1);
+	}
+
+	rv = img_write_ppm(image, outfp);
+	img_free(image);
+	return (rv);
+}
+
+static img_t *
+img_read_ppm(const char *filename)
 {
 	FILE *fp;
 	int nread;
-	ppm_file_t *rv = NULL;
-	char buf[64];
+	unsigned int width, height, maxval;
+	img_t *rv = NULL;
 
 	if ((fp = fopen(filename, "r")) == NULL) {
-		(void) fprintf(stderr, "ppm_read %s: %s\n",
+		(void) fprintf(stderr, "img_read_ppm %s: %s\n",
 		    filename, strerror(errno));
 		return (NULL);
 	}
 
-	if (fgets(buf, sizeof (buf), fp) == NULL) {
-		if (feof(fp)) {
-			(void) fprintf(stderr,
-			    "ppm_read %s: truncated header\n", filename);
-			(void) fclose(fp);
-			return (NULL);
-		}
-
-		assert(ferror(fp));
-		(void) fprintf(stderr, "ppm_read %s: error reading header\n",
-		    filename);
+	nread = fscanf(fp, "P6 %u %u %u", &width, &height, &maxval);
+	if (nread != 3) {
+		(void) fprintf(stderr, "img_read_ppm %s: failed to parse "
+		    "ppm header\n", filename);
 		(void) fclose(fp);
 		return (NULL);
 	}
 
-	if (strcmp(buf, "P6\n") != 0) {
-		(void) fprintf(stderr, "ppm_read %s: unsupported file type\n",
-		    filename);
+	if (maxval > 255) {
+		(void) fprintf(stderr, "img_read_ppm %s: unsupported color "
+		    "depth\n", filename);
 		(void) fclose(fp);
 		return (NULL);
 	}
 
-	if ((rv = calloc(1, sizeof (*rv))) == NULL) {
-		perror("malloc");
+	if ((rv = calloc(1, sizeof (*rv))) == NULL ||
+	    (rv->img_pixels = malloc(
+	    sizeof (rv->img_pixels[0]) * width * height)) == NULL) {
+		free(rv);
+		(void) fprintf(stderr, "img_read_ppm %s: %s\n", filename,
+		    strerror(errno));
 		(void) fclose(fp);
 		return (NULL);
 	}
 
-	nread = fscanf(fp, "%u %u %*u", &rv->ppm_width, &rv->ppm_height);
-	if (nread != 2) {
-		(void) fprintf(stderr, "ppm_read %s: invalid dimensions (%d)\n",
-		    filename, nread);
-		(void) fclose(fp);
-		ppm_free(rv);
-		return (NULL);
-	}
+	/* Skip the single whitespace character that follows the header. */
+	(void) fseek(fp, SEEK_CUR, 1);
 
-	/*
-	 * We used to have a \n in the above fscanf format string, but that eats
-	 * *all* subsequent whitespace, including white space character values
-	 * in the actual data.  So we eat 1 newline here.
-	 */
-	if (fread(buf, 1, 1, fp) != 1 || buf[0] != '\n') {
-		(void) fprintf(stderr, "ppm_read %s: failed to read header "
-		    "terminator", filename);
-		(void) fclose(fp);
-		ppm_free(rv);
-		return (NULL);
-	}
+	rv->img_width = width;
+	rv->img_height = height;
 
-	rv->ppm_pixels = malloc(3 * rv->ppm_width * rv->ppm_height);
-	if (rv->ppm_pixels == NULL) {
-		perror("malloc");
-		(void) fclose(fp);
-		ppm_free(rv);
-		return (NULL);
-	}
-
-	/* XXX */
-	nread = fread(rv->ppm_pixels, 3 * rv->ppm_width, rv->ppm_height, fp);
-	if (nread != rv->ppm_height) {
-		(void) fprintf(stderr, "ppm_read %s: unexpected end of file"
-		    " (read %d objects, expected %d)\n", filename, nread,
-		    rv->ppm_height);
+	nread = fread(rv->img_pixels, sizeof (rv->img_pixels[0]),
+	    rv->img_width * rv->img_height, fp);
+	(void) fclose(fp);
+	if (nread != rv->img_width * rv->img_height) {
+		(void) fprintf(stderr, "img_read_ppm %s: unexpected end of file"
+		    " (read %d pixels, expected %d): ", filename, nread,
+		    rv->img_height * rv->img_height);
 		if (feof(fp))
 			(void) fprintf(stderr, "at EOF\n");
 		else if (ferror(fp))
-			(void) fprintf(stderr, "got error\n");
-		(void) fclose(fp);
-		ppm_free(rv);
+			(void) fprintf(stderr, "error\n");
+		else
+			(void) fprintf(stderr, "%s\n", strerror(errno));
+		img_free(rv);
 		return (NULL);
 	}
 
-	(void) fclose(fp);
 	return (rv);
 }
 
-static void
-ppm_free(ppm_file_t *ppm)
+static int
+img_write_ppm(img_t *image, FILE *fp)
 {
-	if (ppm == NULL)
+	int nread;
+
+	(void) fprintf(fp, "P6\n%u %u\n%u\n", image->img_width,
+	    image->img_height, 255);
+
+	nread = fwrite(image->img_pixels, sizeof (image->img_pixels[0]),
+	    image->img_width * image->img_height, fp);
+
+	if (nread != image->img_width * image->img_height) {
+		(void) fprintf(stderr, "img_write_ppm: failed (wrote %d of %d "
+		    "pixels", nread, image->img_width * image->img_height);
+		return (-1);
+	}
+
+	return (0);
+}
+
+static void
+img_free(img_t *imgp)
+{
+	if (imgp == NULL)
 		return;
 	
-	free(ppm->ppm_pixels);
-	free(ppm);
+	free(imgp->img_pixels);
+	free(imgp);
 }
 
 static double
-ppm_compare(ppm_file_t *image, ppm_file_t *mask)
+img_compare(img_t *image, img_t *mask)
 {
 	unsigned int x, y, i;
 	unsigned int dr, dg, db, dz2;
@@ -158,27 +214,28 @@ ppm_compare(ppm_file_t *image, ppm_file_t *mask)
 	unsigned int nignored = 0, ndifferent = 0;
 	double sum = 0;
 	double score;
+	img_pixel_t *imgpx, *maskpx;
 
-	assert(image->ppm_width == mask->ppm_width);
-	assert(image->ppm_height == mask->ppm_height);
+	assert(image->img_width == mask->img_width);
+	assert(image->img_height == mask->img_height);
 
-	for (y = 0; y < image->ppm_height; y++) {
-		for (x = 0; x < image->ppm_width; x++) {
-			i = ppm_coord(image, x, y);
+	for (y = 0; y < image->img_height; y++) {
+		for (x = 0; x < image->img_width; x++) {
+			i = img_coord(image, x, y);
+			maskpx = &mask->img_pixels[i];
+			imgpx = &image->img_pixels[i];
 
 			/*
 			 * Ignore nearly-black pixels in the mask.
 			 */
-			if (mask->ppm_pixels[i] < 2 &&
-			    mask->ppm_pixels[i + 1] < 2 &&
-			    mask->ppm_pixels[i + 2] < 2) {
+			if (maskpx->r < 2 && maskpx->g < 2 && maskpx->b < 2) {
 				nignored++;
 				continue;
 			}
 
-			dr = mask->ppm_pixels[i] - image->ppm_pixels[i];
-			dg = mask->ppm_pixels[i + 1] - image->ppm_pixels[i + 1];
-			db = mask->ppm_pixels[i + 2] - image->ppm_pixels[i + 2];
+			dr = maskpx->r - imgpx->r;
+			dg = maskpx->g - imgpx->g;
+			db = maskpx->b - imgpx->b;
 			dz2 = dr * dr + dg * dg + db * db;
 
 			if (dz2 == 0)
@@ -196,7 +253,7 @@ ppm_compare(ppm_file_t *image, ppm_file_t *mask)
 	 * the image, and compute the average difference.  We divide that by the
 	 * maximum possible distance.
 	 */
-	npixels = image->ppm_height * image->ppm_width;
+	npixels = image->img_height * image->img_width;
 	score = (sum / sqrt(255 * 255 * 3)) / (npixels - nignored);
 	(void) printf("total pixels:     %d\n", npixels);
 	(void) printf("ignored pixels:   %d\n", nignored);
@@ -208,9 +265,9 @@ ppm_compare(ppm_file_t *image, ppm_file_t *mask)
 }
 
 inline unsigned int
-ppm_coord(ppm_file_t *image, unsigned int x, unsigned int y)
+img_coord(img_t *image, unsigned int x, unsigned int y)
 {
-	assert(x < image->ppm_width);
-	assert(y < image->ppm_height);
-	return (3 * (x + image->ppm_width * y));
+	assert(x < image->img_width);
+	assert(y < image->img_height);
+	return (x + image->img_width * y);
 }
