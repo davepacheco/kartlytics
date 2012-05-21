@@ -1,5 +1,5 @@
 out/kartvid: src/kartvid.c | out
-	gcc -Wall -o $@ $^
+	gcc -Wall -o $@ -I/usr/X11/include -L/usr/X11/lib -lpng $^
 
 out:
 	mkdir $@

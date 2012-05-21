@@ -8,6 +8,8 @@
 #include <string.h>
 #include <sys/types.h>
 
+#include <png.h>
+
 typedef struct img_pixel {
 	uint8_t	r;
 	uint8_t g;
@@ -21,6 +23,7 @@ typedef struct img {
 } img_t;
 
 static img_t *img_read_ppm(const char *);
+static img_t *img_read_png(const char *);
 static int img_write_ppm(img_t *, FILE *);
 static void img_free(img_t *);
 inline unsigned int img_coord(img_t *, unsigned int, unsigned int);
@@ -28,6 +31,7 @@ static double img_compare(img_t *, img_t *);
 
 static int cmd_compare(int, char *[]);
 static int cmd_rewrite(int, char *[]);
+static int cmd_png(int, char *[]);
 
 int
 main(int argc, char *argv[])
@@ -44,6 +48,8 @@ main(int argc, char *argv[])
 		status = cmd_compare(argc - 2, argv + 2);
 	else if (strcmp(argv[1], "rewrite") == 0)
 		status = cmd_rewrite(argc - 2, argv + 2);
+	else if (strcmp(argv[1], "png") == 0)
+		status = cmd_png(argc - 2, argv + 2);
 	else {
 		(void) fprintf(stderr, "usage: %s compare file mask\n",
 		    argv[0]);
@@ -107,6 +113,41 @@ cmd_rewrite(int argc, char *argv[])
 
 	rv = img_write_ppm(image, outfp);
 	img_free(image);
+	return (rv);
+}
+
+static int
+cmd_png(int argc, char *argv[])
+{
+	FILE *outfp;
+	img_t *image;
+	int rv;
+
+	if (argc < 1) {
+		(void) fprintf(stderr, "missing file\n");
+		return (2);
+	}
+
+	if ((image = img_read_png(argv[0])) == NULL)
+		return (1);
+
+	if (argc == 1) {
+		img_free(image);
+		return (0);
+	}
+
+	if ((outfp = fopen(argv[1], "w")) == NULL) {
+		perror("fopen");
+		img_free(image);
+		return (1);
+	}
+
+	rv = img_write_ppm(image, outfp);
+	img_free(image);
+
+	if (rv == 0)
+		(void) printf("wrote %s\n", argv[1]);
+
 	return (rv);
 }
 
@@ -193,6 +234,131 @@ img_write_ppm(img_t *image, FILE *fp)
 	}
 
 	return (0);
+}
+
+static img_t *
+img_read_png(const char *filename)
+{
+	FILE *fp;
+	uint8_t header[8];
+	unsigned int width, height, i, j;
+	img_t *rv;
+
+	png_structp png;
+	png_infop pnginfo;
+	png_byte color_type, depth;
+	int npasses;
+
+	png_bytep *rows;
+
+	if ((fp = fopen(filename, "r")) == NULL) {
+		perror("fopen");
+		return (NULL);
+	}
+
+	if (fread(header, sizeof (header), 1, fp) != 1) {
+		(void) fprintf(stderr, "img_read_png %s: failed to read "
+		    "header\n", filename);
+		(void) fclose(fp);
+		return (NULL);
+	}
+
+	if (png_sig_cmp(header, 0, sizeof (header)) != 0) {
+		(void) fprintf(stderr, "img_read_png %s: bad magic\n",
+		    filename);
+		(void) fclose(fp);
+		return (NULL);
+	}
+
+	/* XXX free libpng stuff */
+	if ((png = png_create_read_struct(PNG_LIBPNG_VER_STRING,
+	    NULL, NULL, NULL)) == NULL ||
+	    (pnginfo = png_create_info_struct(png)) == NULL) {
+		(void) fprintf(stderr, "failed to initialize libpng\n");
+		(void) fclose(fp);
+		return (NULL);
+	}
+
+	/* XXX setjmp(png_jumpbuf(png)) ? */
+	/* XXX error handling */
+	png_init_io(png, fp);
+	png_set_sig_bytes(png, sizeof (header));
+	png_read_info(png, pnginfo);
+
+	width = png_get_image_width(png, pnginfo);
+	height = png_get_image_height(png, pnginfo);
+	color_type = png_get_color_type(png, pnginfo);
+	depth = png_get_bit_depth(png, pnginfo);
+	npasses = png_set_interlace_handling(png);
+	png_read_update_info(png, pnginfo);
+
+	(void) printf("PNG image:        %u x %u pixels\n", width, height);
+	(void) printf("color type:       %x\n", color_type);
+	(void) printf("bit depth:        %x\n", depth);
+	(void) printf("interlace passes: %x\n", npasses);
+
+	if (depth > 8) {
+		(void) fprintf(stderr, "img_read_png %s: unsupported bit "
+		    "depth\n", filename);
+		(void) fclose(fp);
+		return (NULL);
+	}
+
+	if (color_type != PNG_COLOR_TYPE_RGB) {
+		(void) fprintf(stderr, "img_read_png %s: unsupported color "
+		    "type\n", filename);
+		(void) fclose(fp);
+		return (NULL);
+	}
+
+	/*
+	 * XXX there's probably a better way to do this.
+	 */
+	if ((rows = malloc(sizeof (rows[0]) * height)) == NULL) {
+		perror("malloc");
+		(void) fclose(fp);
+		return (NULL);
+	}
+
+	for (i = 0; i < height; i++) {
+		if ((rows[i] = malloc(png_get_rowbytes(png, pnginfo))) == NULL) {
+			/* XXX free previous pointers */
+			perror("malloc");
+			free(rows);
+			(void) fclose(fp);
+			return (NULL);
+		}
+	}
+
+	png_read_image(png, rows);
+	(void) fclose(fp);
+
+	if ((rv = calloc(1, sizeof (*rv))) == NULL ||
+	    (rv->img_pixels = malloc(
+	    sizeof (rv->img_pixels[0]) * width * height)) == NULL) {
+		perror("malloc");
+		free(rv);
+	}
+
+	rv->img_width = width;
+	rv->img_height = height;
+
+	for (i = 0; i < height; i++) {
+		for (j = 0; j < width; j++) {
+			png_byte *ptr = &(rows[i][j * 3]);
+			img_pixel_t *px = &rv->img_pixels[img_coord(rv, j, i)];
+
+			px->r = ptr[0];
+			px->g = ptr[1];
+			px->b = ptr[2];
+		}
+
+		free(rows[i]);
+	}
+
+	free(rows);
+
+	return (rv);
 }
 
 static void
