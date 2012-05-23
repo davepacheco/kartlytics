@@ -249,7 +249,7 @@ img_read_png(const char *filename)
 {
 	FILE *fp;
 	uint8_t header[8];
-	unsigned int width, height, i, j;
+	unsigned int width, height, i;
 	img_t *rv;
 
 	png_structp png;
@@ -320,55 +320,33 @@ img_read_png(const char *filename)
 		return (NULL);
 	}
 
-	/*
-	 * XXX there's probably a better way to do this.
-	 * XXX allocate image in one block (image->img_pixels) and set row
-	 * pointers to pointers inside that block? (from libpng docs)
-	 */
-	if ((rows = malloc(sizeof (rows[0]) * height)) == NULL) {
-		perror("malloc");
-		(void) fclose(fp);
-		return (NULL);
-	}
-
-	for (i = 0; i < height; i++) {
-		if ((rows[i] = malloc(png_get_rowbytes(png, pnginfo))) == NULL) {
-			/* XXX free previous pointers */
-			perror("malloc");
-			free(rows);
-			(void) fclose(fp);
-			return (NULL);
-		}
-	}
-
-	png_read_image(png, rows);
-	png_read_end(png, NULL); /* XXX so we don't have to call fclose() */
-	(void) fclose(fp);
-
 	if ((rv = calloc(1, sizeof (*rv))) == NULL ||
 	    (rv->img_pixels = malloc(
 	    sizeof (rv->img_pixels[0]) * width * height)) == NULL) {
 		perror("malloc");
 		free(rv);
+		(void) fclose(fp);
 		return (NULL);
 	}
 
 	rv->img_width = width;
 	rv->img_height = height;
 
-	for (i = 0; i < height; i++) {
-		for (j = 0; j < width; j++) {
-			png_byte *ptr = &(rows[i][j * 3]);
-			img_pixel_t *px = &rv->img_pixels[img_coord(rv, j, i)];
-
-			px->r = ptr[0];
-			px->g = ptr[1];
-			px->b = ptr[2];
-		}
-
-		free(rows[i]);
+	if ((rows = malloc(sizeof (rows[0]) * height)) == NULL) {
+		perror("malloc");
+		free(rv);
+		(void) fclose(fp);
+		return (NULL);
 	}
 
+	assert(png_get_rowbytes(png, pnginfo) == sizeof (img_pixel_t) * width);
+
+	for (i = 0; i < height; i++)
+		rows[i] = (png_bytep)&rv->img_pixels[img_coord(rv, 0, i)];
+
+	png_read_image(png, rows);
+	png_read_end(png, NULL); /* XXX so we don't have to call fclose() */
+	(void) fclose(fp);
 	free(rows);
 	png_destroy_read_struct(&png, &pnginfo, NULL);
 
