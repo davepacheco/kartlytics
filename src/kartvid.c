@@ -3,12 +3,20 @@
 #include <errno.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <setjmp.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 #include <sys/types.h>
 
 #include <png.h>
+
+/*
+ * Older versions of libpng didn't define png_jmpbuf.
+ */
+#ifndef png_jmpbuf
+#define png_jmpbuf(png_ptr) ((png_ptr)->jmpbuf)
+#endif
 
 typedef struct img_pixel {
 	uint8_t	r;
@@ -247,7 +255,6 @@ img_read_png(const char *filename)
 	png_structp png;
 	png_infop pnginfo;
 	png_byte color_type, depth;
-	int npasses;
 
 	png_bytep *rows;
 
@@ -270,7 +277,6 @@ img_read_png(const char *filename)
 		return (NULL);
 	}
 
-	/* XXX free libpng stuff */
 	if ((png = png_create_read_struct(PNG_LIBPNG_VER_STRING,
 	    NULL, NULL, NULL)) == NULL ||
 	    (pnginfo = png_create_info_struct(png)) == NULL) {
@@ -279,8 +285,13 @@ img_read_png(const char *filename)
 		return (NULL);
 	}
 
-	/* XXX setjmp(png_jumpbuf(png)) ? */
-	/* XXX error handling */
+	if (setjmp(png_jmpbuf(png)) != 0) {
+		fprintf(stderr, "error reading PNG image\n");
+		png_destroy_read_struct(&png, &pnginfo, NULL);
+		(void) fclose(fp);
+		return (NULL);
+	}
+
 	png_init_io(png, fp);
 	png_set_sig_bytes(png, sizeof (header));
 	png_read_info(png, pnginfo);
@@ -289,13 +300,11 @@ img_read_png(const char *filename)
 	height = png_get_image_height(png, pnginfo);
 	color_type = png_get_color_type(png, pnginfo);
 	depth = png_get_bit_depth(png, pnginfo);
-	npasses = png_set_interlace_handling(png);
 	png_read_update_info(png, pnginfo);
 
 	(void) printf("PNG image:        %u x %u pixels\n", width, height);
 	(void) printf("color type:       %x\n", color_type);
 	(void) printf("bit depth:        %x\n", depth);
-	(void) printf("interlace passes: %x\n", npasses);
 
 	if (depth > 8) {
 		(void) fprintf(stderr, "img_read_png %s: unsupported bit "
@@ -313,6 +322,8 @@ img_read_png(const char *filename)
 
 	/*
 	 * XXX there's probably a better way to do this.
+	 * XXX allocate image in one block (image->img_pixels) and set row
+	 * pointers to pointers inside that block? (from libpng docs)
 	 */
 	if ((rows = malloc(sizeof (rows[0]) * height)) == NULL) {
 		perror("malloc");
@@ -331,6 +342,7 @@ img_read_png(const char *filename)
 	}
 
 	png_read_image(png, rows);
+	png_read_end(png, NULL); /* XXX so we don't have to call fclose() */
 	(void) fclose(fp);
 
 	if ((rv = calloc(1, sizeof (*rv))) == NULL ||
@@ -338,6 +350,7 @@ img_read_png(const char *filename)
 	    sizeof (rv->img_pixels[0]) * width * height)) == NULL) {
 		perror("malloc");
 		free(rv);
+		return (NULL);
 	}
 
 	rv->img_width = width;
@@ -357,6 +370,7 @@ img_read_png(const char *filename)
 	}
 
 	free(rows);
+	png_destroy_read_struct(&png, &pnginfo, NULL);
 
 	return (rv);
 }
