@@ -1,15 +1,25 @@
+/*
+ * kartvid.c: primordial image processing for Mario Kart 64 analytics
+ */
+
 #include <assert.h>
-#include <math.h>
+#include <ctype.h>
+#include <err.h>
 #include <errno.h>
-#include <stdio.h>
-#include <unistd.h>
+#include <math.h>
 #include <setjmp.h>
-#include <stdlib.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #include <png.h>
+
+#define	EXIT_SUCCESS	0
+#define	EXIT_FAILURE	1
+#define	EXIT_USAGE	2
 
 /*
  * Older versions of libpng didn't define png_jmpbuf.
@@ -30,39 +40,33 @@ typedef struct img {
 	img_pixel_t	*img_pixels;
 } img_t;
 
-static img_t *img_read_ppm(const char *);
-static img_t *img_read_png(const char *);
+static img_t *img_read(const char *);
+static img_t *img_read_ppm(FILE *, const char *);
+static img_t *img_read_png(FILE *, const char *);
 static int img_write_ppm(img_t *, FILE *);
 static void img_free(img_t *);
 inline unsigned int img_coord(img_t *, unsigned int, unsigned int);
 static double img_compare(img_t *, img_t *);
 
 static int cmd_compare(int, char *[]);
-static int cmd_rewrite(int, char *[]);
-static int cmd_png(int, char *[]);
+static int cmd_image(int, char *[]);
+
+static int kv_debug = 0;
 
 int
 main(int argc, char *argv[])
 {
 	int status;
 
-	if (argc < 2) {
-		(void) fprintf(stderr, "usage: %s compare file mask\n",
-		    argv[0]);
-		return (2);
-	}
+	if (argc < 2)
+		errx(EXIT_USAGE, "usage: %s compare file mask", argv[0]);
 
 	if (strcmp(argv[1], "compare") == 0)
 		status = cmd_compare(argc - 2, argv + 2);
-	else if (strcmp(argv[1], "rewrite") == 0)
-		status = cmd_rewrite(argc - 2, argv + 2);
-	else if (strcmp(argv[1], "png") == 0)
-		status = cmd_png(argc - 2, argv + 2);
-	else {
-		(void) fprintf(stderr, "usage: %s compare file mask\n",
-		    argv[0]);
-		status = 1;
-	}
+	else if (strcmp(argv[1], "image") == 0)
+		status = cmd_image(argc - 2, argv + 2);
+	else
+		errx(EXIT_USAGE, "usage: %s compare file mask", argv[0]);
 
 	return (status);
 }
@@ -74,23 +78,25 @@ cmd_compare(int argc, char *argv[])
 	int rv;
 
 	if (argc < 2) {
-		(void) fprintf(stderr, "missing files\n");
-		return (2);
+		warnx("missing files");
+		return (EXIT_USAGE);
 	}
 
-	if ((image = img_read_ppm(argv[0])) == NULL ||
-	    (mask = img_read_ppm(argv[1])) == NULL) {
+	image = img_read(argv[0]);
+	mask = img_read(argv[1]);
+
+	if (mask == NULL || image == NULL) {
 		img_free(image);
-		return (1);
+		return (EXIT_FAILURE);
 	}
 
 	if (image->img_width != mask->img_width ||
 	    image->img_height != mask->img_height) {
-		(void) fprintf(stderr, "image dimensions do not match\n");
-		rv = 1;
+		warnx("image dimensions do not match");
+		rv = EXIT_FAILURE;
 	} else {
 		(void) img_compare(image, mask);
-		rv = 0;
+		rv = EXIT_SUCCESS;
 	}
 
 	img_free(image);
@@ -99,55 +105,29 @@ cmd_compare(int argc, char *argv[])
 }
 
 static int
-cmd_rewrite(int argc, char *argv[])
-{
-	img_t *image;
-	FILE *outfp;
-	int rv;
-
-	if (argc < 2) {
-		(void) fprintf(stderr, "missing files\n");
-		return (2);
-	}
-
-	if ((image = img_read_ppm(argv[0])) == NULL)
-		return (1);
-
-	if ((outfp = fopen(argv[1], "w")) == NULL) {
-		perror("fopen");
-		img_free(image);
-		return (1);
-	}
-
-	rv = img_write_ppm(image, outfp);
-	img_free(image);
-	return (rv);
-}
-
-static int
-cmd_png(int argc, char *argv[])
+cmd_image(int argc, char *argv[])
 {
 	FILE *outfp;
 	img_t *image;
 	int rv;
 
 	if (argc < 1) {
-		(void) fprintf(stderr, "missing file\n");
-		return (2);
+		warnx("missing file");
+		return (EXIT_USAGE);
 	}
 
-	if ((image = img_read_png(argv[0])) == NULL)
-		return (1);
+	if ((image = img_read(argv[0])) == NULL)
+		return (EXIT_FAILURE);
 
 	if (argc == 1) {
 		img_free(image);
-		return (0);
+		return (EXIT_SUCCESS);
 	}
 
 	if ((outfp = fopen(argv[1], "w")) == NULL) {
-		perror("fopen");
+		warn("fopen %s", argv[1]);
 		img_free(image);
-		return (1);
+		return (EXIT_FAILURE);
 	}
 
 	rv = img_write_ppm(image, outfp);
@@ -159,42 +139,73 @@ cmd_png(int argc, char *argv[])
 	return (rv);
 }
 
+static const char *
+stdio_error(FILE *fp)
+{
+	int err = errno;
+
+	if (ferror(fp) != 0)
+		return ("stream error");
+
+	if (feof(fp) != 0)
+		return ("unexpected EOF");
+
+	return (strerror(err));
+}
+
 static img_t *
-img_read_ppm(const char *filename)
+img_read(const char *filename)
 {
 	FILE *fp;
+	img_t *rv;
+	char buffer[3];
+
+	if ((fp = fopen(filename, "r")) == NULL) {
+		warn("img_read %s", filename);
+		return (NULL);
+	}
+
+	if (fread(buffer, sizeof (buffer), 1, fp) != 1) {
+		warnx("img_read %s: %s", filename, stdio_error(fp));
+		(void) fclose(fp);
+		return (NULL);
+	}
+
+	(void) fseek(fp, 0, SEEK_SET);
+
+	if (buffer[0] == 'P' && buffer[1] == '6' && isspace(buffer[2])) {
+		rv = img_read_ppm(fp, filename);
+	} else {
+		rv = img_read_png(fp, filename);
+	}
+
+	(void) fclose(fp);
+	return (rv);
+}
+
+static img_t *
+img_read_ppm(FILE *fp, const char *filename)
+{
 	int nread;
 	unsigned int width, height, maxval;
 	img_t *rv = NULL;
 
-	if ((fp = fopen(filename, "r")) == NULL) {
-		(void) fprintf(stderr, "img_read_ppm %s: %s\n",
-		    filename, strerror(errno));
-		return (NULL);
-	}
-
 	nread = fscanf(fp, "P6 %u %u %u", &width, &height, &maxval);
 	if (nread != 3) {
-		(void) fprintf(stderr, "img_read_ppm %s: failed to parse "
-		    "ppm header\n", filename);
-		(void) fclose(fp);
+		warnx("img_read_ppm %s: mangled ppm header", filename);
 		return (NULL);
 	}
 
 	if (maxval > 255) {
-		(void) fprintf(stderr, "img_read_ppm %s: unsupported color "
-		    "depth\n", filename);
-		(void) fclose(fp);
+		warnx("img_read_ppm %s: unsupported color depth", filename);
 		return (NULL);
 	}
 
 	if ((rv = calloc(1, sizeof (*rv))) == NULL ||
 	    (rv->img_pixels = malloc(
 	    sizeof (rv->img_pixels[0]) * width * height)) == NULL) {
+		warn("img_read_ppm %s", filename);
 		free(rv);
-		(void) fprintf(stderr, "img_read_ppm %s: %s\n", filename,
-		    strerror(errno));
-		(void) fclose(fp);
 		return (NULL);
 	}
 
@@ -206,17 +217,9 @@ img_read_ppm(const char *filename)
 
 	nread = fread(rv->img_pixels, sizeof (rv->img_pixels[0]),
 	    rv->img_width * rv->img_height, fp);
-	(void) fclose(fp);
+
 	if (nread != rv->img_width * rv->img_height) {
-		(void) fprintf(stderr, "img_read_ppm %s: unexpected end of file"
-		    " (read %d pixels, expected %d): ", filename, nread,
-		    rv->img_height * rv->img_height);
-		if (feof(fp))
-			(void) fprintf(stderr, "at EOF\n");
-		else if (ferror(fp))
-			(void) fprintf(stderr, "error\n");
-		else
-			(void) fprintf(stderr, "%s\n", strerror(errno));
+		warnx("img_read_ppm %s: %s", filename, stdio_error(fp));
 		img_free(rv);
 		return (NULL);
 	}
@@ -236,8 +239,8 @@ img_write_ppm(img_t *image, FILE *fp)
 	    image->img_width * image->img_height, fp);
 
 	if (nread != image->img_width * image->img_height) {
-		(void) fprintf(stderr, "img_write_ppm: failed (wrote %d of %d "
-		    "pixels", nread, image->img_width * image->img_height);
+		warn("img_write_ppm: failed after %d of %d pixels", nread,
+		    image->img_width * image->img_height);
 		return (-1);
 	}
 
@@ -245,9 +248,8 @@ img_write_ppm(img_t *image, FILE *fp)
 }
 
 static img_t *
-img_read_png(const char *filename)
+img_read_png(FILE *fp, const char *filename)
 {
-	FILE *fp;
 	uint8_t header[8];
 	unsigned int width, height, i;
 	img_t *rv;
@@ -258,37 +260,27 @@ img_read_png(const char *filename)
 
 	png_bytep *rows;
 
-	if ((fp = fopen(filename, "r")) == NULL) {
-		perror("fopen");
-		return (NULL);
-	}
-
 	if (fread(header, sizeof (header), 1, fp) != 1) {
-		(void) fprintf(stderr, "img_read_png %s: failed to read "
-		    "header\n", filename);
-		(void) fclose(fp);
+		warnx("img_read_png %s: failed to read header: %s",
+		    filename, stdio_error(fp));
 		return (NULL);
 	}
 
 	if (png_sig_cmp(header, 0, sizeof (header)) != 0) {
-		(void) fprintf(stderr, "img_read_png %s: bad magic\n",
-		    filename);
-		(void) fclose(fp);
+		warnx("img_read_png %s: bad magic", filename);
 		return (NULL);
 	}
 
 	if ((png = png_create_read_struct(PNG_LIBPNG_VER_STRING,
 	    NULL, NULL, NULL)) == NULL ||
 	    (pnginfo = png_create_info_struct(png)) == NULL) {
-		(void) fprintf(stderr, "failed to initialize libpng\n");
-		(void) fclose(fp);
+		warnx("failed to initialize libpng");
 		return (NULL);
 	}
 
 	if (setjmp(png_jmpbuf(png)) != 0) {
-		fprintf(stderr, "error reading PNG image\n");
+		warnx("error reading PNG image");
 		png_destroy_read_struct(&png, &pnginfo, NULL);
-		(void) fclose(fp);
 		return (NULL);
 	}
 
@@ -302,30 +294,27 @@ img_read_png(const char *filename)
 	depth = png_get_bit_depth(png, pnginfo);
 	png_read_update_info(png, pnginfo);
 
-	(void) printf("PNG image:        %u x %u pixels\n", width, height);
-	(void) printf("color type:       %x\n", color_type);
-	(void) printf("bit depth:        %x\n", depth);
+	if (kv_debug) {
+		(void) printf("PNG image:  %u x %u pixels\n", width, height);
+		(void) printf("bit depth:  %x\n", depth);
+		(void) printf("color type: %x\n", color_type);
+	}
 
 	if (depth > 8) {
-		(void) fprintf(stderr, "img_read_png %s: unsupported bit "
-		    "depth\n", filename);
-		(void) fclose(fp);
+		warnx("img_read_png %s: unsupported bit depth", filename);
 		return (NULL);
 	}
 
 	if (color_type != PNG_COLOR_TYPE_RGB) {
-		(void) fprintf(stderr, "img_read_png %s: unsupported color "
-		    "type\n", filename);
-		(void) fclose(fp);
+		warnx("img_read_png %s: unsupported color type", filename);
 		return (NULL);
 	}
 
 	if ((rv = calloc(1, sizeof (*rv))) == NULL ||
 	    (rv->img_pixels = malloc(
 	    sizeof (rv->img_pixels[0]) * width * height)) == NULL) {
-		perror("malloc");
+		warn("img_read_png %s");
 		free(rv);
-		(void) fclose(fp);
 		return (NULL);
 	}
 
@@ -333,9 +322,8 @@ img_read_png(const char *filename)
 	rv->img_height = height;
 
 	if ((rows = malloc(sizeof (rows[0]) * height)) == NULL) {
-		perror("malloc");
-		free(rv);
-		(void) fclose(fp);
+		warn("img_read_png %s");
+		img_free(rv);
 		return (NULL);
 	}
 
@@ -345,8 +333,7 @@ img_read_png(const char *filename)
 		rows[i] = (png_bytep)&rv->img_pixels[img_coord(rv, 0, i)];
 
 	png_read_image(png, rows);
-	png_read_end(png, NULL); /* XXX so we don't have to call fclose() */
-	(void) fclose(fp);
+	png_read_end(png, NULL);
 	free(rows);
 	png_destroy_read_struct(&png, &pnginfo, NULL);
 
