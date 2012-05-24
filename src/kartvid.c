@@ -47,8 +47,10 @@ static int img_write_ppm(img_t *, FILE *);
 static void img_free(img_t *);
 inline unsigned int img_coord(img_t *, unsigned int, unsigned int);
 static double img_compare(img_t *, img_t *);
+static void img_and(img_t *, img_t *);
 
 static int cmd_compare(int, char *[]);
+static int cmd_and(int, char *[]);
 static int cmd_image(int, char *[]);
 
 static int kv_debug = 0;
@@ -65,6 +67,8 @@ main(int argc, char *argv[])
 		status = cmd_compare(argc - 2, argv + 2);
 	else if (strcmp(argv[1], "image") == 0)
 		status = cmd_image(argc - 2, argv + 2);
+	else if (strcmp(argv[1], "and") == 0)
+		status = cmd_and(argc - 2, argv + 2);
 	else
 		errx(EXIT_USAGE, "usage: %s compare file mask", argv[0]);
 
@@ -136,6 +140,48 @@ cmd_image(int argc, char *argv[])
 	if (rv == 0)
 		(void) printf("wrote %s\n", argv[1]);
 
+	return (rv);
+}
+
+static int
+cmd_and(int argc, char *argv[])
+{
+	img_t *image, *mask;
+	FILE *outfp;
+	int rv;
+
+	if (argc < 3) {
+		warnx("missing files");
+		return (EXIT_USAGE);
+	}
+
+	image = img_read(argv[0]);
+	mask = img_read(argv[1]);
+
+	if (mask == NULL || image == NULL) {
+		img_free(image);
+		return (EXIT_FAILURE);
+	}
+
+	if (image->img_width != mask->img_width ||
+	    image->img_height != mask->img_height) {
+		warnx("image dimensions do not match");
+		img_free(image);
+		img_free(mask);
+		return (EXIT_FAILURE);
+	}
+
+	if ((outfp = fopen(argv[2], "w")) == NULL) {
+		warn("fopen %", argv[1]);
+		img_free(image);
+		img_free(mask);
+		return (EXIT_FAILURE);
+	}
+
+	img_and(image, mask);
+	rv = img_write_ppm(image, outfp);
+	img_free(image);
+	img_free(mask);
 	return (rv);
 }
 
@@ -407,6 +453,28 @@ img_compare(img_t *image, img_t *mask)
 	(void) printf("difference score: %f\n", score);
 
 	return (score);
+}
+
+static void
+img_and(img_t *image, img_t *mask)
+{
+	unsigned int x, y, i;
+	img_pixel_t *imgpx, *maskpx;
+
+	assert(image->img_width == mask->img_width);
+	assert(image->img_height == mask->img_height);
+
+	for (y = 0; y < image->img_height; y++) {
+		for (x = 0; x < image->img_width; x++) {
+			i = img_coord(image, x, y);
+			maskpx = &mask->img_pixels[i];
+			imgpx = &image->img_pixels[i];
+
+			imgpx->r &= maskpx->r;
+			imgpx->g &= maskpx->g;
+			imgpx->b &= maskpx->b;
+		}
+	}
 }
 
 inline unsigned int
