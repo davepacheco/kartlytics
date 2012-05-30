@@ -32,7 +32,7 @@
 #define png_jmpbuf(png_ptr) ((png_ptr)->jmpbuf)
 #endif
 
-#define	KV_THRESHOLD_CHAR	0.1
+#define	KV_THRESHOLD_CHAR	0.09
 
 typedef struct img_pixel {
 	uint8_t	r;
