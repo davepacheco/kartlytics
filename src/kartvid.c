@@ -32,7 +32,7 @@
 #define png_jmpbuf(png_ptr) ((png_ptr)->jmpbuf)
 #endif
 
-#define	KV_THRESHOLD_CHAR	0.09
+#define	KV_THRESHOLD_CHAR	0.07
 
 typedef struct img_pixel {
 	uint8_t	r;
@@ -80,7 +80,7 @@ static int kv_ident(img_t *, kv_screen_t *);
 static void kv_ident_matches(kv_screen_t *, const char *);
 static void kv_screen_print(kv_screen_t *, FILE *);
 
-static int kv_debug = 2;
+static int kv_debug = 1;
 static const char* kv_arg0;
 
 int
