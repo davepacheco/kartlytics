@@ -60,11 +60,27 @@ static int cmd_and(int, char *[]);
 static int cmd_compare(int, char *[]);
 static int cmd_image(int, char *[]);
 static int cmd_translatexy(int, char *[]);
-static int cmd_chars(int, char *[]);
+static int cmd_ident(int, char *[]);
 
-static void kv_identify_chars(img_t *);
+#define KV_MAXPLAYERS	4
 
-static int kv_debug = 0;
+typedef struct {
+	char		kp_character[32];	/* name, "" = unknown */
+	short		kp_place;		/* 1-4, 0 = unknown */
+	short		kp_lapnum;		/* 1-3, 0 = unknown, 4 = done */
+} kv_player_t;
+
+typedef struct {
+	unsigned short	ks_nplayers;		/* number of active players */
+	char		ks_track[32];		/* name, "" = unknown */
+	kv_player_t	ks_players[KV_MAXPLAYERS];	/* player details */
+} kv_screen_t;
+
+static int kv_ident(img_t *, kv_screen_t *);
+static void kv_ident_matches(kv_screen_t *, const char *);
+static void kv_screen_print(kv_screen_t *, FILE *);
+
+static int kv_debug = 2;
 static const char* kv_arg0;
 
 int
@@ -85,8 +101,8 @@ main(int argc, char *argv[])
 		status = cmd_and(argc - 2, argv + 2);
 	else if (strcmp(argv[1], "translatexy") == 0)
 		status = cmd_translatexy(argc - 2, argv + 2);
-	else if (strcmp(argv[1], "chars") == 0)
-		status = cmd_chars(argc - 2, argv + 2);
+	else if (strcmp(argv[1], "ident") == 0)
+		status = cmd_ident(argc - 2, argv + 2);
 	else
 		errx(EXIT_USAGE, "usage: %s compare file mask", argv[0]);
 
@@ -249,9 +265,10 @@ cmd_translatexy(int argc, char *argv[])
 }
 
 static int
-cmd_chars(int argc, char *argv[])
+cmd_ident(int argc, char *argv[])
 {
 	img_t *image;
+	kv_screen_t info;
 
 	if (argc < 1) {
 		warnx("expected input filename");
@@ -264,7 +281,12 @@ cmd_chars(int argc, char *argv[])
 		return (EXIT_FAILURE);
 	}
 
-	kv_identify_chars(image);
+	if (kv_ident(image, &info) != 0) {
+		warnx("failed to process image");
+	} else {
+		kv_screen_print(&info, stdout);
+	}
+
 	return (EXIT_SUCCESS);
 }
 
@@ -423,7 +445,7 @@ img_read_png(FILE *fp, const char *filename)
 	depth = png_get_bit_depth(png, pnginfo);
 	png_read_update_info(png, pnginfo);
 
-	if (kv_debug) {
+	if (kv_debug > 3) {
 		(void) printf("PNG image:  %u x %u pixels\n", width, height);
 		(void) printf("bit depth:  %x\n", depth);
 		(void) printf("color type: %x\n", color_type);
@@ -530,7 +552,7 @@ img_compare(img_t *image, img_t *mask)
 	npixels = image->img_height * image->img_width;
 	score = (sum / sqrt(255 * 255 * 3)) / (npixels - nignored);
 
-	if (kv_debug) {
+	if (kv_debug > 3) {
 		(void) printf("total pixels:     %d\n", npixels);
 		(void) printf("ignored pixels:   %d\n", nignored);
 		(void) printf("compared pixels:  %d\n", npixels - nignored);
@@ -610,8 +632,8 @@ img_coord(img_t *image, unsigned int x, unsigned int y)
 	return (x + image->img_width * y);
 }
 
-static void
-kv_identify_chars(img_t *image)
+static int
+kv_ident(img_t *image, kv_screen_t *ksp)
 {
 	img_t *mask;
 	double score;
@@ -620,38 +642,162 @@ kv_identify_chars(img_t *image)
 	char maskname[PATH_MAX];
 	char maskdirname[PATH_MAX];
 
+	/*
+	 * For now, rather than explicitly enumerate the masks and check each
+	 * one, we iterate the masks we have, see which ones match this image,
+	 * and update the screen info accordingly.
+	 */
+	bzero(ksp, sizeof (*ksp));
+
 	(void) snprintf(maskdirname, sizeof (maskdirname),
 	    "%s/../assets/masks", dirname((char *)kv_arg0));
 
 	if ((maskdir = opendir(maskdirname)) == NULL) {
 		warn("failed to opendir %s", maskdirname);
-		return;
+		return (-1);
 	}
 
 	while ((entp = readdir(maskdir)) != NULL) {
-		if (strncmp(entp->d_name, "char_", sizeof ("char_") - 1) != 0)
+		if (strncmp(entp->d_name, "char_", sizeof ("char_") - 1) != 0 &&
+		    strncmp(entp->d_name, "pos", sizeof ("pos") - 1) != 0 &&
+		    strncmp(entp->d_name, "track_", sizeof ("track_") - 1) != 0)
 			continue;
 
-		if (kv_debug)
+		if (kv_debug > 1)
 			(void) printf("mask %-20s: ", entp->d_name);
 
 		(void) snprintf(maskname, sizeof (maskname), "%s/%s",
 		    maskdirname, entp->d_name);
 
 		if ((mask = img_read(maskname)) == NULL) {
-			(void) printf("failed to read image\n");
-			continue;
+			warnx("failed to read %s", maskname);
+			(void) closedir(maskdir);
+			return (-1);
 		}
 
 		score = img_compare(image, mask);
 		img_free(mask);
 
-		if (kv_debug)
+		if (kv_debug > 1)
 			(void) printf("%f\n", score);
 
-		if (score < KV_THRESHOLD_CHAR)
-			(void) printf("%s matches\n", entp->d_name);
+		if (score > KV_THRESHOLD_CHAR)
+			continue;
+
+		kv_ident_matches(ksp, entp->d_name);
 	}
 
 	(void) closedir(maskdir);
+	return (0);
+}
+
+static void
+kv_ident_matches(kv_screen_t *ksp, const char *mask)
+{
+	unsigned int pos, square;
+	char *p;
+	char buf[64];
+
+	if (kv_debug > 0)
+		(void) printf("%s matches\n", mask);
+
+	(void) strlcpy(buf, mask, sizeof (buf));
+
+	if (strncmp(buf, "track_", sizeof ("track_") - 1) == 0) {
+		(void) strtok(buf + sizeof ("track_"), "_.");
+		(void) strlcpy(ksp->ks_track, buf + sizeof ("track_") - 1,
+		    sizeof (ksp->ks_track));
+		return;
+	}
+
+	if (sscanf(buf, "pos%u_square%u.png", &pos, &square) == 2 &&
+	    pos <= KV_MAXPLAYERS && square <= KV_MAXPLAYERS) {
+		if (square > ksp->ks_nplayers)
+			ksp->ks_nplayers = square;
+
+		ksp->ks_players[square - 1].kp_place = pos;
+		return;
+	}
+
+	if (strncmp(buf, "char_", sizeof ("char_") - 1) == 0) {
+		p = strchr(buf + sizeof ("char_") - 1, '_');
+		if (p == NULL)
+			return;
+
+
+		*p = '\0';
+		if (sscanf(p + 1, "%u", &square) != 1 ||
+		    square > KV_MAXPLAYERS)
+			return;
+
+		if (square > ksp->ks_nplayers)
+			ksp->ks_nplayers = square;
+
+		(void) strlcpy(ksp->ks_players[square - 1].kp_character,
+		    buf + sizeof ("char_") - 1,
+		    sizeof (ksp->ks_players[square - 1].kp_character));
+		return;
+	}
+}
+
+static void
+kv_screen_print(kv_screen_t *ksp, FILE *out)
+{
+	int i;
+	kv_player_t *kpp;
+
+	assert(ksp->ks_nplayers <= KV_MAXPLAYERS);
+
+	(void) fprintf(out, "%d players: %s\n", ksp->ks_nplayers,
+	    ksp->ks_track[0] == '\0' ? "Unknown Track" : ksp->ks_track);
+
+	if (ksp->ks_nplayers == 0)
+		return;
+
+	(void) fprintf(out, "%-8s    %-32s    %-4s    %-7s\n", "",
+	    "Character", "Posn", "Lap");
+
+	for (i = 0; i < ksp->ks_nplayers; i++) {
+		(void) fprintf(out, "Player %d    ", i + 1);
+
+		kpp = &ksp->ks_players[i];
+		(void) fprintf(out, "%-32s    ", kpp->kp_character[0] == '\0' ?
+		    "?" : kpp->kp_character);
+
+		switch (kpp->kp_place) {
+		case 0:
+			(void) fprintf(out, "?   ");
+			break;
+		case 1:
+			(void) fprintf(out, "1st ");
+			break;
+		case 2:
+			(void) fprintf(out, "2nd ");
+			break;
+		case 3:
+			(void) fprintf(out, "3rd ");
+			break;
+		case 4:
+			(void) fprintf(out, "4th ");
+			break;
+		default:
+			assert(0 && "invalid position");
+		}
+
+		(void) fprintf(out, "    ");
+
+		switch (kpp->kp_lapnum) {
+		case 0:
+			(void) fprintf(out, "%-7s", "?");
+			break;
+		case 4:
+			(void) fprintf(out, "%-7s", "Done");
+			break;
+		default:
+			assert(kpp->kp_lapnum > 0 && kpp->kp_lapnum < 4);
+			(void) fprintf(out, "Lap %d/3", kpp->kp_lapnum);
+		}
+
+		(void) fprintf(out, "\n");
+	}
 }
