@@ -156,3 +156,15 @@ The next set of data to capture are:
 
 This should be enough to validate the approach.  If it works well, we can gather
 the remaining track images and flesh out the rest.
+
+## XXX TODO
+
+Current status:
+
+- I've created all of the player masks, and they seem to mostly work most of the
+  time, based on using them on mask\_sources/pos\*.png.
+- I've created several track masks automatically.  They don't currently work
+  because I probably need to tweak the threshold score for tracks.
+- Lap detection doesn't work because we have no masks for that yet.
+- Then figure out how to identify start of race frames and implement that, then
+  apply to a whole video to figure out exactly what happened the whole time.
