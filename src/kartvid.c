@@ -4,8 +4,10 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <dirent.h>
 #include <err.h>
 #include <errno.h>
+#include <libgen.h>
 #include <math.h>
 #include <setjmp.h>
 #include <stdint.h>
@@ -17,6 +19,8 @@
 
 #include <png.h>
 
+#define	PATH_MAX	1024
+
 #define	EXIT_SUCCESS	0
 #define	EXIT_FAILURE	1
 #define	EXIT_USAGE	2
@@ -27,6 +31,8 @@
 #ifndef png_jmpbuf
 #define png_jmpbuf(png_ptr) ((png_ptr)->jmpbuf)
 #endif
+
+#define	KV_THRESHOLD_CHAR	0.1
 
 typedef struct img_pixel {
 	uint8_t	r;
@@ -43,22 +49,30 @@ typedef struct img {
 static img_t *img_read(const char *);
 static img_t *img_read_ppm(FILE *, const char *);
 static img_t *img_read_png(FILE *, const char *);
+static img_t *img_translatexy(img_t *, long, long);
 static int img_write_ppm(img_t *, FILE *);
 static void img_free(img_t *);
 inline unsigned int img_coord(img_t *, unsigned int, unsigned int);
 static double img_compare(img_t *, img_t *);
 static void img_and(img_t *, img_t *);
 
-static int cmd_compare(int, char *[]);
 static int cmd_and(int, char *[]);
+static int cmd_compare(int, char *[]);
 static int cmd_image(int, char *[]);
+static int cmd_translatexy(int, char *[]);
+static int cmd_chars(int, char *[]);
+
+static void kv_identify_chars(img_t *);
 
 static int kv_debug = 0;
+static const char* kv_arg0;
 
 int
 main(int argc, char *argv[])
 {
 	int status;
+
+	kv_arg0 = argv[0];
 
 	if (argc < 2)
 		errx(EXIT_USAGE, "usage: %s compare file mask", argv[0]);
@@ -69,6 +83,10 @@ main(int argc, char *argv[])
 		status = cmd_image(argc - 2, argv + 2);
 	else if (strcmp(argv[1], "and") == 0)
 		status = cmd_and(argc - 2, argv + 2);
+	else if (strcmp(argv[1], "translatexy") == 0)
+		status = cmd_translatexy(argc - 2, argv + 2);
+	else if (strcmp(argv[1], "chars") == 0)
+		status = cmd_chars(argc - 2, argv + 2);
 	else
 		errx(EXIT_USAGE, "usage: %s compare file mask", argv[0]);
 
@@ -183,6 +201,71 @@ cmd_and(int argc, char *argv[])
 	img_free(image);
 	img_free(mask);
 	return (rv);
+}
+
+static int
+cmd_translatexy(int argc, char *argv[])
+{
+	img_t *image, *newimage;
+	char *q;
+	FILE *outfp;
+	int rv;
+	long dx, dy;
+
+	if (argc < 4) {
+		warnx("expected infile outfile x-offset y-offset");
+		return (EXIT_USAGE);
+	}
+
+	image = img_read(argv[0]);
+	if (image == NULL)
+		return (EXIT_FAILURE);
+
+	outfp = fopen(argv[1], "w");
+	if (outfp == NULL) {
+		warn("fopen %s", argv[1]);
+		img_free(image);
+		return (EXIT_FAILURE);
+	}
+
+	dx = strtol(argv[2], &q, 0);
+	if (*q != '\0')
+		warnx("x offset value truncated to %d", dx);
+
+	dy = strtol(argv[3], &q, 0);
+	if (*q != '\0')
+		warnx("y offset value truncated to %d", dy);
+
+	newimage = img_translatexy(image, dx, dy);
+	if (newimage == NULL) {
+		warn("failed to translate image");
+		img_free(image);
+		return (EXIT_FAILURE);
+	}
+
+	rv = img_write_ppm(newimage, outfp);
+	img_free(newimage);
+	return (rv);
+}
+
+static int
+cmd_chars(int argc, char *argv[])
+{
+	img_t *image;
+
+	if (argc < 1) {
+		warnx("expected input filename");
+		return (EXIT_USAGE);
+	}
+
+	image = img_read(argv[0]);
+	if (image == NULL) {
+		warnx("failed to read %s", argv[0]);
+		return (EXIT_FAILURE);
+	}
+
+	kv_identify_chars(image);
+	return (EXIT_SUCCESS);
 }
 
 static const char *
@@ -446,11 +529,14 @@ img_compare(img_t *image, img_t *mask)
 	 */
 	npixels = image->img_height * image->img_width;
 	score = (sum / sqrt(255 * 255 * 3)) / (npixels - nignored);
-	(void) printf("total pixels:     %d\n", npixels);
-	(void) printf("ignored pixels:   %d\n", nignored);
-	(void) printf("compared pixels:  %d\n", npixels - nignored);
-	(void) printf("different pixels: %d\n", ndifferent);
-	(void) printf("difference score: %f\n", score);
+
+	if (kv_debug) {
+		(void) printf("total pixels:     %d\n", npixels);
+		(void) printf("ignored pixels:   %d\n", nignored);
+		(void) printf("compared pixels:  %d\n", npixels - nignored);
+		(void) printf("different pixels: %d\n", ndifferent);
+		(void) printf("difference score: %f\n", score);
+	}
 
 	return (score);
 }
@@ -477,10 +563,95 @@ img_and(img_t *image, img_t *mask)
 	}
 }
 
+static img_t *
+img_translatexy(img_t *image, long dx, long dy)
+{
+	img_t *newimg;
+	img_pixel_t *imgpx, *newpx;
+	unsigned int x, y, i;
+	
+	if ((newimg = calloc(1, sizeof (*newimg))) == NULL ||
+	    (newimg->img_pixels = malloc(image->img_width * image->img_height *
+	    sizeof (newimg->img_pixels[0]))) == NULL) {
+		free(newimg);
+		return (NULL);
+	}
+
+	newimg->img_width = image->img_width;
+	newimg->img_height = image->img_height;
+
+	for (y = 0; y < newimg->img_height; y++) {
+		for (x = 0; x < newimg->img_width; x++) {
+			i = img_coord(newimg, x, y);
+			newpx = &newimg->img_pixels[i];
+
+			if (x - dx < 0 || x - dx >= image->img_width ||
+			    y - dy < 0 || y - dy >= image->img_height) {
+				newpx->r = newpx->g = newpx->b = 0;
+				continue;
+			}
+
+			i = img_coord(image, x - dx, y - dy);
+			imgpx = &image->img_pixels[i];
+			newpx->r = imgpx->r;
+			newpx->g = imgpx->g;
+			newpx->b = imgpx->b;
+		}
+	}
+
+	return (newimg);
+}
+
 inline unsigned int
 img_coord(img_t *image, unsigned int x, unsigned int y)
 {
 	assert(x < image->img_width);
 	assert(y < image->img_height);
 	return (x + image->img_width * y);
+}
+
+static void
+kv_identify_chars(img_t *image)
+{
+	img_t *mask;
+	double score;
+	DIR *maskdir;
+	struct dirent *entp;
+	char maskname[PATH_MAX];
+	char maskdirname[PATH_MAX];
+
+	(void) snprintf(maskdirname, sizeof (maskdirname),
+	    "%s/../assets/masks", dirname((char *)kv_arg0));
+
+	if ((maskdir = opendir(maskdirname)) == NULL) {
+		warn("failed to opendir %s", maskdirname);
+		return;
+	}
+
+	while ((entp = readdir(maskdir)) != NULL) {
+		if (strncmp(entp->d_name, "char_", sizeof ("char_") - 1) != 0)
+			continue;
+
+		if (kv_debug)
+			(void) printf("mask %-20s: ", entp->d_name);
+
+		(void) snprintf(maskname, sizeof (maskname), "%s/%s",
+		    maskdirname, entp->d_name);
+
+		if ((mask = img_read(maskname)) == NULL) {
+			(void) printf("failed to read image\n");
+			continue;
+		}
+
+		score = img_compare(image, mask);
+		img_free(mask);
+
+		if (kv_debug)
+			(void) printf("%f\n", score);
+
+		if (score < KV_THRESHOLD_CHAR)
+			(void) printf("%s matches\n", entp->d_name);
+	}
+
+	(void) closedir(maskdir);
 }
