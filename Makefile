@@ -13,7 +13,7 @@ CLEANFILES += cscope.files cscope.out cscope.in.out cscope.po.out
 # mask configuration
 #
 #CHARS = mario luigi peach toad yoshi wario dk bowser
-CHARS = mario peach bowser
+CHARS = mario luigi peach bowser
 MASKS_GENERATED = \
     $(CHARS:%=assets/masks/char_%_2.png)	\
     $(CHARS:%=assets/masks/char_%_2zout.png)	\
