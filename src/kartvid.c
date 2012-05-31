@@ -34,6 +34,7 @@
 
 #define	KV_THRESHOLD_CHAR	0.07
 #define	KV_THRESHOLD_TRACK	0.09
+#define	KV_THRESHOLD_LAKITU	0.04
 
 typedef struct img_pixel {
 	uint8_t	r;
@@ -71,7 +72,12 @@ typedef struct {
 	short		kp_lapnum;		/* 1-3, 0 = unknown, 4 = done */
 } kv_player_t;
 
+typedef enum {
+	KVE_RACE_START = 1,			/* race is starting */
+} kv_events_t;
+
 typedef struct {
+	kv_events_t	ks_events;		/* active events */
 	unsigned short	ks_nplayers;		/* number of active players */
 	char		ks_track[32];		/* name, "" = unknown */
 	kv_player_t	ks_players[KV_MAXPLAYERS];	/* player details */
@@ -134,7 +140,7 @@ cmd_compare(int argc, char *argv[])
 		warnx("image dimensions do not match");
 		rv = EXIT_FAILURE;
 	} else {
-		(void) img_compare(image, mask);
+		(void) printf("%f\n", img_compare(image, mask));
 		rv = EXIT_SUCCESS;
 	}
 
@@ -661,6 +667,8 @@ kv_ident(img_t *image, kv_screen_t *ksp)
 	while ((entp = readdir(maskdir)) != NULL) {
 		if (strncmp(entp->d_name, "char_", sizeof ("char_") - 1) != 0 &&
 		    strncmp(entp->d_name, "pos", sizeof ("pos") - 1) != 0 &&
+		    strncmp(entp->d_name, "lakitu_start",
+		    sizeof ("lakitu_start") - 1) != 0 &&
 		    strncmp(entp->d_name, "track_", sizeof ("track_") - 1) != 0)
 			continue;
 
@@ -684,6 +692,11 @@ kv_ident(img_t *image, kv_screen_t *ksp)
 
 		if (strncmp(entp->d_name, "char_", sizeof ("char_") - 1) == 0 &&
 		    score > KV_THRESHOLD_CHAR)
+			continue;
+
+		if (strncmp(entp->d_name, "lakitu_start",
+		    sizeof ("lakitu_start") - 1) == 0 &&
+		    score > KV_THRESHOLD_LAKITU)
 			continue;
 
 		if (score > KV_THRESHOLD_TRACK)
@@ -743,6 +756,11 @@ kv_ident_matches(kv_screen_t *ksp, const char *mask)
 		    sizeof (ksp->ks_players[square - 1].kp_character));
 		return;
 	}
+
+	if (strncmp(buf, "lakitu_start", sizeof ("lakitu_start") - 1) == 0) {
+		ksp->ks_events |= KVE_RACE_START;
+		return;
+	}
 }
 
 static void
@@ -755,6 +773,9 @@ kv_screen_print(kv_screen_t *ksp, FILE *out)
 
 	(void) fprintf(out, "%d players: %s\n", ksp->ks_nplayers,
 	    ksp->ks_track[0] == '\0' ? "Unknown Track" : ksp->ks_track);
+
+	if (ksp->ks_events & KVE_RACE_START)
+		(void) fprintf(out, "Race starting!\n");
 
 	if (ksp->ks_nplayers == 0)
 		return;
