@@ -33,6 +33,7 @@
 #endif
 
 #define	KV_THRESHOLD_CHAR	0.07
+#define	KV_THRESHOLD_TRACK	0.09
 
 typedef struct img_pixel {
 	uint8_t	r;
@@ -80,7 +81,7 @@ static int kv_ident(img_t *, kv_screen_t *);
 static void kv_ident_matches(kv_screen_t *, const char *);
 static void kv_screen_print(kv_screen_t *, FILE *);
 
-static int kv_debug = 1;
+static int kv_debug = 2;
 static const char* kv_arg0;
 
 int
@@ -681,7 +682,11 @@ kv_ident(img_t *image, kv_screen_t *ksp)
 		if (kv_debug > 1)
 			(void) printf("%f\n", score);
 
-		if (score > KV_THRESHOLD_CHAR)
+		if (strncmp(entp->d_name, "char_", sizeof ("char_") - 1) == 0 &&
+		    score > KV_THRESHOLD_CHAR)
+			continue;
+
+		if (score > KV_THRESHOLD_TRACK)
 			continue;
 
 		kv_ident_matches(ksp, entp->d_name);
