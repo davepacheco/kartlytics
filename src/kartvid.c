@@ -33,7 +33,7 @@
 #endif
 
 #define	KV_THRESHOLD_CHAR	0.15
-#define	KV_THRESHOLD_TRACK	0.09
+#define	KV_THRESHOLD_TRACK	0.11
 #define	KV_THRESHOLD_LAKITU	0.04
 
 typedef struct img_pixel {
@@ -63,6 +63,7 @@ static int cmd_compare(int, char *[]);
 static int cmd_image(int, char *[]);
 static int cmd_translatexy(int, char *[]);
 static int cmd_ident(int, char *[]);
+static int cmd_video(int, char *[]);
 
 #define KV_MAXPLAYERS	4
 
@@ -111,6 +112,8 @@ main(int argc, char *argv[])
 		status = cmd_translatexy(argc - 2, argv + 2);
 	else if (strcmp(argv[1], "ident") == 0)
 		status = cmd_ident(argc - 2, argv + 2);
+	else if (strcmp(argv[1], "video") == 0)
+		status = cmd_video(argc - 2, argv + 2);
 	else
 		errx(EXIT_USAGE, "usage: %s compare file mask", argv[0]);
 
@@ -293,6 +296,45 @@ cmd_ident(int argc, char *argv[])
 		warnx("failed to process image");
 	} else {
 		kv_screen_print(&info, stdout);
+	}
+
+	return (EXIT_SUCCESS);
+}
+
+static int
+cmd_video(int argc, char *argv[])
+{
+	int i;
+	img_t *image;
+	kv_screen_t info;
+
+	int started = 0;
+
+	for (i = 0; i < argc; i++) {
+		(void) fprintf(stderr, "frame %s\n", argv[i]);
+		image = img_read(argv[i]);
+
+		if (image == NULL) {
+			warnx("failed to read %s", argv[i]);
+			continue;
+		}
+
+		kv_ident(image, &info);
+		img_free(image);
+
+		if (!started) {
+			/* Ignore all frames up to the first race start */
+			if (!(info.ks_events & KVE_RACE_START))
+				continue;
+
+			started = 1;
+			(void) printf(".");
+		}
+
+		if (info.ks_events & KVE_RACE_START) {
+			(void) printf("starting race at frame %s\n", argv[i]);
+			kv_screen_print(&info, stdout);
+		}
 	}
 
 	return (EXIT_SUCCESS);
