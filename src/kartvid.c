@@ -32,7 +32,7 @@
 #define png_jmpbuf(png_ptr) ((png_ptr)->jmpbuf)
 #endif
 
-#define	KV_THRESHOLD_CHAR	0.07
+#define	KV_THRESHOLD_CHAR	0.15
 #define	KV_THRESHOLD_TRACK	0.09
 #define	KV_THRESHOLD_LAKITU	0.04
 
@@ -68,6 +68,7 @@ static int cmd_ident(int, char *[]);
 
 typedef struct {
 	char		kp_character[32];	/* name, "" = unknown */
+	double		kp_charscore;		/* score for character match */
 	short		kp_place;		/* 1-4, 0 = unknown */
 	short		kp_lapnum;		/* 1-3, 0 = unknown, 4 = done */
 } kv_player_t;
@@ -84,7 +85,7 @@ typedef struct {
 } kv_screen_t;
 
 static int kv_ident(img_t *, kv_screen_t *);
-static void kv_ident_matches(kv_screen_t *, const char *);
+static void kv_ident_matches(kv_screen_t *, const char *, double);
 static void kv_screen_print(kv_screen_t *, FILE *);
 
 static int kv_debug = 2;
@@ -643,7 +644,7 @@ static int
 kv_ident(img_t *image, kv_screen_t *ksp)
 {
 	img_t *mask;
-	double score;
+	double score, checkthresh;
 	DIR *maskdir;
 	struct dirent *entp;
 	char maskname[PATH_MAX];
@@ -690,19 +691,18 @@ kv_ident(img_t *image, kv_screen_t *ksp)
 		if (kv_debug > 1)
 			(void) printf("%f\n", score);
 
-		if (strncmp(entp->d_name, "char_", sizeof ("char_") - 1) == 0 &&
-		    score > KV_THRESHOLD_CHAR)
+		if (strncmp(entp->d_name, "char_", sizeof ("char_") - 1) == 0)
+			checkthresh = KV_THRESHOLD_CHAR;
+		else if (strncmp(entp->d_name, "lakitu_start",
+		    sizeof ("lakitu_start") - 1) == 0)
+			checkthresh = KV_THRESHOLD_LAKITU;
+		else
+			checkthresh = KV_THRESHOLD_TRACK;
+
+		if (score > checkthresh)
 			continue;
 
-		if (strncmp(entp->d_name, "lakitu_start",
-		    sizeof ("lakitu_start") - 1) == 0 &&
-		    score > KV_THRESHOLD_LAKITU)
-			continue;
-
-		if (score > KV_THRESHOLD_TRACK)
-			continue;
-
-		kv_ident_matches(ksp, entp->d_name);
+		kv_ident_matches(ksp, entp->d_name, score);
 	}
 
 	(void) closedir(maskdir);
@@ -710,10 +710,11 @@ kv_ident(img_t *image, kv_screen_t *ksp)
 }
 
 static void
-kv_ident_matches(kv_screen_t *ksp, const char *mask)
+kv_ident_matches(kv_screen_t *ksp, const char *mask, double score)
 {
 	unsigned int pos, square;
 	char *p;
+	kv_player_t *kpp;
 	char buf[64];
 
 	if (kv_debug > 0)
@@ -742,18 +743,22 @@ kv_ident_matches(kv_screen_t *ksp, const char *mask)
 		if (p == NULL)
 			return;
 
-
 		*p = '\0';
 		if (sscanf(p + 1, "%u", &square) != 1 ||
 		    square > KV_MAXPLAYERS)
 			return;
 
+		kpp = &ksp->ks_players[square - 1];
+
+		if (kpp->kp_character[0] != '\0' && kpp->kp_charscore < score)
+			return;
+
 		if (square > ksp->ks_nplayers)
 			ksp->ks_nplayers = square;
 
-		(void) strlcpy(ksp->ks_players[square - 1].kp_character,
-		    buf + sizeof ("char_") - 1,
-		    sizeof (ksp->ks_players[square - 1].kp_character));
+		(void) strlcpy(kpp->kp_character, buf + sizeof ("char_") - 1,
+		    sizeof (kpp->kp_character));
+		kpp->kp_charscore = score;
 		return;
 	}
 
