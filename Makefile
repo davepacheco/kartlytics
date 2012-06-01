@@ -2,7 +2,7 @@
 # kartvid configuration
 #
 CC = gcc
-CFLAGS = -Wall -Werror
+CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer
 LIBPNG_CPPFLAGS = -I/usr/X11/include
 LIBPNG_LDFLAGS  = -L/usr/X11/lib -lpng
 KARTVID = out/kartvid

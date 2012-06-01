@@ -112,6 +112,10 @@ typedef struct {
 static kv_mask_t kv_masks[KV_MAX_MASKS];
 static int kv_nmasks = 0;
 
+#define KV_MASK_CHAR(s)		(s[0] == 'c')
+#define KV_MASK_TRACK(s)	(s[0] == 't')
+#define	KV_MASK_LAKITU(s)	(s[0] == 'l')
+
 int
 main(int argc, char *argv[])
 {
@@ -837,7 +841,7 @@ kv_init(void)
 }
 
 static int
-kv_ident(img_t *image, kv_screen_t *ksp, boolean_t do_chars)
+kv_ident(img_t *image, kv_screen_t *ksp, boolean_t do_all)
 {
 	int i;
 	double score, checkthresh;
@@ -853,8 +857,8 @@ kv_ident(img_t *image, kv_screen_t *ksp, boolean_t do_chars)
 	for (i = 0; i < kv_nmasks; i++) {
 		kmp = &kv_masks[i];
 
-		if (strncmp(kmp->km_name, "char_", sizeof ("char_") - 1) == 0 &&
-		    !do_chars)
+		if (!do_all &&
+		    (KV_MASK_CHAR(kmp->km_name) || KV_MASK_TRACK(kmp->km_name)))
 			continue;
 
 		score = img_compare(image, kmp->km_image);
@@ -862,10 +866,9 @@ kv_ident(img_t *image, kv_screen_t *ksp, boolean_t do_chars)
 		if (kv_debug > 1)
 			(void) printf("mask %s: %f\n", kmp->km_name, score);
 
-		if (strncmp(kmp->km_name, "char_", sizeof ("char_") - 1) == 0)
+		if (KV_MASK_CHAR(kmp->km_name))
 			checkthresh = KV_THRESHOLD_CHAR;
-		else if (strncmp(kmp->km_name, "lakitu_start",
-		    sizeof ("lakitu_start") - 1) == 0)
+		else if (KV_MASK_LAKITU(kmp->km_name))
 			checkthresh = KV_THRESHOLD_LAKITU;
 		else
 			checkthresh = KV_THRESHOLD_TRACK;
