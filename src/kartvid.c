@@ -25,6 +25,8 @@
 #define	EXIT_FAILURE	1
 #define	EXIT_USAGE	2
 
+typedef enum { B_FALSE, B_TRUE } boolean_t;
+
 /*
  * Older versions of libpng didn't define png_jmpbuf.
  */
@@ -34,8 +36,8 @@
 
 #define	KV_THRESHOLD_CHAR	0.15
 #define	KV_THRESHOLD_TRACK	0.11
-#define	KV_THRESHOLD_LAKITU	0.04
-#define	KV_MIN_RACE_FRAMES	(5 * 30)	/* 5 seconds */
+#define	KV_THRESHOLD_LAKITU	0.08
+#define	KV_MIN_RACE_FRAMES	(2 * 30)	/* 2 seconds */
 
 typedef struct img_pixel {
 	uint8_t	r;
@@ -91,8 +93,10 @@ typedef struct {
 } kv_screen_t;
 
 static int kv_init(void);
-static int kv_ident(img_t *, kv_screen_t *);
+static int kv_ident(img_t *, kv_screen_t *, boolean_t);
 static void kv_ident_matches(kv_screen_t *, const char *, double);
+static int kv_screen_compare(kv_screen_t *, kv_screen_t *);
+static int kv_screen_invalid(kv_screen_t *, kv_screen_t *);
 static void kv_screen_print(kv_screen_t *, FILE *);
 
 static int kv_debug = 1;
@@ -313,7 +317,7 @@ cmd_ident(int argc, char *argv[])
 		return (EXIT_FAILURE);
 	}
 
-	if (kv_ident(image, &info) != 0) {
+	if (kv_ident(image, &info, B_TRUE) != 0) {
 		warnx("failed to process image");
 	} else {
 		kv_screen_print(&info, stdout);
@@ -327,7 +331,8 @@ cmd_video(int argc, char *argv[])
 {
 	int i;
 	img_t *image;
-	kv_screen_t info;
+	kv_screen_t ks, pks;
+	kv_screen_t *ksp, *pksp;
 
 	int last_start = -1;
 
@@ -335,6 +340,9 @@ cmd_video(int argc, char *argv[])
 		warnx("failed to initialize masks");
 		return (EXIT_USAGE);
 	}
+
+	ksp = &ks;
+	pksp = &pks;
 
 	for (i = 0; i < argc; i++) {
 		/*
@@ -354,18 +362,33 @@ cmd_video(int argc, char *argv[])
 			continue;
 		}
 
-		kv_ident(image, &info);
+		kv_ident(image, ksp, B_FALSE);
 		img_free(image);
 
-		/* Ignore all frames up to the first race starts. */
-		if (last_start == -1 && !(info.ks_events & KVE_RACE_START))
+		if (ksp->ks_events & KVE_RACE_START) {
+			kv_ident(image, ksp, B_TRUE);
+			last_start = i;
+			*pksp = *ksp;
+			(void) printf("%s (time %dm:%02ds): ", argv[i],
+			    i / 30 / 60, (i / 30) % 60);
+			kv_screen_print(ksp, stdout);
+			continue;
+		}
+
+		/* Ignore frames up to the first race start. */
+		if (last_start == -1)
 			continue;
 
-		if (info.ks_events & KVE_RACE_START) {
-			last_start = i;
-			(void) printf("starting race at frame %s\n", argv[i]);
-			kv_screen_print(&info, stdout);
-		}
+		if (kv_screen_invalid(ksp, pksp))
+			continue;
+
+		if (kv_screen_compare(ksp, pksp) == 0)
+			continue;
+
+		(void) printf("%s (time %dm:%02ds): ", argv[i],
+		    i / 30 / 60, (i / 30) % 60);
+		kv_screen_print(ksp, stdout);
+		*pksp = *ksp;
 	}
 
 	return (EXIT_SUCCESS);
@@ -814,7 +837,7 @@ kv_init(void)
 }
 
 static int
-kv_ident(img_t *image, kv_screen_t *ksp)
+kv_ident(img_t *image, kv_screen_t *ksp, boolean_t do_chars)
 {
 	int i;
 	double score, checkthresh;
@@ -829,6 +852,11 @@ kv_ident(img_t *image, kv_screen_t *ksp)
 
 	for (i = 0; i < kv_nmasks; i++) {
 		kmp = &kv_masks[i];
+
+		if (strncmp(kmp->km_name, "char_", sizeof ("char_") - 1) == 0 &&
+		    !do_chars)
+			continue;
+
 		score = img_compare(image, kmp->km_image);
 
 		if (kv_debug > 1)
@@ -910,6 +938,63 @@ kv_ident_matches(kv_screen_t *ksp, const char *mask, double score)
 	}
 }
 
+/*
+ * Returns whether the given screen is invalid for the same race as pksp.  This
+ * is used to skip frames that show transient invalid state.
+ */
+static int
+kv_screen_invalid(kv_screen_t *ksp, kv_screen_t *pksp)
+{
+	int i, j;
+
+	/*
+	 * The number of players shouldn't actually change during a race, but we
+	 * can fail to detect the correct number of players when the position
+	 * numerals are transitioning.
+	 */
+	if (ksp->ks_nplayers != pksp->ks_nplayers)
+		return (1);
+
+	for (i = 0; i < ksp->ks_nplayers; i++) {
+		if (ksp->ks_players[i].kp_place == 0)
+			return (1);
+	}
+
+	for (i = 0; i < ksp->ks_nplayers; i++) {
+		for (j = i + 1; j < ksp->ks_nplayers; j++) {
+			if (ksp->ks_players[i].kp_place ==
+			    ksp->ks_players[j].kp_place)
+				return (1);
+		}
+	}
+
+	return (0);
+}
+
+static int
+kv_screen_compare(kv_screen_t *ksp, kv_screen_t *pksp)
+{
+	int i;
+	kv_player_t *kpp, *pkpp;
+
+	if (ksp->ks_nplayers != pksp->ks_nplayers)
+		return (1);
+
+	if (strcmp(ksp->ks_track, pksp->ks_track) != 0)
+		return (1);
+
+	for (i = 0; i < ksp->ks_nplayers; i++) {
+		kpp = &ksp->ks_players[i];
+		pkpp = &pksp->ks_players[i];
+
+		if (kpp->kp_place != pkpp->kp_place ||
+		    kpp->kp_lapnum != pkpp->kp_lapnum)
+			return (1);
+	}
+
+	return (0);
+}
+
 static void
 kv_screen_print(kv_screen_t *ksp, FILE *out)
 {
@@ -918,11 +1003,11 @@ kv_screen_print(kv_screen_t *ksp, FILE *out)
 
 	assert(ksp->ks_nplayers <= KV_MAXPLAYERS);
 
-	(void) fprintf(out, "%d players: %s\n", ksp->ks_nplayers,
-	    ksp->ks_track[0] == '\0' ? "Unknown Track" : ksp->ks_track);
-
 	if (ksp->ks_events & KVE_RACE_START)
 		(void) fprintf(out, "Race starting!\n");
+
+	(void) fprintf(out, "%d players: %s\n", ksp->ks_nplayers,
+	    ksp->ks_track[0] == '\0' ? "Unknown Track" : ksp->ks_track);
 
 	if (ksp->ks_nplayers == 0)
 		return;
