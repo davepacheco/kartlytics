@@ -35,6 +35,7 @@
 #define	KV_THRESHOLD_CHAR	0.15
 #define	KV_THRESHOLD_TRACK	0.11
 #define	KV_THRESHOLD_LAKITU	0.04
+#define	KV_MIN_RACE_FRAMES	(5 * 30)	/* 5 seconds */
 
 typedef struct img_pixel {
 	uint8_t	r;
@@ -45,6 +46,10 @@ typedef struct img_pixel {
 typedef struct img {
 	unsigned int	img_width;
 	unsigned int	img_height;
+	unsigned int	img_minx;
+	unsigned int	img_maxx;
+	unsigned int	img_miny;
+	unsigned int	img_maxy;
 	img_pixel_t	*img_pixels;
 } img_t;
 
@@ -85,12 +90,23 @@ typedef struct {
 	kv_player_t	ks_players[KV_MAXPLAYERS];	/* player details */
 } kv_screen_t;
 
+static int kv_init(void);
 static int kv_ident(img_t *, kv_screen_t *);
 static void kv_ident_matches(kv_screen_t *, const char *, double);
 static void kv_screen_print(kv_screen_t *, FILE *);
 
-static int kv_debug = 2;
+static int kv_debug = 1;
 static const char* kv_arg0;
+
+typedef struct {
+	char		km_name[64];
+	img_t		*km_image;
+} kv_mask_t;
+
+#define	KV_MAX_MASKS	128
+
+static kv_mask_t kv_masks[KV_MAX_MASKS];
+static int kv_nmasks = 0;
 
 int
 main(int argc, char *argv[])
@@ -286,6 +302,11 @@ cmd_ident(int argc, char *argv[])
 		return (EXIT_USAGE);
 	}
 
+	if (kv_init() != 0) {
+		warnx("failed to initialize masks");
+		return (EXIT_USAGE);
+	}
+
 	image = img_read(argv[0]);
 	if (image == NULL) {
 		warnx("failed to read %s", argv[0]);
@@ -308,10 +329,24 @@ cmd_video(int argc, char *argv[])
 	img_t *image;
 	kv_screen_t info;
 
-	int started = 0;
+	int last_start = -1;
+
+	if (kv_init() != 0) {
+		warnx("failed to initialize masks");
+		return (EXIT_USAGE);
+	}
 
 	for (i = 0; i < argc; i++) {
-		(void) fprintf(stderr, "frame %s\n", argv[i]);
+		/*
+		 * Ignore the first KV_MIN_RACE_FRAMES after a starting frame.
+		 * This avoids catching what may look like multiple "start"
+		 * frames right next to each other, and also avoids pointless
+		 * changes in player position in the first few seconds of the
+		 * race.
+		 */
+		if (last_start != -1 && i - last_start < KV_MIN_RACE_FRAMES)
+			continue;
+
 		image = img_read(argv[i]);
 
 		if (image == NULL) {
@@ -322,16 +357,12 @@ cmd_video(int argc, char *argv[])
 		kv_ident(image, &info);
 		img_free(image);
 
-		if (!started) {
-			/* Ignore all frames up to the first race start */
-			if (!(info.ks_events & KVE_RACE_START))
-				continue;
-
-			started = 1;
-			(void) printf(".");
-		}
+		/* Ignore all frames up to the first race starts. */
+		if (last_start == -1 && !(info.ks_events & KVE_RACE_START))
+			continue;
 
 		if (info.ks_events & KVE_RACE_START) {
+			last_start = i;
 			(void) printf("starting race at frame %s\n", argv[i]);
 			kv_screen_print(&info, stdout);
 		}
@@ -359,6 +390,8 @@ img_read(const char *filename)
 {
 	FILE *fp;
 	img_t *rv;
+	int x, y, i;
+	img_pixel_t *imagepx;
 	char buffer[3];
 
 	if ((fp = fopen(filename, "r")) == NULL) {
@@ -381,6 +414,35 @@ img_read(const char *filename)
 	}
 
 	(void) fclose(fp);
+
+	/*
+	 * Compute the bounding box for the image, which is used as an
+	 * optimization when operating on masks.
+	 */
+	rv->img_maxx = 0;
+	rv->img_minx = rv->img_width;
+	rv->img_maxy = 0;
+	rv->img_miny = rv->img_height;
+
+	for (y = 0; y < rv->img_height; y++) {
+		for (x = 0; x < rv->img_width; x++) {
+			i = img_coord(rv, x, y);
+			imagepx = &rv->img_pixels[i];
+
+			if (imagepx->r < 2 && imagepx->g < 2 && imagepx->b < 2)
+				continue;
+
+			if (x < rv->img_minx)
+				rv->img_minx = x;
+			if (x + 1 > rv->img_maxx)
+				rv->img_maxx = x + 1;
+			if (y < rv->img_miny)
+				rv->img_miny = y;
+			if (y + 1 > rv->img_maxy)
+				rv->img_maxy = y + 1;
+		}
+	}
+
 	return (rv);
 }
 
@@ -557,7 +619,7 @@ img_compare(img_t *image, img_t *mask)
 	unsigned int x, y, i;
 	unsigned int dr, dg, db, dz2;
 	unsigned int npixels;
-	unsigned int nignored = 0, ndifferent = 0;
+	unsigned int ncompared = 0, nignored = 0, ndifferent = 0;
 	double sum = 0;
 	double score;
 	img_pixel_t *imgpx, *maskpx;
@@ -565,8 +627,8 @@ img_compare(img_t *image, img_t *mask)
 	assert(image->img_width == mask->img_width);
 	assert(image->img_height == mask->img_height);
 
-	for (y = 0; y < image->img_height; y++) {
-		for (x = 0; x < image->img_width; x++) {
+	for (y = mask->img_miny; y < mask->img_maxy; y++) {
+		for (x = mask->img_minx; x < mask->img_maxx; x++) {
 			i = img_coord(image, x, y);
 			maskpx = &mask->img_pixels[i];
 			imgpx = &image->img_pixels[i];
@@ -579,6 +641,7 @@ img_compare(img_t *image, img_t *mask)
 				continue;
 			}
 
+			ncompared++;
 			dr = maskpx->r - imgpx->r;
 			dg = maskpx->g - imgpx->g;
 			db = maskpx->b - imgpx->b;
@@ -600,12 +663,12 @@ img_compare(img_t *image, img_t *mask)
 	 * maximum possible distance.
 	 */
 	npixels = image->img_height * image->img_width;
-	score = (sum / sqrt(255 * 255 * 3)) / (npixels - nignored);
+	score = (sum / sqrt(255 * 255 * 3)) / ncompared;
 
 	if (kv_debug > 3) {
 		(void) printf("total pixels:     %d\n", npixels);
 		(void) printf("ignored pixels:   %d\n", nignored);
-		(void) printf("compared pixels:  %d\n", npixels - nignored);
+		(void) printf("compared pixels:  %d\n", ncompared);
 		(void) printf("different pixels: %d\n", ndifferent);
 		(void) printf("difference score: %f\n", score);
 	}
@@ -683,22 +746,24 @@ img_coord(img_t *image, unsigned int x, unsigned int y)
 }
 
 static int
-kv_ident(img_t *image, kv_screen_t *ksp)
+kv_init(void)
 {
 	img_t *mask;
-	double score, checkthresh;
+	kv_mask_t *kmp;
 	DIR *maskdir;
 	struct dirent *entp;
 	char maskname[PATH_MAX];
 	char maskdirname[PATH_MAX];
+
+	if (kv_nmasks > 0)
+		/* already initialized */
+		return (0);
 
 	/*
 	 * For now, rather than explicitly enumerate the masks and check each
 	 * one, we iterate the masks we have, see which ones match this image,
 	 * and update the screen info accordingly.
 	 */
-	bzero(ksp, sizeof (*ksp));
-
 	(void) snprintf(maskdirname, sizeof (maskdirname),
 	    "%s/../assets/masks", dirname((char *)kv_arg0));
 
@@ -708,6 +773,12 @@ kv_ident(img_t *image, kv_screen_t *ksp)
 	}
 
 	while ((entp = readdir(maskdir)) != NULL) {
+		if (kv_nmasks == KV_MAX_MASKS) {
+			warnx("too many masks (over %d)", KV_MAX_MASKS);
+			(void) closedir(maskdir);
+			return (-1);
+		}
+
 		if (strncmp(entp->d_name, "char_", sizeof ("char_") - 1) != 0 &&
 		    strncmp(entp->d_name, "pos", sizeof ("pos") - 1) != 0 &&
 		    strncmp(entp->d_name, "lakitu_start",
@@ -715,8 +786,8 @@ kv_ident(img_t *image, kv_screen_t *ksp)
 		    strncmp(entp->d_name, "track_", sizeof ("track_") - 1) != 0)
 			continue;
 
-		if (kv_debug > 1)
-			(void) printf("mask %-20s: ", entp->d_name);
+		if (kv_debug > 2)
+			(void) printf("reading mask %-20s: ", entp->d_name);
 
 		(void) snprintf(maskname, sizeof (maskname), "%s/%s",
 		    maskdirname, entp->d_name);
@@ -727,15 +798,45 @@ kv_ident(img_t *image, kv_screen_t *ksp)
 			return (-1);
 		}
 
-		score = img_compare(image, mask);
-		img_free(mask);
+		kmp = &kv_masks[kv_nmasks++];
+		kmp->km_image = mask;
+		(void) strlcpy(kmp->km_name, entp->d_name,
+		    sizeof (kmp->km_name));
+
+		if (kv_debug > 2)
+			(void) printf("bounded [%d, %d] to [%d, %d]\n",
+			    mask->img_minx, mask->img_miny, mask->img_maxx,
+			    mask->img_maxy);
+	}
+
+	(void) closedir(maskdir);
+	return (0);
+}
+
+static int
+kv_ident(img_t *image, kv_screen_t *ksp)
+{
+	int i;
+	double score, checkthresh;
+	kv_mask_t *kmp;
+
+	/*
+	 * For now, rather than explicitly enumerate the masks and check each
+	 * one, we iterate the masks we have, see which ones match this image,
+	 * and update the screen info accordingly.
+	 */
+	bzero(ksp, sizeof (*ksp));
+
+	for (i = 0; i < kv_nmasks; i++) {
+		kmp = &kv_masks[i];
+		score = img_compare(image, kmp->km_image);
 
 		if (kv_debug > 1)
-			(void) printf("%f\n", score);
+			(void) printf("mask %s: %f\n", kmp->km_name, score);
 
-		if (strncmp(entp->d_name, "char_", sizeof ("char_") - 1) == 0)
+		if (strncmp(kmp->km_name, "char_", sizeof ("char_") - 1) == 0)
 			checkthresh = KV_THRESHOLD_CHAR;
-		else if (strncmp(entp->d_name, "lakitu_start",
+		else if (strncmp(kmp->km_name, "lakitu_start",
 		    sizeof ("lakitu_start") - 1) == 0)
 			checkthresh = KV_THRESHOLD_LAKITU;
 		else
@@ -744,10 +845,9 @@ kv_ident(img_t *image, kv_screen_t *ksp)
 		if (score > checkthresh)
 			continue;
 
-		kv_ident_matches(ksp, entp->d_name, score);
+		kv_ident_matches(ksp, kmp->km_name, score);
 	}
 
-	(void) closedir(maskdir);
 	return (0);
 }
 
@@ -759,7 +859,7 @@ kv_ident_matches(kv_screen_t *ksp, const char *mask, double score)
 	kv_player_t *kpp;
 	char buf[64];
 
-	if (kv_debug > 0)
+	if (kv_debug > 1)
 		(void) printf("%s matches\n", mask);
 
 	(void) strlcpy(buf, mask, sizeof (buf));
