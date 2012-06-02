@@ -6,6 +6,7 @@
 #include <libgen.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include <png.h>
 
@@ -48,25 +49,40 @@ int kv_debug = 0;
 int
 main(int argc, char *argv[])
 {
+	char c;
 	int i, status;
 	kv_cmd_t *kcp = NULL;
 
 	kv_arg0 = argv[0];
 
-	if (argc < 2)
+	while ((c = getopt(argc, argv, "d")) != -1) {
+		switch (c) {
+		case 'd':
+			kv_debug++;
+			break;
+		case '?':
+		default:
+			usage(NULL);
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1)
 		usage("too few arguments");
 
 	for (i = 0; i < kv_ncommands; i++) {
 		kcp = &kv_commands[i];
 
-		if (strcmp(argv[1], kcp->kvc_name) == 0)
+		if (strcmp(argv[0], kcp->kvc_name) == 0)
 			break;
 	}
 
 	if (i == kv_ncommands)
 		usage("unknown command");
 
-	status = kcp->kvc_func(argc - 2, argv + 2);
+	status = kcp->kvc_func(argc - 1, argv + 1);
 
 	if (status == EXIT_USAGE)
 		usage("missing arguments");
@@ -82,7 +98,9 @@ usage(const char *message)
 	kv_cmd_t *kcp;
 
 	name = basename((char *)kv_arg0);
-	warnx("too few arguments");
+
+	if (message != NULL)
+		warnx(message);
 
 	for (i = 0; i < kv_ncommands; i++) {
 		kcp = &kv_commands[i];
@@ -94,6 +112,9 @@ usage(const char *message)
 	exit(EXIT_USAGE);
 }
 
+/*
+ * compare image mask: compute a difference score for the given image and mask.
+ */
 static int
 cmd_compare(int argc, char *argv[])
 {
@@ -125,6 +146,9 @@ cmd_compare(int argc, char *argv[])
 	return (rv);
 }
 
+/*
+ * and input1 input2 output: logical-and pixels of two images
+ */
 static int
 cmd_and(int argc, char *argv[])
 {
@@ -165,6 +189,9 @@ cmd_and(int argc, char *argv[])
 	return (rv);
 }
 
+/*
+ * translatexy input output xoffset yoffset: shift an image by the given offsets
+ */
 static int
 cmd_translatexy(int argc, char *argv[])
 {
@@ -208,6 +235,9 @@ cmd_translatexy(int argc, char *argv[])
 	return (rv);
 }
 
+/*
+ * ident input: identify the game state described in a given image
+ */
 static int
 cmd_ident(int argc, char *argv[])
 {
@@ -237,6 +267,9 @@ cmd_ident(int argc, char *argv[])
 	return (EXIT_SUCCESS);
 }
 
+/*
+ * video input ...: emit events describing game state changes in a video
+ */
 static int
 cmd_video(int argc, char *argv[])
 {

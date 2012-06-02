@@ -7,22 +7,23 @@
 #include <err.h>
 
 #include "kv.h"
+extern int kv_debug;
 
-#define	KV_MAX_MASKS	128
-
-#define KV_MASK_CHAR(s)		(s[0] == 'c')
-#define KV_MASK_TRACK(s)	(s[0] == 't')
-#define	KV_MASK_LAKITU(s)	(s[0] == 'l')
-
+/*
+ * All masks are loaded by kv_init() and cached in kv_masks.
+ */
 typedef struct {
 	char		km_name[64];
 	img_t		*km_image;
 } kv_mask_t;
 
+#define	KV_MAX_MASKS	128
 static kv_mask_t kv_masks[KV_MAX_MASKS];
 static int kv_nmasks = 0;
 
-extern int kv_debug;
+#define KV_MASK_CHAR(s)		(s[0] == 'c')
+#define KV_MASK_TRACK(s)	(s[0] == 't')
+#define	KV_MASK_LAKITU(s)	(s[0] == 'l')
 
 int
 kv_init(const char *dirname)
@@ -99,11 +100,6 @@ kv_ident(img_t *image, kv_screen_t *ksp, boolean_t do_all)
 	double score, checkthresh;
 	kv_mask_t *kmp;
 
-	/*
-	 * For now, rather than explicitly enumerate the masks and check each
-	 * one, we iterate the masks we have, see which ones match this image,
-	 * and update the screen info accordingly.
-	 */
 	bzero(ksp, sizeof (*ksp));
 
 	for (i = 0; i < kv_nmasks; i++) {
@@ -134,6 +130,9 @@ kv_ident(img_t *image, kv_screen_t *ksp, boolean_t do_all)
 	return (0);
 }
 
+/*
+ * Update the screen state (ksp) to reflect that a mask matched this frame.
+ */
 void
 kv_ident_matches(kv_screen_t *ksp, const char *mask, double score)
 {
@@ -226,17 +225,18 @@ kv_screen_invalid(kv_screen_t *ksp, kv_screen_t *pksp)
 	return (0);
 }
 
+/*
+ * Returns true if the two game states are logically different.  Two game states
+ * are different if the players' positions or lap numbers have changed.  We
+ * ignore changes in the track and characters, since those are only sometimes
+ * detected properly.  Higher-level code should be checking whether the race has
+ * changed by looking for the race start event.
+ */
 int
 kv_screen_compare(kv_screen_t *ksp, kv_screen_t *pksp)
 {
 	int i;
 	kv_player_t *kpp, *pkpp;
-
-	if (ksp->ks_nplayers != pksp->ks_nplayers)
-		return (1);
-
-	if (strcmp(ksp->ks_track, pksp->ks_track) != 0)
-		return (1);
 
 	for (i = 0; i < ksp->ks_nplayers; i++) {
 		kpp = &ksp->ks_players[i];
@@ -250,6 +250,9 @@ kv_screen_compare(kv_screen_t *ksp, kv_screen_t *pksp)
 	return (0);
 }
 
+/*
+ * Print a given game state.
+ */
 void
 kv_screen_print(kv_screen_t *ksp, FILE *out)
 {

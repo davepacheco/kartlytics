@@ -381,5 +381,3 @@ img_coord(img_t *image, unsigned int x, unsigned int y)
 	assert(y < image->img_height);
 	return (x + image->img_width * y);
 }
-
-
