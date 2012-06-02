@@ -264,13 +264,15 @@ kv_screen_compare(kv_screen_t *ksp, kv_screen_t *pksp)
 }
 
 /*
- * Print a given game state.
+ * Print a given frame state.  If raceksp is specified, it will be used to print
+ * values that are unknown in the current frame.
  */
 void
-kv_screen_print(kv_screen_t *ksp, FILE *out)
+kv_screen_print(kv_screen_t *ksp, kv_screen_t *raceksp, FILE *out)
 {
 	int i;
 	kv_player_t *kpp;
+	char *trackname, *charname;
 
 	assert(ksp->ks_nplayers <= KV_MAXPLAYERS);
 
@@ -279,8 +281,13 @@ kv_screen_print(kv_screen_t *ksp, FILE *out)
 	if (ksp->ks_events & KVE_RACE_DONE)
 		(void) fprintf(out, "Race has finished.\n");
 
-	(void) fprintf(out, "%d players: %s\n", ksp->ks_nplayers,
-	    ksp->ks_track[0] == '\0' ? "Unknown Track" : ksp->ks_track);
+	trackname = ksp->ks_track;
+	if (trackname[0] == '\0' && raceksp != NULL)
+		trackname = raceksp->ks_track;
+	if (trackname[0] == '\0')
+		trackname = "Unknown Track";
+
+	(void) fprintf(out, "%d players: %s\n", ksp->ks_nplayers, trackname);
 
 	if (ksp->ks_nplayers == 0)
 		return;
@@ -292,8 +299,13 @@ kv_screen_print(kv_screen_t *ksp, FILE *out)
 		(void) fprintf(out, "Player %d    ", i + 1);
 
 		kpp = &ksp->ks_players[i];
-		(void) fprintf(out, "%-32s    ", kpp->kp_character[0] == '\0' ?
-		    "?" : kpp->kp_character);
+		charname = kpp->kp_character;
+		if (charname[0] == '\0' && raceksp != NULL)
+			charname = raceksp->ks_players[i].kp_character;
+		if (charname[0] == '\0')
+			charname = "?";
+
+		(void) fprintf(out, "%-32s    ", charname);
 
 		switch (kpp->kp_place) {
 		case 0:
@@ -319,7 +331,7 @@ kv_screen_print(kv_screen_t *ksp, FILE *out)
 
 		switch (kpp->kp_lapnum) {
 		case 0:
-			(void) fprintf(out, "%-7s", "?");
+			(void) fprintf(out, "%-7s", "");
 			break;
 		case 4:
 			(void) fprintf(out, "%-7s", "Done");

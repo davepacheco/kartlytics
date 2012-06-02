@@ -116,11 +116,11 @@ a track in the starting position to generate the track's mask.
 # Roadmap
 
 This project is still just a prototype.  Currently, on at least some input, it's
-able to identify the start of the race, the characters playing, and the
-positions of each player during the race.  Remaining items include:
+able to identify the start of the race, the characters playing, the positions of
+each player during the race, and the end of the race.  Remaining items include:
 
+- emit JSON for race events
 - detect lap completion
-- detect race completion
 - build masks for the remaining tracks
 - import video directly, rather than requiring individual frames
 
