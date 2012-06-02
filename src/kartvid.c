@@ -19,25 +19,13 @@
 
 #include <png.h>
 
-#define	PATH_MAX	1024
+#include "compat.h"
 
-#define	EXIT_SUCCESS	0
-#define	EXIT_FAILURE	1
-#define	EXIT_USAGE	2
-
-typedef enum { B_FALSE, B_TRUE } boolean_t;
-
-/*
- * Older versions of libpng didn't define png_jmpbuf.
- */
-#ifndef png_jmpbuf
-#define png_jmpbuf(png_ptr) ((png_ptr)->jmpbuf)
-#endif
-
+#define	KV_FRAMERATE		29.97
 #define	KV_THRESHOLD_CHAR	0.15
 #define	KV_THRESHOLD_TRACK	0.11
 #define	KV_THRESHOLD_LAKITU	0.08
-#define	KV_MIN_RACE_FRAMES	(2 * 30)	/* 2 seconds */
+#define	KV_MIN_RACE_FRAMES	(2 * KV_FRAMERATE)	/* 2 seconds */
 
 typedef struct img_pixel {
 	uint8_t	r;
@@ -374,7 +362,8 @@ cmd_video(int argc, char *argv[])
 			last_start = i;
 			*pksp = *ksp;
 			(void) printf("%s (time %dm:%02ds): ", argv[i],
-			    i / 30 / 60, (i / 30) % 60);
+			    (int)(i / KV_FRAMERATE) / 60,
+			    (int)(i / KV_FRAMERATE) % 60);
 			kv_screen_print(ksp, stdout);
 			continue;
 		}
