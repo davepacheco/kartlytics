@@ -27,7 +27,8 @@ typedef struct {
 } kv_player_t;
 
 typedef enum {
-	KVE_RACE_START = 1,			/* race is starting */
+	KVE_RACE_START = 0x1,			/* race is starting */
+	KVE_RACE_DONE  = 0x2,			/* race has ended */
 } kv_events_t;
 
 typedef struct {

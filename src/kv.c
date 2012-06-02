@@ -96,7 +96,7 @@ kv_init(const char *dirname)
 int
 kv_ident(img_t *image, kv_screen_t *ksp, boolean_t do_all)
 {
-	int i;
+	int i, ndone;
 	double score, checkthresh;
 	kv_mask_t *kmp;
 
@@ -127,6 +127,15 @@ kv_ident(img_t *image, kv_screen_t *ksp, boolean_t do_all)
 		kv_ident_matches(ksp, kmp->km_name, score);
 	}
 
+	ndone = 0;
+	for (i = 0; i < ksp->ks_nplayers; i++) {
+		if (ksp->ks_players[i].kp_lapnum == 4)
+			ndone++;
+	}
+
+	if (ndone >= ksp->ks_nplayers - 1)
+		ksp->ks_events |= KVE_RACE_DONE;
+
 	return (0);
 }
 
@@ -153,12 +162,16 @@ kv_ident_matches(kv_screen_t *ksp, const char *mask, double score)
 		return;
 	}
 
-	if (sscanf(buf, "pos%u_square%u.png", &pos, &square) == 2 &&
+	if (sscanf(buf, "pos%u_square%u", &pos, &square) == 2 &&
 	    pos <= KV_MAXPLAYERS && square <= KV_MAXPLAYERS) {
 		if (square > ksp->ks_nplayers)
 			ksp->ks_nplayers = square;
 
 		ksp->ks_players[square - 1].kp_place = pos;
+
+		if (strcmp(buf + sizeof ("pos1_square1") - 1,
+		    "_final.png") == 0)
+			ksp->ks_players[square - 1].kp_lapnum = 4;
 		return;
 	}
 
@@ -263,6 +276,8 @@ kv_screen_print(kv_screen_t *ksp, FILE *out)
 
 	if (ksp->ks_events & KVE_RACE_START)
 		(void) fprintf(out, "Race starting!\n");
+	if (ksp->ks_events & KVE_RACE_DONE)
+		(void) fprintf(out, "Race has finished.\n");
 
 	(void) fprintf(out, "%d players: %s\n", ksp->ks_nplayers,
 	    ksp->ks_track[0] == '\0' ? "Unknown Track" : ksp->ks_track);
