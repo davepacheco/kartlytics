@@ -7,6 +7,7 @@ LIBPNG_CPPFLAGS = -I/usr/X11/include
 LIBPNG_LDFLAGS  = -L/usr/X11/lib -lpng
 KARTVID = out/kartvid
 CLEANFILES += $(KARTVID)
+CLEANFILES += out/kartvid.o out/img.o out/kv.o
 CLEANFILES += cscope.files cscope.out cscope.in.out cscope.po.out
 
 #
@@ -33,9 +34,11 @@ out:
 #
 # kartvid targets
 #
-$(KARTVID): src/kartvid.c | out
-	$(CC) -o $@ $(CPPFLAGS) $(CFLAGS) \
-	    $(LIBPNG_CPPFLAGS) $(LIBPNG_LDFLAGS) $^
+out/%.o: src/%.c | out
+	$(CC) -c -o $@ $(CPPFLAGS) $(LIBPNG_CPPFLAGS) $(CFLAGS) $^
+
+$(KARTVID): out/kartvid.o out/img.o out/kv.o | out
+	$(CC) -o $@ $(LIBPNG_LDFLAGS) $^
 
 #
 # mask targets

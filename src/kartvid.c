@@ -2,134 +2,96 @@
  * kartvid.c: primordial image processing for Mario Kart 64 analytics
  */
 
-#include <assert.h>
-#include <ctype.h>
-#include <dirent.h>
 #include <err.h>
-#include <errno.h>
 #include <libgen.h>
-#include <math.h>
-#include <setjmp.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <sys/types.h>
-#include <unistd.h>
 
 #include <png.h>
 
 #include "compat.h"
+#include "img.h"
+#include "kv.h"
 
-#define	KV_FRAMERATE		29.97
-#define	KV_THRESHOLD_CHAR	0.15
-#define	KV_THRESHOLD_TRACK	0.11
-#define	KV_THRESHOLD_LAKITU	0.08
-#define	KV_MIN_RACE_FRAMES	(2 * KV_FRAMERATE)	/* 2 seconds */
-
-typedef struct img_pixel {
-	uint8_t	r;
-	uint8_t g;
-	uint8_t b;
-} img_pixel_t;
-
-typedef struct img {
-	unsigned int	img_width;
-	unsigned int	img_height;
-	unsigned int	img_minx;
-	unsigned int	img_maxx;
-	unsigned int	img_miny;
-	unsigned int	img_maxy;
-	img_pixel_t	*img_pixels;
-} img_t;
-
-static img_t *img_read(const char *);
-static img_t *img_read_ppm(FILE *, const char *);
-static img_t *img_read_png(FILE *, const char *);
-static img_t *img_translatexy(img_t *, long, long);
-static int img_write_ppm(img_t *, FILE *);
-static void img_free(img_t *);
-inline unsigned int img_coord(img_t *, unsigned int, unsigned int);
-static double img_compare(img_t *, img_t *);
-static void img_and(img_t *, img_t *);
-
+static void usage(const char *);
 static int cmd_and(int, char *[]);
 static int cmd_compare(int, char *[]);
-static int cmd_image(int, char *[]);
 static int cmd_translatexy(int, char *[]);
 static int cmd_ident(int, char *[]);
 static int cmd_video(int, char *[]);
 
-#define KV_MAXPLAYERS	4
-
 typedef struct {
-	char		kp_character[32];	/* name, "" = unknown */
-	double		kp_charscore;		/* score for character match */
-	short		kp_place;		/* 1-4, 0 = unknown */
-	short		kp_lapnum;		/* 1-3, 0 = unknown, 4 = done */
-} kv_player_t;
+	const char 	 *kvc_name;
+	int		(*kvc_func)(int, char *[]);
+	const char 	 *kvc_args;
+	const char	 *kvc_usage;
+} kv_cmd_t;
 
-typedef enum {
-	KVE_RACE_START = 1,			/* race is starting */
-} kv_events_t;
+static kv_cmd_t kv_commands[] = {
+    { "and", cmd_and, "input1 input2 output",
+      "logical-and pixel values of two images" },
+    { "compare", cmd_compare, "image mask",
+      "compute difference score for the given image and mask" },
+    { "translatexy", cmd_translatexy, "input output x-offset y-offset",
+      "shift the given image using the given x and y offsets" },
+    { "ident", cmd_ident, "image",
+      "report the current game state for the given image" },
+    { "video", cmd_video, "input1 ...",
+      "emit race events for an entire video" }
+};
 
-typedef struct {
-	kv_events_t	ks_events;		/* active events */
-	unsigned short	ks_nplayers;		/* number of active players */
-	char		ks_track[32];		/* name, "" = unknown */
-	kv_player_t	ks_players[KV_MAXPLAYERS];	/* player details */
-} kv_screen_t;
+static int kv_ncommands = sizeof (kv_commands) / sizeof (kv_commands[0]);
+static const char *kv_arg0;
 
-static int kv_init(void);
-static int kv_ident(img_t *, kv_screen_t *, boolean_t);
-static void kv_ident_matches(kv_screen_t *, const char *, double);
-static int kv_screen_compare(kv_screen_t *, kv_screen_t *);
-static int kv_screen_invalid(kv_screen_t *, kv_screen_t *);
-static void kv_screen_print(kv_screen_t *, FILE *);
-
-static int kv_debug = 1;
-static const char* kv_arg0;
-
-typedef struct {
-	char		km_name[64];
-	img_t		*km_image;
-} kv_mask_t;
-
-#define	KV_MAX_MASKS	128
-
-static kv_mask_t kv_masks[KV_MAX_MASKS];
-static int kv_nmasks = 0;
-
-#define KV_MASK_CHAR(s)		(s[0] == 'c')
-#define KV_MASK_TRACK(s)	(s[0] == 't')
-#define	KV_MASK_LAKITU(s)	(s[0] == 'l')
+int kv_debug = 0;
 
 int
 main(int argc, char *argv[])
 {
-	int status;
+	int i, status;
+	kv_cmd_t *kcp = NULL;
 
 	kv_arg0 = argv[0];
 
 	if (argc < 2)
-		errx(EXIT_USAGE, "usage: %s compare file mask", argv[0]);
+		usage("too few arguments");
 
-	if (strcmp(argv[1], "compare") == 0)
-		status = cmd_compare(argc - 2, argv + 2);
-	else if (strcmp(argv[1], "image") == 0)
-		status = cmd_image(argc - 2, argv + 2);
-	else if (strcmp(argv[1], "and") == 0)
-		status = cmd_and(argc - 2, argv + 2);
-	else if (strcmp(argv[1], "translatexy") == 0)
-		status = cmd_translatexy(argc - 2, argv + 2);
-	else if (strcmp(argv[1], "ident") == 0)
-		status = cmd_ident(argc - 2, argv + 2);
-	else if (strcmp(argv[1], "video") == 0)
-		status = cmd_video(argc - 2, argv + 2);
-	else
-		errx(EXIT_USAGE, "usage: %s compare file mask", argv[0]);
+	for (i = 0; i < kv_ncommands; i++) {
+		kcp = &kv_commands[i];
+
+		if (strcmp(argv[1], kcp->kvc_name) == 0)
+			break;
+	}
+
+	if (i == kv_ncommands)
+		usage("unknown command");
+
+	status = kcp->kvc_func(argc - 2, argv + 2);
+
+	if (status == EXIT_USAGE)
+		usage("missing arguments");
 
 	return (status);
+}
+
+static void
+usage(const char *message)
+{
+	int i;
+	const char *name;
+	kv_cmd_t *kcp;
+
+	name = basename((char *)kv_arg0);
+	warnx("too few arguments");
+
+	for (i = 0; i < kv_ncommands; i++) {
+		kcp = &kv_commands[i];
+		(void) fprintf(stderr, "\n    %s %s %s\n", name,
+		    kcp->kvc_name, kcp->kvc_args);
+		(void) fprintf(stderr, "        %s\n", kcp->kvc_usage);
+	}
+
+	exit(EXIT_USAGE);
 }
 
 static int
@@ -138,10 +100,8 @@ cmd_compare(int argc, char *argv[])
 	img_t *image, *mask;
 	int rv;
 
-	if (argc < 2) {
-		warnx("missing files");
+	if (argc < 2)
 		return (EXIT_USAGE);
-	}
 
 	image = img_read(argv[0]);
 	mask = img_read(argv[1]);
@@ -166,51 +126,14 @@ cmd_compare(int argc, char *argv[])
 }
 
 static int
-cmd_image(int argc, char *argv[])
-{
-	FILE *outfp;
-	img_t *image;
-	int rv;
-
-	if (argc < 1) {
-		warnx("missing file");
-		return (EXIT_USAGE);
-	}
-
-	if ((image = img_read(argv[0])) == NULL)
-		return (EXIT_FAILURE);
-
-	if (argc == 1) {
-		img_free(image);
-		return (EXIT_SUCCESS);
-	}
-
-	if ((outfp = fopen(argv[1], "w")) == NULL) {
-		warn("fopen %s", argv[1]);
-		img_free(image);
-		return (EXIT_FAILURE);
-	}
-
-	rv = img_write_ppm(image, outfp);
-	img_free(image);
-
-	if (rv == 0)
-		(void) printf("wrote %s\n", argv[1]);
-
-	return (rv);
-}
-
-static int
 cmd_and(int argc, char *argv[])
 {
 	img_t *image, *mask;
 	FILE *outfp;
 	int rv;
 
-	if (argc < 3) {
-		warnx("missing files");
+	if (argc < 3)
 		return (EXIT_USAGE);
-	}
 
 	image = img_read(argv[0]);
 	mask = img_read(argv[1]);
@@ -251,10 +174,8 @@ cmd_translatexy(int argc, char *argv[])
 	int rv;
 	long dx, dy;
 
-	if (argc < 4) {
-		warnx("expected infile outfile x-offset y-offset");
+	if (argc < 4)
 		return (EXIT_USAGE);
-	}
 
 	image = img_read(argv[0]);
 	if (image == NULL)
@@ -293,14 +214,12 @@ cmd_ident(int argc, char *argv[])
 	img_t *image;
 	kv_screen_t info;
 
-	if (argc < 1) {
-		warnx("expected input filename");
+	if (argc < 1)
 		return (EXIT_USAGE);
-	}
 
-	if (kv_init() != 0) {
+	if (kv_init(dirname((char *)kv_arg0)) != 0) {
 		warnx("failed to initialize masks");
-		return (EXIT_USAGE);
+		return (EXIT_FAILURE);
 	}
 
 	image = img_read(argv[0]);
@@ -328,7 +247,7 @@ cmd_video(int argc, char *argv[])
 
 	int last_start = -1;
 
-	if (kv_init() != 0) {
+	if (kv_init(dirname((char *)kv_arg0)) != 0) {
 		warnx("failed to initialize masks");
 		return (EXIT_USAGE);
 	}
@@ -385,669 +304,4 @@ cmd_video(int argc, char *argv[])
 	}
 
 	return (EXIT_SUCCESS);
-}
-
-static const char *
-stdio_error(FILE *fp)
-{
-	int err = errno;
-
-	if (ferror(fp) != 0)
-		return ("stream error");
-
-	if (feof(fp) != 0)
-		return ("unexpected EOF");
-
-	return (strerror(err));
-}
-
-static img_t *
-img_read(const char *filename)
-{
-	FILE *fp;
-	img_t *rv;
-	int x, y, i;
-	img_pixel_t *imagepx;
-	char buffer[3];
-
-	if ((fp = fopen(filename, "r")) == NULL) {
-		warn("img_read %s", filename);
-		return (NULL);
-	}
-
-	if (fread(buffer, sizeof (buffer), 1, fp) != 1) {
-		warnx("img_read %s: %s", filename, stdio_error(fp));
-		(void) fclose(fp);
-		return (NULL);
-	}
-
-	(void) fseek(fp, 0, SEEK_SET);
-
-	if (buffer[0] == 'P' && buffer[1] == '6' && isspace(buffer[2])) {
-		rv = img_read_ppm(fp, filename);
-	} else {
-		rv = img_read_png(fp, filename);
-	}
-
-	(void) fclose(fp);
-
-	/*
-	 * Compute the bounding box for the image, which is used as an
-	 * optimization when operating on masks.
-	 */
-	rv->img_maxx = 0;
-	rv->img_minx = rv->img_width;
-	rv->img_maxy = 0;
-	rv->img_miny = rv->img_height;
-
-	for (y = 0; y < rv->img_height; y++) {
-		for (x = 0; x < rv->img_width; x++) {
-			i = img_coord(rv, x, y);
-			imagepx = &rv->img_pixels[i];
-
-			if (imagepx->r < 2 && imagepx->g < 2 && imagepx->b < 2)
-				continue;
-
-			if (x < rv->img_minx)
-				rv->img_minx = x;
-			if (x + 1 > rv->img_maxx)
-				rv->img_maxx = x + 1;
-			if (y < rv->img_miny)
-				rv->img_miny = y;
-			if (y + 1 > rv->img_maxy)
-				rv->img_maxy = y + 1;
-		}
-	}
-
-	return (rv);
-}
-
-static img_t *
-img_read_ppm(FILE *fp, const char *filename)
-{
-	int nread;
-	unsigned int width, height, maxval;
-	img_t *rv = NULL;
-
-	nread = fscanf(fp, "P6 %u %u %u", &width, &height, &maxval);
-	if (nread != 3) {
-		warnx("img_read_ppm %s: mangled ppm header", filename);
-		return (NULL);
-	}
-
-	if (maxval > 255) {
-		warnx("img_read_ppm %s: unsupported color depth", filename);
-		return (NULL);
-	}
-
-	if ((rv = calloc(1, sizeof (*rv))) == NULL ||
-	    (rv->img_pixels = malloc(
-	    sizeof (rv->img_pixels[0]) * width * height)) == NULL) {
-		warn("img_read_ppm %s", filename);
-		free(rv);
-		return (NULL);
-	}
-
-	/* Skip the single whitespace character that follows the header. */
-	(void) fseek(fp, SEEK_CUR, 1);
-
-	rv->img_width = width;
-	rv->img_height = height;
-
-	nread = fread(rv->img_pixels, sizeof (rv->img_pixels[0]),
-	    rv->img_width * rv->img_height, fp);
-
-	if (nread != rv->img_width * rv->img_height) {
-		warnx("img_read_ppm %s: %s", filename, stdio_error(fp));
-		img_free(rv);
-		return (NULL);
-	}
-
-	return (rv);
-}
-
-static int
-img_write_ppm(img_t *image, FILE *fp)
-{
-	int nread;
-
-	(void) fprintf(fp, "P6\n%u %u\n%u\n", image->img_width,
-	    image->img_height, 255);
-
-	nread = fwrite(image->img_pixels, sizeof (image->img_pixels[0]),
-	    image->img_width * image->img_height, fp);
-
-	if (nread != image->img_width * image->img_height) {
-		warn("img_write_ppm: failed after %d of %d pixels", nread,
-		    image->img_width * image->img_height);
-		return (-1);
-	}
-
-	return (0);
-}
-
-static img_t *
-img_read_png(FILE *fp, const char *filename)
-{
-	uint8_t header[8];
-	unsigned int width, height, i;
-	img_t *rv;
-
-	png_structp png;
-	png_infop pnginfo;
-	png_byte color_type, depth;
-
-	png_bytep *rows;
-
-	if (fread(header, sizeof (header), 1, fp) != 1) {
-		warnx("img_read_png %s: failed to read header: %s",
-		    filename, stdio_error(fp));
-		return (NULL);
-	}
-
-	if (png_sig_cmp(header, 0, sizeof (header)) != 0) {
-		warnx("img_read_png %s: bad magic", filename);
-		return (NULL);
-	}
-
-	if ((png = png_create_read_struct(PNG_LIBPNG_VER_STRING,
-	    NULL, NULL, NULL)) == NULL ||
-	    (pnginfo = png_create_info_struct(png)) == NULL) {
-		warnx("failed to initialize libpng");
-		return (NULL);
-	}
-
-	if (setjmp(png_jmpbuf(png)) != 0) {
-		warnx("error reading PNG image");
-		png_destroy_read_struct(&png, &pnginfo, NULL);
-		return (NULL);
-	}
-
-	png_init_io(png, fp);
-	png_set_sig_bytes(png, sizeof (header));
-	png_read_info(png, pnginfo);
-
-	width = png_get_image_width(png, pnginfo);
-	height = png_get_image_height(png, pnginfo);
-	color_type = png_get_color_type(png, pnginfo);
-	depth = png_get_bit_depth(png, pnginfo);
-	png_read_update_info(png, pnginfo);
-
-	if (kv_debug > 3) {
-		(void) printf("PNG image:  %u x %u pixels\n", width, height);
-		(void) printf("bit depth:  %x\n", depth);
-		(void) printf("color type: %x\n", color_type);
-	}
-
-	if (depth > 8) {
-		warnx("img_read_png %s: unsupported bit depth", filename);
-		return (NULL);
-	}
-
-	if (color_type != PNG_COLOR_TYPE_RGB) {
-		warnx("img_read_png %s: unsupported color type", filename);
-		return (NULL);
-	}
-
-	if ((rv = calloc(1, sizeof (*rv))) == NULL ||
-	    (rv->img_pixels = malloc(
-	    sizeof (rv->img_pixels[0]) * width * height)) == NULL) {
-		warn("img_read_png %s");
-		free(rv);
-		return (NULL);
-	}
-
-	rv->img_width = width;
-	rv->img_height = height;
-
-	if ((rows = malloc(sizeof (rows[0]) * height)) == NULL) {
-		warn("img_read_png %s");
-		img_free(rv);
-		return (NULL);
-	}
-
-	assert(png_get_rowbytes(png, pnginfo) == sizeof (img_pixel_t) * width);
-
-	for (i = 0; i < height; i++)
-		rows[i] = (png_bytep)&rv->img_pixels[img_coord(rv, 0, i)];
-
-	png_read_image(png, rows);
-	png_read_end(png, NULL);
-	free(rows);
-	png_destroy_read_struct(&png, &pnginfo, NULL);
-
-	return (rv);
-}
-
-static void
-img_free(img_t *imgp)
-{
-	if (imgp == NULL)
-		return;
-	
-	free(imgp->img_pixels);
-	free(imgp);
-}
-
-static double
-img_compare(img_t *image, img_t *mask)
-{
-	unsigned int x, y, i;
-	unsigned int dr, dg, db, dz2;
-	unsigned int npixels;
-	unsigned int ncompared = 0, nignored = 0, ndifferent = 0;
-	double sum = 0;
-	double score;
-	img_pixel_t *imgpx, *maskpx;
-
-	assert(image->img_width == mask->img_width);
-	assert(image->img_height == mask->img_height);
-
-	for (y = mask->img_miny; y < mask->img_maxy; y++) {
-		for (x = mask->img_minx; x < mask->img_maxx; x++) {
-			i = img_coord(image, x, y);
-			maskpx = &mask->img_pixels[i];
-			imgpx = &image->img_pixels[i];
-
-			/*
-			 * Ignore nearly-black pixels in the mask.
-			 */
-			if (maskpx->r < 2 && maskpx->g < 2 && maskpx->b < 2) {
-				nignored++;
-				continue;
-			}
-
-			ncompared++;
-			dr = maskpx->r - imgpx->r;
-			dg = maskpx->g - imgpx->g;
-			db = maskpx->b - imgpx->b;
-			dz2 = dr * dr + dg * dg + db * db;
-
-			if (dz2 == 0)
-				continue;
-
-			ndifferent++;
-			sum += sqrt(dz2);
-		}
-	}
-
-	/*
-	 * The score is the average difference between subpixel values in the
-	 * image and the mask for non-ignored subpixels.  That is, we take
-	 * non-black pixels in the mask, compare them to their counterparts in
-	 * the image, and compute the average difference.  We divide that by the
-	 * maximum possible distance.
-	 */
-	npixels = image->img_height * image->img_width;
-	score = (sum / sqrt(255 * 255 * 3)) / ncompared;
-
-	if (kv_debug > 3) {
-		(void) printf("total pixels:     %d\n", npixels);
-		(void) printf("ignored pixels:   %d\n", nignored);
-		(void) printf("compared pixels:  %d\n", ncompared);
-		(void) printf("different pixels: %d\n", ndifferent);
-		(void) printf("difference score: %f\n", score);
-	}
-
-	return (score);
-}
-
-static void
-img_and(img_t *image, img_t *mask)
-{
-	unsigned int x, y, i;
-	img_pixel_t *imgpx, *maskpx;
-
-	assert(image->img_width == mask->img_width);
-	assert(image->img_height == mask->img_height);
-
-	for (y = 0; y < image->img_height; y++) {
-		for (x = 0; x < image->img_width; x++) {
-			i = img_coord(image, x, y);
-			maskpx = &mask->img_pixels[i];
-			imgpx = &image->img_pixels[i];
-
-			imgpx->r &= maskpx->r;
-			imgpx->g &= maskpx->g;
-			imgpx->b &= maskpx->b;
-		}
-	}
-}
-
-static img_t *
-img_translatexy(img_t *image, long dx, long dy)
-{
-	img_t *newimg;
-	img_pixel_t *imgpx, *newpx;
-	unsigned int x, y, i;
-	
-	if ((newimg = calloc(1, sizeof (*newimg))) == NULL ||
-	    (newimg->img_pixels = malloc(image->img_width * image->img_height *
-	    sizeof (newimg->img_pixels[0]))) == NULL) {
-		free(newimg);
-		return (NULL);
-	}
-
-	newimg->img_width = image->img_width;
-	newimg->img_height = image->img_height;
-
-	for (y = 0; y < newimg->img_height; y++) {
-		for (x = 0; x < newimg->img_width; x++) {
-			i = img_coord(newimg, x, y);
-			newpx = &newimg->img_pixels[i];
-
-			if (x - dx < 0 || x - dx >= image->img_width ||
-			    y - dy < 0 || y - dy >= image->img_height) {
-				newpx->r = newpx->g = newpx->b = 0;
-				continue;
-			}
-
-			i = img_coord(image, x - dx, y - dy);
-			imgpx = &image->img_pixels[i];
-			newpx->r = imgpx->r;
-			newpx->g = imgpx->g;
-			newpx->b = imgpx->b;
-		}
-	}
-
-	return (newimg);
-}
-
-inline unsigned int
-img_coord(img_t *image, unsigned int x, unsigned int y)
-{
-	assert(x < image->img_width);
-	assert(y < image->img_height);
-	return (x + image->img_width * y);
-}
-
-static int
-kv_init(void)
-{
-	img_t *mask;
-	kv_mask_t *kmp;
-	DIR *maskdir;
-	struct dirent *entp;
-	char maskname[PATH_MAX];
-	char maskdirname[PATH_MAX];
-
-	if (kv_nmasks > 0)
-		/* already initialized */
-		return (0);
-
-	/*
-	 * For now, rather than explicitly enumerate the masks and check each
-	 * one, we iterate the masks we have, see which ones match this image,
-	 * and update the screen info accordingly.
-	 */
-	(void) snprintf(maskdirname, sizeof (maskdirname),
-	    "%s/../assets/masks", dirname((char *)kv_arg0));
-
-	if ((maskdir = opendir(maskdirname)) == NULL) {
-		warn("failed to opendir %s", maskdirname);
-		return (-1);
-	}
-
-	while ((entp = readdir(maskdir)) != NULL) {
-		if (kv_nmasks == KV_MAX_MASKS) {
-			warnx("too many masks (over %d)", KV_MAX_MASKS);
-			(void) closedir(maskdir);
-			return (-1);
-		}
-
-		if (strncmp(entp->d_name, "char_", sizeof ("char_") - 1) != 0 &&
-		    strncmp(entp->d_name, "pos", sizeof ("pos") - 1) != 0 &&
-		    strncmp(entp->d_name, "lakitu_start",
-		    sizeof ("lakitu_start") - 1) != 0 &&
-		    strncmp(entp->d_name, "track_", sizeof ("track_") - 1) != 0)
-			continue;
-
-		if (kv_debug > 2)
-			(void) printf("reading mask %-20s: ", entp->d_name);
-
-		(void) snprintf(maskname, sizeof (maskname), "%s/%s",
-		    maskdirname, entp->d_name);
-
-		if ((mask = img_read(maskname)) == NULL) {
-			warnx("failed to read %s", maskname);
-			(void) closedir(maskdir);
-			return (-1);
-		}
-
-		kmp = &kv_masks[kv_nmasks++];
-		kmp->km_image = mask;
-		(void) strlcpy(kmp->km_name, entp->d_name,
-		    sizeof (kmp->km_name));
-
-		if (kv_debug > 2)
-			(void) printf("bounded [%d, %d] to [%d, %d]\n",
-			    mask->img_minx, mask->img_miny, mask->img_maxx,
-			    mask->img_maxy);
-	}
-
-	(void) closedir(maskdir);
-	return (0);
-}
-
-static int
-kv_ident(img_t *image, kv_screen_t *ksp, boolean_t do_all)
-{
-	int i;
-	double score, checkthresh;
-	kv_mask_t *kmp;
-
-	/*
-	 * For now, rather than explicitly enumerate the masks and check each
-	 * one, we iterate the masks we have, see which ones match this image,
-	 * and update the screen info accordingly.
-	 */
-	bzero(ksp, sizeof (*ksp));
-
-	for (i = 0; i < kv_nmasks; i++) {
-		kmp = &kv_masks[i];
-
-		if (!do_all &&
-		    (KV_MASK_CHAR(kmp->km_name) || KV_MASK_TRACK(kmp->km_name)))
-			continue;
-
-		score = img_compare(image, kmp->km_image);
-
-		if (kv_debug > 1)
-			(void) printf("mask %s: %f\n", kmp->km_name, score);
-
-		if (KV_MASK_CHAR(kmp->km_name))
-			checkthresh = KV_THRESHOLD_CHAR;
-		else if (KV_MASK_LAKITU(kmp->km_name))
-			checkthresh = KV_THRESHOLD_LAKITU;
-		else
-			checkthresh = KV_THRESHOLD_TRACK;
-
-		if (score > checkthresh)
-			continue;
-
-		kv_ident_matches(ksp, kmp->km_name, score);
-	}
-
-	return (0);
-}
-
-static void
-kv_ident_matches(kv_screen_t *ksp, const char *mask, double score)
-{
-	unsigned int pos, square;
-	char *p;
-	kv_player_t *kpp;
-	char buf[64];
-
-	if (kv_debug > 1)
-		(void) printf("%s matches\n", mask);
-
-	(void) strlcpy(buf, mask, sizeof (buf));
-
-	if (strncmp(buf, "track_", sizeof ("track_") - 1) == 0) {
-		(void) strtok(buf + sizeof ("track_"), "_.");
-		(void) strlcpy(ksp->ks_track, buf + sizeof ("track_") - 1,
-		    sizeof (ksp->ks_track));
-		return;
-	}
-
-	if (sscanf(buf, "pos%u_square%u.png", &pos, &square) == 2 &&
-	    pos <= KV_MAXPLAYERS && square <= KV_MAXPLAYERS) {
-		if (square > ksp->ks_nplayers)
-			ksp->ks_nplayers = square;
-
-		ksp->ks_players[square - 1].kp_place = pos;
-		return;
-	}
-
-	if (strncmp(buf, "char_", sizeof ("char_") - 1) == 0) {
-		p = strchr(buf + sizeof ("char_") - 1, '_');
-		if (p == NULL)
-			return;
-
-		*p = '\0';
-		if (sscanf(p + 1, "%u", &square) != 1 ||
-		    square > KV_MAXPLAYERS)
-			return;
-
-		kpp = &ksp->ks_players[square - 1];
-
-		if (kpp->kp_character[0] != '\0' && kpp->kp_charscore < score)
-			return;
-
-		if (square > ksp->ks_nplayers)
-			ksp->ks_nplayers = square;
-
-		(void) strlcpy(kpp->kp_character, buf + sizeof ("char_") - 1,
-		    sizeof (kpp->kp_character));
-		kpp->kp_charscore = score;
-		return;
-	}
-
-	if (strncmp(buf, "lakitu_start", sizeof ("lakitu_start") - 1) == 0) {
-		ksp->ks_events |= KVE_RACE_START;
-		return;
-	}
-}
-
-/*
- * Returns whether the given screen is invalid for the same race as pksp.  This
- * is used to skip frames that show transient invalid state.
- */
-static int
-kv_screen_invalid(kv_screen_t *ksp, kv_screen_t *pksp)
-{
-	int i, j;
-
-	/*
-	 * The number of players shouldn't actually change during a race, but we
-	 * can fail to detect the correct number of players when the position
-	 * numerals are transitioning.
-	 */
-	if (ksp->ks_nplayers != pksp->ks_nplayers)
-		return (1);
-
-	for (i = 0; i < ksp->ks_nplayers; i++) {
-		if (ksp->ks_players[i].kp_place == 0)
-			return (1);
-	}
-
-	for (i = 0; i < ksp->ks_nplayers; i++) {
-		for (j = i + 1; j < ksp->ks_nplayers; j++) {
-			if (ksp->ks_players[i].kp_place ==
-			    ksp->ks_players[j].kp_place)
-				return (1);
-		}
-	}
-
-	return (0);
-}
-
-static int
-kv_screen_compare(kv_screen_t *ksp, kv_screen_t *pksp)
-{
-	int i;
-	kv_player_t *kpp, *pkpp;
-
-	if (ksp->ks_nplayers != pksp->ks_nplayers)
-		return (1);
-
-	if (strcmp(ksp->ks_track, pksp->ks_track) != 0)
-		return (1);
-
-	for (i = 0; i < ksp->ks_nplayers; i++) {
-		kpp = &ksp->ks_players[i];
-		pkpp = &pksp->ks_players[i];
-
-		if (kpp->kp_place != pkpp->kp_place ||
-		    kpp->kp_lapnum != pkpp->kp_lapnum)
-			return (1);
-	}
-
-	return (0);
-}
-
-static void
-kv_screen_print(kv_screen_t *ksp, FILE *out)
-{
-	int i;
-	kv_player_t *kpp;
-
-	assert(ksp->ks_nplayers <= KV_MAXPLAYERS);
-
-	if (ksp->ks_events & KVE_RACE_START)
-		(void) fprintf(out, "Race starting!\n");
-
-	(void) fprintf(out, "%d players: %s\n", ksp->ks_nplayers,
-	    ksp->ks_track[0] == '\0' ? "Unknown Track" : ksp->ks_track);
-
-	if (ksp->ks_nplayers == 0)
-		return;
-
-	(void) fprintf(out, "%-8s    %-32s    %-4s    %-7s\n", "",
-	    "Character", "Posn", "Lap");
-
-	for (i = 0; i < ksp->ks_nplayers; i++) {
-		(void) fprintf(out, "Player %d    ", i + 1);
-
-		kpp = &ksp->ks_players[i];
-		(void) fprintf(out, "%-32s    ", kpp->kp_character[0] == '\0' ?
-		    "?" : kpp->kp_character);
-
-		switch (kpp->kp_place) {
-		case 0:
-			(void) fprintf(out, "?   ");
-			break;
-		case 1:
-			(void) fprintf(out, "1st ");
-			break;
-		case 2:
-			(void) fprintf(out, "2nd ");
-			break;
-		case 3:
-			(void) fprintf(out, "3rd ");
-			break;
-		case 4:
-			(void) fprintf(out, "4th ");
-			break;
-		default:
-			assert(0 && "invalid position");
-		}
-
-		(void) fprintf(out, "    ");
-
-		switch (kpp->kp_lapnum) {
-		case 0:
-			(void) fprintf(out, "%-7s", "?");
-			break;
-		case 4:
-			(void) fprintf(out, "%-7s", "Done");
-			break;
-		default:
-			assert(kpp->kp_lapnum > 0 && kpp->kp_lapnum < 4);
-			(void) fprintf(out, "Lap %d/3", kpp->kp_lapnum);
-		}
-
-		(void) fprintf(out, "\n");
-	}
 }
