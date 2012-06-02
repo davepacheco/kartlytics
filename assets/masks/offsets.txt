@@ -1,3 +1,5 @@
+CHARACTERS
+
 Zoomed in views:
     Bowser, square 1 of 4, x pixel at middle of middle spike: 158
     Bowser, square 2 of 4, x pixel at middle of middle spike: 481
@@ -10,8 +12,25 @@ Zoomed in views:
     Offset P1 square by [0, 240] to get P3 square
     Offset P1 square by [323, 240] to get P4 square
 
-We can check this by creating template masks from each existing character mask
-and then automatically creating character masks for all other squares from that.
+    We can check this by creating template masks from each existing character
+    mask and then automatically creating character masks for all other squares
+    from that.
+    
+    P1 square width looks to be: about 310 (x) by 236 (y)
+    P3 square looks to range from [242, 474] on x-axis and 310 pixels wide
 
-P1 square width looks to be: about 310 (x) by 236 (y)
-P3 square looks to range from [242, 474] on x-axis and 310 pixels wide
+
+FINAL POSITION NUMBERS
+
+top-left corner of 1 in 1st square: 95 x 110
+top-left corner of 1 in 2nd square: 556 x 110
+offset: 556 - 95 = 461
+
+bottom-left corner of 2 in 1st square: 35 x 220
+bottom-left corner of 2 in 2nd square: 496 x 220
+offset: 461
+
+x-offset is probably 460
+
+bottom of 2 in 3rd square is 440
+y-offset is 220
