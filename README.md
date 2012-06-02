@@ -125,6 +125,7 @@ positions of each player during the race.  Remaining items include:
 - import video directly, rather than requiring individual frames
 
 Later, it will be useful to get more complex statistics:
+
 - Billing: spending most of the race in 1st place, but losing due to weapon
   usage late in the race.
 - Average, median, Nth percentile race and lap times, per player per track (per
