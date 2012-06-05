@@ -21,7 +21,7 @@ static int cmd_compare(int, char *[]);
 static int cmd_translatexy(int, char *[]);
 static int cmd_ident(int, char *[]);
 static int cmd_video(int, char *[]);
-static int video_frames(int, char **);
+static int video_frames(int, char **, kv_emit_f);
 
 #define	MAX_FRAMES	16384
 
@@ -41,7 +41,7 @@ static kv_cmd_t kv_commands[] = {
       "shift the given image using the given x and y offsets" },
     { "ident", cmd_ident, "image",
       "report the current game state for the given image" },
-    { "video", cmd_video, "dir_of_image_files", 
+    { "video", cmd_video, "[-j] dir_of_image_files", 
       "emit race events for an entire video" }
 };
 
@@ -73,6 +73,9 @@ main(int argc, char *argv[])
 	argc -= optind;
 	argv += optind;
 
+	optreset = 1;
+	optind = 0;
+
 	if (argc < 1)
 		usage("too few arguments");
 
@@ -89,7 +92,7 @@ main(int argc, char *argv[])
 	status = kcp->kvc_func(argc - 1, argv + 1);
 
 	if (status == EXIT_USAGE)
-		usage("missing arguments");
+		usage(NULL);
 
 	return (status);
 }
@@ -265,7 +268,7 @@ cmd_ident(int argc, char *argv[])
 	if (kv_ident(image, &info, B_TRUE) != 0) {
 		warnx("failed to process image");
 	} else {
-		kv_screen_print(&info, NULL, stdout);
+		kv_screen_print(argv[0], 0, &info, NULL, stdout);
 	}
 
 	return (EXIT_SUCCESS);
@@ -286,8 +289,27 @@ cmd_video(int argc, char *argv[])
 	DIR *dirp;
 	struct dirent *entp;
 	int nframes, rv, i, len;
+	kv_emit_f emit;
+	char c;
 	char *q;
 	char *framenames[MAX_FRAMES];
+
+	emit = kv_screen_print;
+
+	while ((c = getopt(argc, argv, "j")) != -1) {
+		switch (c) {
+		case 'j':
+			emit = kv_screen_json;
+			break;
+
+		case '?':
+		default:
+			return (EXIT_USAGE);
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
 
 	if (argc < 1) {
 		warnx("missing directory name");
@@ -326,7 +348,7 @@ cmd_video(int argc, char *argv[])
 	if (entp == NULL) {
 		qsort(framenames, nframes, sizeof (framenames[0]),
 		    qsort_strcmp);
-		rv = video_frames(nframes, framenames);
+		rv = video_frames(nframes, framenames, emit);
 	}
 
 	for (i = 0; i < nframes; i++)
@@ -336,7 +358,7 @@ cmd_video(int argc, char *argv[])
 }
 
 static int
-video_frames(int argc, char **argv)
+video_frames(int argc, char **argv, kv_emit_f emit)
 {
 	int i;
 	img_t *image;
@@ -390,7 +412,7 @@ video_frames(int argc, char **argv)
 
 		if (ksp->ks_events & KVE_RACE_START) {
 			if (last_start != -1) {
-				(void) printf("%s (time %dm:%02ds): "
+				(void) fprintf(stderr, "%s (time %dm:%02ds): "
 				    "new race begun (previous one aborted)",
 				    argv[i], (int)(i / KV_FRAMERATE) / 60,
 				    (int)(i / KV_FRAMERATE) % 60);
@@ -400,10 +422,8 @@ video_frames(int argc, char **argv)
 			last_start = i;
 			*pksp = *ksp;
 			*raceksp = *ksp;
-			(void) printf("%s (time %dm:%02ds): ", argv[i],
-			    (int)(i / KV_FRAMERATE) / 60,
-			    (int)(i / KV_FRAMERATE) % 60);
-			kv_screen_print(ksp, NULL, stdout);
+			emit(argv[i], (int)(i / KV_FRAMERATE), ksp, NULL,
+			    stdout);
 			continue;
 		}
 
@@ -419,9 +439,7 @@ video_frames(int argc, char **argv)
 		if (kv_screen_compare(ksp, pksp) == 0)
 			continue;
 
-		(void) printf("%s (time %dm:%02ds): ", argv[i],
-		    i / 30 / 60, (i / 30) % 60);
-		kv_screen_print(ksp, raceksp, stdout);
+		emit(argv[i], (int)(i / KV_FRAMERATE), ksp, raceksp, stdout);
 		*pksp = *ksp;
 
 		if (ksp->ks_events & KVE_RACE_DONE)

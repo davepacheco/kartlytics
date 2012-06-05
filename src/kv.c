@@ -276,13 +276,17 @@ kv_screen_compare(kv_screen_t *ksp, kv_screen_t *pksp)
  * values that are unknown in the current frame.
  */
 void
-kv_screen_print(kv_screen_t *ksp, kv_screen_t *raceksp, FILE *out)
+kv_screen_print(const char *source, int sec, kv_screen_t *ksp,
+    kv_screen_t *raceksp, FILE *out)
 {
 	int i;
 	kv_player_t *kpp;
 	char *trackname, *charname;
 
 	assert(ksp->ks_nplayers <= KV_MAXPLAYERS);
+
+	(void) fprintf(out, "%s (time %dm:%02ds): ", source,
+	    sec / 60, sec % 60);
 
 	if (ksp->ks_events & KVE_RACE_START)
 		(void) fprintf(out, "Race starting!\n");
@@ -352,5 +356,65 @@ kv_screen_print(kv_screen_t *ksp, kv_screen_t *raceksp, FILE *out)
 		(void) fprintf(out, "\n");
 	}
 
-	(void) fflush(stdout);
+	(void) fflush(out);
+}
+
+/*
+ * Like kv_screen_print, but emits JSON.
+ */
+void
+kv_screen_json(const char *source, int sec, kv_screen_t *ksp,
+    kv_screen_t *raceksp, FILE *out)
+{
+	int i;
+	kv_player_t *kpp;
+	char *trackname, *charname;
+
+	assert(ksp->ks_nplayers <= KV_MAXPLAYERS);
+
+	(void) fprintf(out, "{ \"source\": \"%s\", \"time\": \"%dm:%02ds\", ",
+	    source, sec / 60, sec % 60);
+
+	if (ksp->ks_events & KVE_RACE_START)
+		(void) fprintf(out, "\"start\": true, ");
+	if (ksp->ks_events & KVE_RACE_DONE)
+		(void) fprintf(out, "\"done\": true, ");
+
+	trackname = ksp->ks_track;
+	if (trackname[0] == '\0' && raceksp != NULL)
+		trackname = raceksp->ks_track;
+	if (trackname[0] == '\0')
+		trackname = "Unknown Track";
+
+	if (ksp->ks_nplayers > 0)
+		(void) fprintf(out, "\"players\": [ ");
+
+	for (i = 0; i < ksp->ks_nplayers; i++) {
+		kpp = &ksp->ks_players[i];
+		charname = kpp->kp_character;
+		if (charname[0] == '\0' && raceksp != NULL)
+			charname = raceksp->ks_players[i].kp_character;
+		if (charname[0] == '\0')
+			charname = "?";
+
+		(void) fprintf(out, "{ ");
+
+		if (kpp->kp_place != 0)
+			(void) fprintf(out, "\"position\": %d, ",
+			    kpp->kp_place);
+
+		if (kpp->kp_lapnum != 0)
+			(void) fprintf(out, "\"lap\": %d, ", kpp->kp_lapnum);
+
+		(void) fprintf(out, "\"character\": \"%s\" }", charname);
+
+		if (i != ksp->ks_nplayers - 1)
+			(void) fprintf(out, ", ");
+	}
+
+	if (ksp->ks_nplayers > 0)
+		(void) fprintf(out, "], ");
+
+	(void) fprintf(out, " \"track\": \"%s\" }\n", trackname);
+	(void) fflush(out);
 }
