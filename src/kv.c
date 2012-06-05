@@ -164,14 +164,22 @@ kv_ident_matches(kv_screen_t *ksp, const char *mask, double score)
 
 	if (sscanf(buf, "pos%u_square%u", &pos, &square) == 2 &&
 	    pos <= KV_MAXPLAYERS && square <= KV_MAXPLAYERS) {
+		kpp = &ksp->ks_players[square - 1];
+
 		if (square > ksp->ks_nplayers)
 			ksp->ks_nplayers = square;
+		else if (kpp->kp_place != 0 && kpp->kp_placescore < score)
+			return;
 
 		ksp->ks_players[square - 1].kp_place = pos;
+		kpp->kp_placescore = score;
 
 		if (strcmp(buf + sizeof ("pos1_square1") - 1,
 		    "_final.png") == 0)
-			ksp->ks_players[square - 1].kp_lapnum = 4;
+			kpp->kp_lapnum = 4;
+		else if (kpp->kp_lapnum == 4)
+			kpp->kp_lapnum = 0;
+
 		return;
 	}
 
@@ -343,4 +351,6 @@ kv_screen_print(kv_screen_t *ksp, kv_screen_t *raceksp, FILE *out)
 
 		(void) fprintf(out, "\n");
 	}
+
+	(void) fflush(stdout);
 }

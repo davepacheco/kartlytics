@@ -23,6 +23,7 @@ typedef struct {
 	char		kp_character[32];	/* name, "" = unknown */
 	double		kp_charscore;		/* score for character match */
 	short		kp_place;		/* 1-4, 0 = unknown */
+	double		kp_placescore;		/* score for pos match */
 	short		kp_lapnum;		/* 1-3, 0 = unknown, 4 = done */
 } kv_player_t;
 

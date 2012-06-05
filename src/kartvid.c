@@ -2,6 +2,7 @@
  * kartvid.c: primordial image processing for Mario Kart 64 analytics
  */
 
+#include <dirent.h>
 #include <err.h>
 #include <libgen.h>
 #include <stdint.h>
@@ -20,6 +21,9 @@ static int cmd_compare(int, char *[]);
 static int cmd_translatexy(int, char *[]);
 static int cmd_ident(int, char *[]);
 static int cmd_video(int, char *[]);
+static int video_frames(int, char **);
+
+#define	MAX_FRAMES	16384
 
 typedef struct {
 	const char 	 *kvc_name;
@@ -37,7 +41,7 @@ static kv_cmd_t kv_commands[] = {
       "shift the given image using the given x and y offsets" },
     { "ident", cmd_ident, "image",
       "report the current game state for the given image" },
-    { "video", cmd_video, "input1 ...",
+    { "video", cmd_video, "dir_of_image_files", 
       "emit race events for an entire video" }
 };
 
@@ -267,11 +271,72 @@ cmd_ident(int argc, char *argv[])
 	return (EXIT_SUCCESS);
 }
 
+static int
+qsort_strcmp(const void *vs1, const void *vs2)
+{
+	return (strcmp(*((const char **)vs1), *((const char **)vs2)));
+}
+
 /*
  * video input ...: emit events describing game state changes in a video
  */
 static int
 cmd_video(int argc, char *argv[])
+{
+	DIR *dirp;
+	struct dirent *entp;
+	int nframes, rv, i, len;
+	char *q;
+	char *framenames[MAX_FRAMES];
+
+	if (argc < 1) {
+		warnx("missing directory name");
+		return (EXIT_USAGE);
+	}
+
+	if ((dirp = opendir(argv[0])) == NULL) {
+		warn("failed to opendir %s", argv[0]);
+		return (EXIT_USAGE);
+	}
+
+	nframes = 0;
+	rv = EXIT_FAILURE;
+	while ((entp = readdir(dirp)) != NULL) {
+		if (nframes >= MAX_FRAMES) {
+			warnx("max %d frames supported", MAX_FRAMES);
+			break;
+		}
+
+		if (strcmp(entp->d_name, ".") == 0 ||
+		    strcmp(entp->d_name, "..") == 0)
+			continue;
+
+		len = snprintf(NULL, 0, "%s/%s", argv[0], entp->d_name);
+		if ((q = malloc(len + 1)) == NULL) {
+			warn("malloc");
+			break;
+		}
+
+		(void) snprintf(q, len + 1, "%s/%s", argv[0], entp->d_name);
+		framenames[nframes++] = q;
+	}
+
+	(void) closedir(dirp);
+
+	if (entp == NULL) {
+		qsort(framenames, nframes, sizeof (framenames[0]),
+		    qsort_strcmp);
+		rv = video_frames(nframes, framenames);
+	}
+
+	for (i = 0; i < nframes; i++)
+		free(framenames[i]);
+
+	return (rv);
+}
+
+static int
+video_frames(int argc, char **argv)
 {
 	int i;
 	img_t *image;
@@ -282,7 +347,7 @@ cmd_video(int argc, char *argv[])
 
 	if (kv_init(dirname((char *)kv_arg0)) != 0) {
 		warnx("failed to initialize masks");
-		return (EXIT_USAGE);
+		return (EXIT_FAILURE);
 	}
 
 	ksp = &ks;		/* current frame state */
