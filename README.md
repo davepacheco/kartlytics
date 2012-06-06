@@ -117,16 +117,25 @@ a track in the starting position to generate the track's mask.
 
 This project is still just a prototype.  Currently, on at least some input, it's
 able to identify the start of the race, the characters playing, the positions of
-each player during the race, and the end of the race.  Remaining items include:
+each player during the race, and the end of the race.  It emits both plaintext
+and JSON.  There's also a primitive Node server that will eventually process
+video uploads, but for now just saves them.  Remaining items include:
 
-- emit JSON for race events
-- detect lap completion
 - build masks for the remaining tracks
 - import video directly, rather than requiring individual frames
+- finish web server that processes uploads and serves up an API
+- implement web client that uses the API to present stats by player, track,
+  date, etc., with links to race transcripts and maybe even videos
 
 Later, it will be useful to get more complex statistics:
 
+- Detect weapons.  The most reliable way to detect weapons gotten is probably to
+  look at the *last* weapon in the weapon box before the box itself disappears.
+  (All the other ideas I've come up with can't really handle the case where a
+  player immediately uses the weapon.)
+- Detect lap completion.
 - Billing: spending most of the race in 1st place, but losing due to weapon
   usage late in the race.
+- Keithing: going from 1st to 4th within a few seconds.
 - Average, median, Nth percentile race and lap times, per player per track (per
   racer?)
