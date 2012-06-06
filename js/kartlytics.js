@@ -10,27 +10,34 @@ var mod_bunyan = require('bunyan');
 var mod_formidable = require('formidable');
 var mod_restify = require('restify');
 
+var mkdirp = require('mkdirp');
+
+var klName = 'kartlytics';
 var klPort = 8085;
 var klTmpdir = '/var/tmp/kartlytics_uploads';
+var klDatadir = '/var/tmp/kartlytics_data';
 var klLog, klServer;
 
 function main()
 {
+	klLog = new mod_bunyan({ 'name': klName });
+
+	initData();
+	initServer();
+}
+
+function initData()
+{
+	mkdirp.sync(klTmpdir);
+	mkdirp.sync(klDatadir);
+}
+
+function initServer()
+{
 	var filespath;
 
-	try {
-		mod_fs.mkdirSync(klTmpdir);
-	} catch (ex) {
-		if (ex['code'] != 'EEXIST')
-			throw (ex);
-	}
-
-	klLog = new mod_bunyan({
-	    'name': 'kartlytics'
-	});
-
 	klServer = mod_restify.createServer({
-	    'name': 'kartlytics',
+	    'name': klName,
 	    'log': klLog
 	});
 
