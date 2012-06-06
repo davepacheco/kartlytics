@@ -7,15 +7,18 @@ LIBPNG_CPPFLAGS = -I/usr/X11/include
 LIBPNG_LDFLAGS  = -L/usr/X11/lib -lpng
 KARTVID = out/kartvid
 CSCOPE_DIRS += src
-CLEANFILES += $(KARTVID)
-CLEANFILES += out/kartvid.o out/img.o out/kv.o
-CLEANFILES += cscope.files cscope.out cscope.in.out cscope.po.out
+CLEAN_FILES += $(KARTVID)
+CLEAN_FILES += out/kartvid.o out/img.o out/kv.o
+CLEAN_FILES += cscope.files cscope.out cscope.in.out cscope.po.out
 
 
 #
 # mask configuration
 #
 CHARS = mario luigi peach toad yoshi wario dk bowser
+# Some of the tracks were manually generated from the char_* sources.
+# The rest are automatically built here.
+GENTRACKS = banshee bowser dk luigi rainbow toad wario yoshi
 MASKS_GENERATED = \
     $(CHARS:%=assets/masks/char_%_2.png)	\
     $(CHARS:%=assets/masks/char_%_2zout.png)	\
@@ -31,9 +34,11 @@ MASKS_GENERATED = \
     assets/masks/pos2_square4_final.png		\
     assets/masks/pos3_square2_final.png		\
     assets/masks/pos3_square3_final.png		\
-    assets/masks/pos3_square4_final.png
+    assets/masks/pos3_square4_final.png		\
+    $(GENTRACKS:%=assets/masks/track_%.png)	\
+    $(GENTRACKS:%=assets/masks/track_%_zout.png)
 
-CLEANFILES += $(MASKS_GENERATED)
+CLEAN_FILES += $(MASKS_GENERATED)
 
 
 #
@@ -41,7 +46,7 @@ CLEANFILES += $(MASKS_GENERATED)
 #
 NPM = npm
 NODE_MODULES = node_modules
-CLEANFILES += $(NODE_MODULES)
+CLEAN_FILES += $(NODE_MODULES)
 
 JSL_CONF_NODE	 = tools/jsl.node.conf
 JSL_CONF_WEB	 = tools/jsl.web.conf
@@ -99,6 +104,12 @@ assets/masks/char_%_4.ppm: assets/masks/char_%_1.png
 
 assets/masks/char_%_4zout.ppm: assets/masks/char_%_1zout.png
 	$(KVCHAR1TO4)
+
+assets/masks/track_%.ppm: assets/mask_sources/track_%.png
+	$(KARTVID) and $^ assets/masks/gen_track.png $@
+
+assets/masks/track_%_zout.ppm: assets/mask_sources/track_%_zoomout.png
+	$(KARTVID) and $^ assets/masks/gen_track_zout.png $@
 
 #
 # Masks for final position numbers in each square are also generated from square

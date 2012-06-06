@@ -121,7 +121,6 @@ each player during the race, and the end of the race.  It emits both plaintext
 and JSON.  There's also a primitive Node server that will eventually process
 video uploads, but for now just saves them.  Remaining items include:
 
-- build masks for the remaining tracks
 - import video directly, rather than requiring individual frames
 - finish web server that processes uploads and serves up an API
 - implement web client that uses the API to present stats by player, track,
