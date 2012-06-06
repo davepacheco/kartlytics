@@ -7,14 +7,23 @@ var mod_fs = require('fs');
 var mod_path = require('path');
 
 var mod_bunyan = require('bunyan');
+var mod_formidable = require('formidable');
 var mod_restify = require('restify');
 
 var klPort = 8085;
+var klTmpdir = '/var/tmp/kartlytics_uploads';
 var klLog, klServer;
 
 function main()
 {
 	var filespath;
+
+	try {
+		mod_fs.mkdirSync(klTmpdir);
+	} catch (ex) {
+		if (ex['code'] != 'EEXIST')
+			throw (ex);
+	}
 
 	klLog = new mod_bunyan({
 	    'name': 'kartlytics'
@@ -33,6 +42,7 @@ function main()
 
 	klServer.get('/', redirect.bind(null, '/index.htm'));
 	klServer.get('/.*', fileServer.bind(null, '/', filespath));
+	klServer.post('/kart/video', upload);
 
 	klServer.on('after', mod_restify.auditLogger({ 'log': klLog }));
 
@@ -93,6 +103,32 @@ function fileServer(baseuri, basedir, request, response, next)
 	});
 
 	file.on('end', next);
+}
+
+function upload(request, response, next)
+{
+	var form = new mod_formidable.IncomingForm();
+
+	form.uploadDir = klTmpdir;
+	form.keepExtensions = true;
+
+	form.on('error', function (err) {
+		request.log.error(err);
+		response.send(400, err.message);
+	});
+
+	form.parse(request, function (err, fields, files) {
+		form.removeAllListeners('error');
+		response.send(201);
+		next();
+		processVideo(files['file']);
+	});
+}
+
+function processVideo(file)
+{
+	klLog.info('processing new file %s ("%s")', file['path'],
+	    file['name']);
 }
 
 main();
