@@ -1,0 +1,14 @@
+{
+  "author": "Dave Pacheco <dap@cs.brown.edu> (http://dtrace.org/blogs/dap/)",
+  "name": "kartvid",
+  "description": "Video-based analytics for Mario Kart 64",
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/davepacheco/kartlytics.git"
+  },
+  "dependencies": {
+    "bunyan": "0.8.0",
+    "restify": "1.4.2"
+  }
+}

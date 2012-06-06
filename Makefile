@@ -6,9 +6,11 @@ CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer
 LIBPNG_CPPFLAGS = -I/usr/X11/include
 LIBPNG_LDFLAGS  = -L/usr/X11/lib -lpng
 KARTVID = out/kartvid
+CSCOPE_DIRS += src
 CLEANFILES += $(KARTVID)
 CLEANFILES += out/kartvid.o out/img.o out/kv.o
 CLEANFILES += cscope.files cscope.out cscope.in.out cscope.po.out
+
 
 #
 # mask configuration
@@ -33,10 +35,26 @@ MASKS_GENERATED = \
 
 CLEANFILES += $(MASKS_GENERATED)
 
+
+#
+# Node configuration
+#
+NPM = npm
+NODE_MODULES = node_modules
+CLEANFILES += $(NODE_MODULES)
+
+JSL_CONF_NODE	 = tools/jsl.node.conf
+JSL_CONF_WEB	 = tools/jsl.web.conf
+JSL_FILES_NODE  := $(shell find js -name '*.js')
+JSL_FILES_WEB   := $(shell find www/resources/js -name '*.js')
+JSSTYLE_FILES	:= $(JSL_FILES_NODE) $(JSL_FILES_WEB)
+CSCOPE_DIRS 	+= js www
+
+
 #
 # "all" builds kartvid, then each of the masks
 #
-all: $(KARTVID) $(MASKS_GENERATED)
+all: $(KARTVID) $(MASKS_GENERATED) $(NODE_MODULES)
 
 out:
 	mkdir $@
@@ -99,12 +117,11 @@ assets/masks/pos%_square3_final.ppm: assets/masks/pos%_square1_final.png
 assets/masks/pos%_square4_final.ppm: assets/masks/pos%_square1_final.png
 	$(KVFPOS1TO4)
 
-#
-# Development targets
-#
-xref:
-	find src -type f > cscope.files
-	cscope -bqR
+include ./Makefile.deps
+include ./Makefile.targ
 
-clean:
-	-rm -rf $(CLEANFILES)
+#
+# Node-related targets
+#
+$(NODE_MODULES): package.json
+	$(NPM) install

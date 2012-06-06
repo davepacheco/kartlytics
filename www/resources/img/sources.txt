@@ -1,0 +1,12 @@
+MarioKart.png:
+    http://www.spriters-resource.com/community/showthread.php?tid=7335
+
+StartScreen.jpg:
+    http://www.themariobros.net/desktop-wallpaper/530-desktop-wallpaper-nintendo-64.html
+
+StartScreen-beat.jpg:
+    http://archer.gamebanana.com/img/ss/guis/4e9b101690a94.jpg
+    from http://www.gamebanana.com/cs/guis/screens/26581
+
+Lots of character and item shots can be found here:
+http://www.mariouniverse.com/sprites/n64/mk
