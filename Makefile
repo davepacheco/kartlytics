@@ -2,13 +2,15 @@
 # kartvid configuration
 #
 CC = gcc
-CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer
+CFLAGS = -Wall -O -fno-omit-frame-pointer
 LIBPNG_CPPFLAGS = -I/usr/X11/include
 LIBPNG_LDFLAGS  = -L/usr/X11/lib -lpng
+FFMPEG_CPPFLAGS = -I/usr/local/include -Wno-deprecated-declarations
+FFMPEG_LDFLAGS  = -L/usr/local/lib -lavformat -lavcodec -lavutil -lswscale
 KARTVID = out/kartvid
 CSCOPE_DIRS += src
 CLEAN_FILES += $(KARTVID)
-CLEAN_FILES += out/kartvid.o out/img.o out/kv.o
+CLEAN_FILES += out/kartvid.o out/img.o out/kv.o out/video.o
 CLEAN_FILES += cscope.files cscope.out cscope.in.out cscope.po.out
 
 
@@ -68,10 +70,11 @@ out:
 # kartvid targets
 #
 out/%.o: src/%.c | out
-	$(CC) -c -o $@ $(CPPFLAGS) $(LIBPNG_CPPFLAGS) $(CFLAGS) $^
+	$(CC) -c -o $@ $(CFLAGS) $(CPPFLAGS) $(LIBPNG_CPPFLAGS) \
+	    $(FFMPEG_CPPFLAGS) $^
 
-$(KARTVID): out/kartvid.o out/img.o out/kv.o | out
-	$(CC) -o $@ $(LIBPNG_LDFLAGS) $^
+$(KARTVID): out/kartvid.o out/img.o out/kv.o out/video.o | out
+	$(CC) -o $@ $(LIBPNG_LDFLAGS) $(FFMPEG_LDFLAGS) $^
 
 #
 # mask targets

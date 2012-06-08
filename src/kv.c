@@ -32,6 +32,7 @@ kv_init(const char *dirname)
 	kv_mask_t *kmp;
 	DIR *maskdir;
 	struct dirent *entp;
+	char *p;
 	char maskname[PATH_MAX];
 	char maskdirname[PATH_MAX];
 
@@ -58,6 +59,10 @@ kv_init(const char *dirname)
 			(void) closedir(maskdir);
 			return (-1);
 		}
+
+		p = entp->d_name + strlen(entp->d_name) - sizeof (".png") + 1;
+		if (strcmp(p, ".png") != 0)
+			continue;
 
 		if (strncmp(entp->d_name, "char_", sizeof ("char_") - 1) != 0 &&
 		    strncmp(entp->d_name, "pos", sizeof ("pos") - 1) != 0 &&

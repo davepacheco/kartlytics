@@ -14,14 +14,17 @@
 #include "compat.h"
 #include "img.h"
 #include "kv.h"
+#include "video.h"
 
 static void usage(const char *);
 static int cmd_and(int, char *[]);
 static int cmd_compare(int, char *[]);
 static int cmd_translatexy(int, char *[]);
 static int cmd_ident(int, char *[]);
-static int cmd_video(int, char *[]);
+static int cmd_frames(int, char *[]);
+static int cmd_decode(int, char *[]);
 static int video_frames(int, char **, kv_emit_f);
+static int video_frame(video_frame_t *vfp, void *unused);
 
 #define	MAX_FRAMES	16384
 
@@ -37,12 +40,14 @@ static kv_cmd_t kv_commands[] = {
       "logical-and pixel values of two images" },
     { "compare", cmd_compare, "image mask",
       "compute difference score for the given image and mask" },
+    { "decode", cmd_decode, "input output-dir",
+      "decode a video into its constituent PPM images" },
     { "translatexy", cmd_translatexy, "input output x-offset y-offset",
       "shift the given image using the given x and y offsets" },
     { "ident", cmd_ident, "image",
       "report the current game state for the given image" },
-    { "video", cmd_video, "[-j] dir_of_image_files", 
-      "emit race events for an entire video" }
+    { "frames", cmd_frames, "[-j] dir_of_image_files", 
+      "emit race events for a sequence of video frames" }
 };
 
 static int kv_ncommands = sizeof (kv_commands) / sizeof (kv_commands[0]);
@@ -281,10 +286,10 @@ qsort_strcmp(const void *vs1, const void *vs2)
 }
 
 /*
- * video input ...: emit events describing game state changes in a video
+ * frames input ...: emit events describing game state changes in video frames
  */
 static int
-cmd_video(int argc, char *argv[])
+cmd_frames(int argc, char *argv[])
 {
 	DIR *dirp;
 	struct dirent *entp;
@@ -445,6 +450,49 @@ video_frames(int argc, char **argv, kv_emit_f emit)
 		if (ksp->ks_events & KVE_RACE_DONE)
 			last_start = -1;
 	}
+
+	return (EXIT_SUCCESS);
+}
+
+static int
+cmd_decode(int argc, char *argv[])
+{
+	video_t *vp;
+	int rv;
+
+	if (argc < 2) {
+		warnx("missing input file or output directory");
+		return (EXIT_USAGE);
+	}
+
+	if ((vp = video_open(argv[0])) == NULL)
+		return (EXIT_FAILURE);
+
+	rv = video_iter_frames(vp, video_frame, argv[1]);
+	video_free(vp);
+	return (rv);
+}
+
+static int
+video_frame(video_frame_t *vfp, void *rawarg)
+{
+	const char *dir = (char *)rawarg;
+	FILE *fp;
+	char buf[PATH_MAX];
+
+	(void) snprintf(buf, sizeof (buf), "%s/frame%d.ppm",
+	    dir, vfp->vf_framenum);
+
+	if ((fp = fopen(buf, "w")) == NULL) {
+		warn("failed to open %s", buf);
+		return (EXIT_FAILURE);
+	}
+
+	(void) img_write_ppm(&vfp->vf_image, fp);
+	(void) fclose(fp);
+
+	if (vfp->vf_framenum > 5)
+		return (EXIT_FAILURE);
 
 	return (EXIT_SUCCESS);
 }
