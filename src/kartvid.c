@@ -23,8 +23,9 @@ static int cmd_translatexy(int, char *[]);
 static int cmd_ident(int, char *[]);
 static int cmd_frames(int, char *[]);
 static int cmd_decode(int, char *[]);
-static int video_frames(int, char **, kv_emit_f);
-static int video_frame(video_frame_t *vfp, void *unused);
+static int write_frame(video_frame_t *, void *);
+static int cmd_video(int, char *[]);
+static int ident_frame(video_frame_t *, void *);
 
 #define	MAX_FRAMES	16384
 
@@ -47,7 +48,9 @@ static kv_cmd_t kv_commands[] = {
     { "ident", cmd_ident, "image",
       "report the current game state for the given image" },
     { "frames", cmd_frames, "[-j] dir_of_image_files", 
-      "emit race events for a sequence of video frames" }
+      "emit race events for a sequence of video frames" },
+    { "video", cmd_video, "[-j] video_file",
+      "emit race events for an entire video" }
 };
 
 static int kv_ncommands = sizeof (kv_commands) / sizeof (kv_commands[0]);
@@ -297,6 +300,8 @@ cmd_frames(int argc, char *argv[])
 	kv_emit_f emit;
 	char c;
 	char *q;
+	img_t *image;
+	kv_vidctx_t *kvp;
 	char *framenames[MAX_FRAMES];
 
 	emit = kv_screen_print;
@@ -321,7 +326,11 @@ cmd_frames(int argc, char *argv[])
 		return (EXIT_USAGE);
 	}
 
+	if ((kvp = kv_vidctx_init(dirname((char *)kv_arg0), emit)) == NULL)
+		return (EXIT_FAILURE);
+
 	if ((dirp = opendir(argv[0])) == NULL) {
+		kv_vidctx_free(kvp);
 		warn("failed to opendir %s", argv[0]);
 		return (EXIT_USAGE);
 	}
@@ -350,108 +359,30 @@ cmd_frames(int argc, char *argv[])
 
 	(void) closedir(dirp);
 
-	if (entp == NULL) {
-		qsort(framenames, nframes, sizeof (framenames[0]),
-		    qsort_strcmp);
-		rv = video_frames(nframes, framenames, emit);
-	}
+	if (entp != NULL)
+		goto out;
 
-	for (i = 0; i < nframes; i++)
-		free(framenames[i]);
+	qsort(framenames, nframes, sizeof (framenames[0]), qsort_strcmp);
 
-	return (rv);
-}
-
-static int
-video_frames(int argc, char **argv, kv_emit_f emit)
-{
-	int i;
-	img_t *image;
-	kv_screen_t ks, pks, raceks;
-	kv_screen_t *ksp, *pksp, *raceksp;
-
-	int last_start = -1;
-
-	if (kv_init(dirname((char *)kv_arg0)) != 0) {
-		warnx("failed to initialize masks");
-		return (EXIT_FAILURE);
-	}
-
-	ksp = &ks;		/* current frame state */
-	pksp = &pks;		/* first frame matching the current state */
-	raceksp = &raceks;	/* first frame state for this race */
-
-	/*
-	 * As we process video frames, we go through a simple state machine:
-	 *
-	 * (1) We start out waiting for the first RACE_START frame.  We're in
-	 *     this state while last_start == -1.  When we see RACE_START, we
-	 *     set last_frame to this frame number.
-	 *
-	 * (2) We ignore the first KV_MIN_RACE_FRAMES after a RACE_START frame
-	 *     to avoid catching what may look like multiple start frames right
-	 *     next to each other.  This also avoids pointless changes in player
-	 *     position in the first few seconds.
-	 *
-	 * (3) While the race is ongoing, we track player positions until we see
-	 *     a RACE_DONE frame (indicating the race was completed) or another
-	 *     RACE_START frame (indicating that the race was aborted and
-	 *     another race was started).  If we see a normal RACE_DONE frame,
-	 *     we go back to the first state, waiting for another RACE_START
-	 *     frame.
-	 */
-	for (i = 0; i < argc; i++) {
-		if (last_start != -1 && i - last_start < KV_MIN_RACE_FRAMES)
-			/* Skip the first frames after a start. See above. */
-			continue;
-
-		image = img_read(argv[i]);
+	for (i = 0; i < nframes; i++) {
+		image = img_read(framenames[i]);
 
 		if (image == NULL) {
 			warnx("failed to read %s", argv[i]);
 			continue;
 		}
 
-		kv_ident(image, ksp, B_FALSE);
+		kv_vidctx_frame(framenames[i], i, image, kvp);
 		img_free(image);
-
-		if (ksp->ks_events & KVE_RACE_START) {
-			if (last_start != -1) {
-				(void) fprintf(stderr, "%s (time %dm:%02ds): "
-				    "new race begun (previous one aborted)",
-				    argv[i], (int)(i / KV_FRAMERATE) / 60,
-				    (int)(i / KV_FRAMERATE) % 60);
-			}
-
-			kv_ident(image, ksp, B_TRUE);
-			last_start = i;
-			*pksp = *ksp;
-			*raceksp = *ksp;
-			emit(argv[i], (int)(i / KV_FRAMERATE), ksp, NULL,
-			    stdout);
-			continue;
-		}
-
-		/*
-		 * Skip frames if we're not currently inside a race.
-		 */
-		if (last_start == -1)
-			continue;
-
-		if (kv_screen_invalid(ksp, pksp))
-			continue;
-
-		if (kv_screen_compare(ksp, pksp) == 0)
-			continue;
-
-		emit(argv[i], (int)(i / KV_FRAMERATE), ksp, raceksp, stdout);
-		*pksp = *ksp;
-
-		if (ksp->ks_events & KVE_RACE_DONE)
-			last_start = -1;
 	}
 
-	return (EXIT_SUCCESS);
+out:
+	kv_vidctx_free(kvp);
+
+	for (i = 0; i < nframes; i++)
+		free(framenames[i]);
+
+	return (rv);
 }
 
 static int
@@ -468,13 +399,13 @@ cmd_decode(int argc, char *argv[])
 	if ((vp = video_open(argv[0])) == NULL)
 		return (EXIT_FAILURE);
 
-	rv = video_iter_frames(vp, video_frame, argv[1]);
+	rv = video_iter_frames(vp, write_frame, argv[1]);
 	video_free(vp);
 	return (rv);
 }
 
 static int
-video_frame(video_frame_t *vfp, void *rawarg)
+write_frame(video_frame_t *vfp, void *rawarg)
 {
 	const char *dir = (char *)rawarg;
 	FILE *fp;
@@ -495,4 +426,61 @@ video_frame(video_frame_t *vfp, void *rawarg)
 		return (EXIT_FAILURE);
 
 	return (EXIT_SUCCESS);
+}
+
+static int
+cmd_video(int argc, char *argv[])
+{
+	kv_vidctx_t *kvp;
+	video_t *vp;
+	int rv;
+	char c;
+	kv_emit_f emit;
+
+	emit = kv_screen_print;
+
+	while ((c = getopt(argc, argv, "j")) != -1) {
+		switch (c) {
+		case 'j':
+			emit = kv_screen_json;
+			break;
+
+		case '?':
+		default:
+			return (EXIT_USAGE);
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		warnx("missing input file");
+		return (EXIT_USAGE);
+	}
+
+	if ((vp = video_open(argv[0])) == NULL)
+		return (EXIT_FAILURE);
+
+	if ((kvp = kv_vidctx_init(dirname((char *)kv_arg0), emit)) == NULL) {
+		video_free(vp);
+		return (EXIT_FAILURE);
+	}
+
+	rv = video_iter_frames(vp, ident_frame, kvp);
+	kv_vidctx_free(kvp);
+	video_free(vp);
+	return (rv);
+}
+
+static int
+ident_frame(video_frame_t *vp, void *rawarg)
+{
+	kv_vidctx_t *kvp = rawarg;
+	char framename[16];
+
+	(void) snprintf(framename, sizeof (framename),
+	    "frame %d", vp->vf_framenum);
+	kv_vidctx_frame(framename, vp->vf_framenum, &vp->vf_image, kvp);
+	return (0);
 }
