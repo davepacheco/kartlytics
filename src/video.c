@@ -20,6 +20,7 @@ struct video {
 	uint8_t		*vf_buffer;
 	int		vf_stream;
 	double		vf_framerate;
+	int64_t		vf_nframes;
 };
 
 video_t *
@@ -80,6 +81,7 @@ video_open(const char *filename)
 	}
 
 	rv->vf_framerate = av_q2d(rv->vf_formatctx->streams[i]->time_base);
+	rv->vf_nframes = rv->vf_formatctx->streams[i]->nb_frames;
 
 	rv->vf_frame = avcodec_alloc_frame();
 	rv->vf_framergb = avcodec_alloc_frame();
@@ -110,6 +112,12 @@ double
 video_framerate(video_t *vp)
 {
 	return (vp->vf_framerate);
+}
+
+int64_t
+video_nframes(video_t *vp)
+{
+	return (vp->vf_nframes);
 }
 
 int

@@ -45,11 +45,13 @@ void kv_ident_matches(kv_screen_t *, const char *, double);
 int kv_screen_compare(kv_screen_t *, kv_screen_t *);
 int kv_screen_invalid(kv_screen_t *, kv_screen_t *);
 
-typedef void (*kv_emit_f)(const char *, int, kv_screen_t *,
-    kv_screen_t *, FILE *);
+typedef void (*kv_emit_f)(const char *, int, int, kv_screen_t *, kv_screen_t *,
+    FILE *);
 
-void kv_screen_print(const char *, int, kv_screen_t *, kv_screen_t *, FILE *);
-void kv_screen_json(const char *, int, kv_screen_t *, kv_screen_t *, FILE *);
+void kv_screen_print(const char *, int, int, kv_screen_t *, kv_screen_t *,
+    FILE *);
+void kv_screen_json(const char *, int, int, kv_screen_t *, kv_screen_t *,
+    FILE *);
 
 struct kv_vidctx;
 typedef struct kv_vidctx kv_vidctx_t;

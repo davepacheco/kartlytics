@@ -9,6 +9,7 @@ var mod_os = require('os');
 var mod_path = require('path');
 
 var mod_bunyan = require('bunyan');
+var mod_carrier = require('carrier');
 var mod_extsprintf = require('extsprintf');
 var mod_kang = require('kang');
 var mod_formidable = require('formidable');
@@ -191,6 +192,9 @@ function processVideo(file)
 	    'eventsFile': filename + '.events.json',
 	    'saved': false,
 	    'confirmed': false,
+	    'maxframes': undefined,
+	    'frame': undefined,
+	    'log': undefined,
 	    'races': undefined,
 	    'error': undefined,
 	    'child': undefined,
@@ -234,6 +238,8 @@ function vidProcessFrames(vidid, callback)
 
 	child.stdout.on('data', function (chunk) { stdout += chunk; });
 
+	mod_carrier.carry(child.stdout, parseKartvid(video));
+
 	child.stderr.on('data', function (chunk) { stderr += chunk; });
 
 	child.on('exit', function (code) {
@@ -261,35 +267,41 @@ function vidProcessFrames(vidid, callback)
 				return;
 			}
 
-			parseKartvid(video, stdout);
 			callback();
 		});
 	});
 }
 
 /*
- * Parse the kartvid output and store the results in "races".
+ * Returns a function that takes individual lines of kartvid output and parses
+ * it, storing the results in video.races.
  */
-function parseKartvid(video, data)
+function parseKartvid(video)
 {
 	var log = video.log;
-	var lines = data.split('\n');
-	var races = [];
-	var i, line, race, segment, entry;
+	var races = video.races = [];
+	var i = 0;
+	var race, segment, entry;
 
-	for (i = 0; i < lines.length; i++) {
-		line = lines[i];
+	return (function (line) {
+		++i;
 
 		if (line.length === 0)
-			continue;
+			return;
 
 		try {
 			entry = JSON.parse(line);
 		} catch (ex) {
-			log.warn(ex, 'ignoring invalid JSON object at line %s',
-			    i + 1);
-			continue;
+			log.warn(ex, 'ignoring bad JSON object at line %s', i);
+			return;
 		}
+
+		if (i == 1 && entry.nframes) {
+			video.maxframes = entry.nframes;
+			return;
+		}
+
+		video.frame = entry.frame;
 
 		if (entry.start) {
 			if (race !== undefined)
@@ -297,12 +309,12 @@ function parseKartvid(video, data)
 				    entry.source);
 
 			race = { 'start': entry, 'segments': [] };
-			continue;
+			return;
 		}
 
 		if (race === undefined) {
 			log.warn('ignoring line %d (not in a race)');
-			continue;
+			return;
 		}
 
 		if (!entry.done) {
@@ -316,7 +328,7 @@ function parseKartvid(video, data)
 				'players': entry.players
 			};
 
-			continue;
+			return;
 		}
 
 		if (segment !== undefined) {
@@ -327,9 +339,7 @@ function parseKartvid(video, data)
 		race.end = entry.time;
 		race.results = entry.players;
 		races.push(race);
-	}
-
-	video.races = races;
+	});
 }
 
 /*
@@ -360,6 +370,8 @@ function kangGetObject(type, ident)
 		'uploaded': video.uploaded,
 		'saved': video.saved,
 		'confirmed': video.confirmed,
+		'frame': video.frame,
+		'maxframes': video.maxframes,
 		'races': video.races,
 		'error': video.error
 	});
