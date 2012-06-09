@@ -19,6 +19,7 @@ struct video {
 	AVFrame		*vf_framergb;
 	uint8_t		*vf_buffer;
 	int		vf_stream;
+	double		vf_framerate;
 };
 
 video_t *
@@ -78,11 +79,7 @@ video_open(const char *filename)
 		return (NULL);
 	}
 
-	if (rv->vf_codecctx->time_base.num > 1000 &&
-	    rv->vf_codecctx->time_base.den == 1) {
-		warn("fixing obviously bogus frame rate");
-		rv->vf_codecctx->time_base.den = 1000;
-	}
+	rv->vf_framerate = av_q2d(rv->vf_formatctx->streams[i]->time_base);
 
 	rv->vf_frame = avcodec_alloc_frame();
 	rv->vf_framergb = avcodec_alloc_frame();
@@ -107,6 +104,12 @@ video_open(const char *filename)
 	avpicture_fill((AVPicture *)rv->vf_framergb, rv->vf_buffer,
 	    PIX_FMT_RGB24, rv->vf_codecctx->width, rv->vf_codecctx->height);
 	return (rv);
+}
+
+double
+video_framerate(video_t *vp)
+{
+	return (vp->vf_framerate);
 }
 
 int
@@ -134,6 +137,7 @@ video_iter_frames(video_t *vp, frame_iter_t func, void *arg)
 
 	rv = 0;
 	frame.vf_framenum = 0;
+	frame.vf_frametime = 0;
 	frame.vf_image.img_width = width;
 	frame.vf_image.img_height = height;
 	frame.vf_image.img_minx = 0;
@@ -176,6 +180,7 @@ video_iter_frames(video_t *vp, frame_iter_t func, void *arg)
 		}
 
 		frame.vf_framenum++;
+		frame.vf_frametime = vp->vf_framerate * avp.pts * MILLISEC;
 		rv = func(&frame, arg);
 		av_free_packet(&avp);
 

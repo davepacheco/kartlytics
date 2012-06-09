@@ -5,6 +5,8 @@
 #ifndef	COMPAT_H
 #define	COMPAT_H
 
+#define	MILLISEC	1000
+
 #define	PATH_MAX	1024
 
 #define	EXIT_SUCCESS	0

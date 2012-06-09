@@ -32,6 +32,7 @@ struct kv_vidctx {
 	kv_screen_t 	kv_raceframe;   /* first frame state for this race */
 	int		kv_last_start;
 	kv_emit_f	kv_emit;
+	double		kv_framerate;
 };
 
 int
@@ -290,7 +291,7 @@ kv_screen_compare(kv_screen_t *ksp, kv_screen_t *pksp)
  * values that are unknown in the current frame.
  */
 void
-kv_screen_print(const char *source, int sec, kv_screen_t *ksp,
+kv_screen_print(const char *source, int msec, kv_screen_t *ksp,
     kv_screen_t *raceksp, FILE *out)
 {
 	int i;
@@ -299,8 +300,8 @@ kv_screen_print(const char *source, int sec, kv_screen_t *ksp,
 
 	assert(ksp->ks_nplayers <= KV_MAXPLAYERS);
 
-	(void) fprintf(out, "%s (time %dm:%02ds): ", source,
-	    sec / 60, sec % 60);
+	(void) fprintf(out, "%s (time %dm:%02d.%03ds): ", source,
+	    msec / MILLISEC / 60, msec / MILLISEC % 60, msec % MILLISEC);
 
 	if (ksp->ks_events & KVE_RACE_START)
 		(void) fprintf(out, "Race starting!\n");
@@ -377,7 +378,7 @@ kv_screen_print(const char *source, int sec, kv_screen_t *ksp,
  * Like kv_screen_print, but emits JSON.
  */
 void
-kv_screen_json(const char *source, int sec, kv_screen_t *ksp,
+kv_screen_json(const char *source, int msec, kv_screen_t *ksp,
     kv_screen_t *raceksp, FILE *out)
 {
 	int i;
@@ -386,8 +387,8 @@ kv_screen_json(const char *source, int sec, kv_screen_t *ksp,
 
 	assert(ksp->ks_nplayers <= KV_MAXPLAYERS);
 
-	(void) fprintf(out, "{ \"source\": \"%s\", \"time\": \"%dm:%02ds\", ",
-	    source, sec / 60, sec % 60);
+	(void) fprintf(out, "{ \"source\": \"%s\", \"time\": \"%d\", ",
+	    source, msec);
 
 	if (ksp->ks_events & KVE_RACE_START)
 		(void) fprintf(out, "\"start\": true, ");
@@ -450,10 +451,12 @@ kv_vidctx_init(const char *rootdir, kv_emit_f emit)
 
 	kvp->kv_last_start = -1;
 	kvp->kv_emit = emit;
+	return (kvp);
 }
 
 void
-kv_vidctx_frame(const char *framename, int i, img_t *image, kv_vidctx_t *kvp)
+kv_vidctx_frame(const char *framename, int i, int timems,
+    img_t *image, kv_vidctx_t *kvp)
 {
 	kv_screen_t *ksp, *pksp, *raceksp;
 
@@ -491,16 +494,15 @@ kv_vidctx_frame(const char *framename, int i, img_t *image, kv_vidctx_t *kvp)
 		if (kvp->kv_last_start != -1) {
 			(void) fprintf(stderr, "%s (time %dm:%02ds): "
 			    "new race begun (previous one aborted)",
-			    framename, (int)(i / KV_FRAMERATE) / 60,
-			    (int)(i / KV_FRAMERATE) % 60);
+			    framename, (int)((double)timems / MILLISEC) / 60,
+			    timems % 60);
 		}
 
 		kv_ident(image, ksp, B_TRUE);
 		kvp->kv_last_start = i;
 		*pksp = *ksp;
 		*raceksp = *ksp;
-		kvp->kv_emit(framename, (int)(i / KV_FRAMERATE), ksp, NULL,
-		    stdout);
+		kvp->kv_emit(framename, timems, ksp, NULL, stdout);
 		return;
 	}
 
@@ -516,7 +518,7 @@ kv_vidctx_frame(const char *framename, int i, img_t *image, kv_vidctx_t *kvp)
 	if (kv_screen_compare(ksp, pksp) == 0)
 		return;
 
-	kvp->kv_emit(framename, (int)(i / KV_FRAMERATE), ksp, raceksp, stdout);
+	kvp->kv_emit(framename, timems, ksp, raceksp, stdout);
 	*pksp = *ksp;
 
 	if (ksp->ks_events & KVE_RACE_DONE)

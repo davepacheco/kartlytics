@@ -372,7 +372,8 @@ cmd_frames(int argc, char *argv[])
 			continue;
 		}
 
-		kv_vidctx_frame(framenames[i], i, image, kvp);
+		kv_vidctx_frame(framenames[i], i,
+		    i / KV_FRAMERATE * MILLISEC, image, kvp);
 		img_free(image);
 	}
 
@@ -462,6 +463,10 @@ cmd_video(int argc, char *argv[])
 	if ((vp = video_open(argv[0])) == NULL)
 		return (EXIT_FAILURE);
 
+	if (kv_debug > 0)
+		(void) fprintf(stderr, "framerate: %lf\n",
+		    video_framerate(vp));
+
 	if ((kvp = kv_vidctx_init(dirname((char *)kv_arg0), emit)) == NULL) {
 		video_free(vp);
 		return (EXIT_FAILURE);
@@ -481,6 +486,7 @@ ident_frame(video_frame_t *vp, void *rawarg)
 
 	(void) snprintf(framename, sizeof (framename),
 	    "frame %d", vp->vf_framenum);
-	kv_vidctx_frame(framename, vp->vf_framenum, &vp->vf_image, kvp);
+	kv_vidctx_frame(framename, vp->vf_framenum, (int)vp->vf_frametime,
+	    &vp->vf_image, kvp);
 	return (0);
 }

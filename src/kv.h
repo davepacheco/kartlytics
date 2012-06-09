@@ -54,7 +54,7 @@ void kv_screen_json(const char *, int, kv_screen_t *, kv_screen_t *, FILE *);
 struct kv_vidctx;
 typedef struct kv_vidctx kv_vidctx_t;
 kv_vidctx_t *kv_vidctx_init(const char *, kv_emit_f);
-void kv_vidctx_frame(const char *, int, img_t *, kv_vidctx_t *);
+void kv_vidctx_frame(const char *, int, int, img_t *, kv_vidctx_t *);
 void kv_vidctx_free(kv_vidctx_t *);
 
 
