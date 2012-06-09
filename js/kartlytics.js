@@ -3,35 +3,51 @@
  */
 
 var mod_assert = require('assert');
+var mod_child = require('child_process');
 var mod_fs = require('fs');
+var mod_os = require('os');
 var mod_path = require('path');
 
 var mod_bunyan = require('bunyan');
+var mod_extsprintf = require('extsprintf');
+var mod_kang = require('kang');
 var mod_formidable = require('formidable');
 var mod_restify = require('restify');
+var mod_vasync = require('vasync');
 
 var mkdirp = require('mkdirp');
 
 var klName = 'kartlytics';
 var klPort = 8085;
-var klTmpdir = '/var/tmp/kartlytics_uploads';
 var klDatadir = '/var/tmp/kartlytics_data';
 var klLog, klServer;
+
+var klVideos = {};
+var klVideoQueue;
 
 function main()
 {
 	klLog = new mod_bunyan({ 'name': klName });
+	klVideoQueue = mod_vasync.queuev({
+	    'concurrency': 2,
+	    'worker': vidProcessFrames
+	});
 
 	initData();
 	initServer();
 }
 
+/*
+ * Read all previously stored data.
+ */
 function initData()
 {
-	mkdirp.sync(klTmpdir);
 	mkdirp.sync(klDatadir);
 }
 
+/*
+ * Set up the HTTP server.
+ */
 function initServer()
 {
 	var filespath;
@@ -47,8 +63,18 @@ function initServer()
 
 	filespath = mod_path.normalize(mod_path.join(__dirname, '..', 'www'));
 
-	klServer.get('/', redirect.bind(null, '/index.htm'));
-	klServer.get('/.*', fileServer.bind(null, '/', filespath));
+	klServer.get('/kang/.*', mod_kang.knRestifyHandler({
+	    'uri_base': '/kang',
+	    'service_name': 'kartlytics',
+	    'version': '0.0.1',
+	    'ident': mod_os.hostname(),
+	    'list_types': kangListTypes,
+	    'list_objects': kangListObjects,
+	    'get': kangGetObject
+	}));
+
+	klServer.get('/', redirect.bind(null, '/f/index.htm'));
+	klServer.get('/f/.*', fileServer.bind(null, '/f/', filespath));
 	klServer.post('/kart/video', upload);
 
 	klServer.on('after', mod_restify.auditLogger({ 'log': klLog }));
@@ -59,6 +85,9 @@ function initServer()
 	});
 }
 
+/*
+ * Restify handler to redirect any request to the given path.
+ */
 function redirect(path, request, response, next)
 {
 	response.header('Location', path);
@@ -66,6 +95,9 @@ function redirect(path, request, response, next)
 	next();
 }
 
+/*
+ * Restify handler to serve flat files at "baseuri" out of "basedir".
+ */
 function fileServer(baseuri, basedir, request, response, next)
 {
 	/*
@@ -112,11 +144,14 @@ function fileServer(baseuri, basedir, request, response, next)
 	file.on('end', next);
 }
 
+/*
+ * Restify handler for handling form uploads.
+ */
 function upload(request, response, next)
 {
 	var form = new mod_formidable.IncomingForm();
 
-	form.uploadDir = klTmpdir;
+	form.uploadDir = klDatadir;
 	form.keepExtensions = true;
 
 	form.on('error', function (err) {
@@ -132,10 +167,202 @@ function upload(request, response, next)
 	});
 }
 
+/*
+ * After a video has finished uploading, begin processing it.
+ */
 function processVideo(file)
 {
-	klLog.info('processing new file %s ("%s")', file['path'],
-	    file['name']);
+	var vidname = file['name'];
+	var filename = file['path'];
+	var uuid = mod_path.basename(file['path']);
+	var video;
+
+	/*
+	 * formidable picks a unique id so we shouldn't see the same name twice.
+	 */
+	mod_assert.ok(!klVideos.hasOwnProperty(uuid));
+
+	video = klVideos[uuid] = {
+	    'id': uuid,
+	    'name': vidname,
+	    'filename': filename,
+	    'uploaded': new Date(),
+	    'metadataFile': filename + '.md.json',
+	    'eventsFile': filename + '.events.json',
+	    'saved': false,
+	    'confirmed': false,
+	    'races': undefined,
+	    'error': undefined,
+	    'child': undefined,
+	    'stdout': undefined,
+	    'stderr': undefined
+	};
+
+	/*
+	 * Once the upload completes, we write a blank metadata file.  If we
+	 * don't find this file on startup, we assume the upload failed partway.
+	 */
+	mod_fs.writeFile(video.metadataFile, JSON.stringify(video, null, 4),
+	    function (err) {
+		if (err) {
+			klLog.error(err, 'failed to write metadata file %s',
+			    video['metadataFile']);
+			return;
+		}
+
+		video.saved = true;
+		video.log = klLog.child({ 'video': vidname });
+		klVideoQueue.push(video.id);
+	    });
+}
+
+/*
+ * Invoke "kartvid" to process all frames in the video.
+ */
+function vidProcessFrames(vidid, callback)
+{
+	var video, child, stdout, stderr;
+
+	video = klVideos[vidid];
+	mod_assert.ok(video.child === undefined);
+
+	video.stdout = stdout = '';
+	video.stderr = stderr = '';
+	video.child = child = mod_child.spawn('out/kartvid',
+	    [ 'video', '-j', video.filename ]);
+	video.log.info('invoking "out/kartvid video -j %s"', video.filename);
+
+	child.stdout.on('data', function (chunk) { stdout += chunk; });
+
+	child.stderr.on('data', function (chunk) { stderr += chunk; });
+
+	child.on('exit', function (code) {
+		video.child = undefined;
+
+		if (code !== 0) {
+			video.error = mod_extsprintf.sprintf(
+			    'kartvid exited with code %d; stderr = %s',
+			    code, stderr);
+			video.log.error(video.error);
+			callback();
+			return;
+		}
+
+		video.log.info('kartvid successfully processed %s',
+		    video.filename);
+		mod_fs.writeFile(video.eventsFile, stdout, function (err) {
+			if (err) {
+				video.error = mod_extsprintf.sprintf(
+				    'failed to write %s: %s', video.eventsFile,
+				    err.message);
+				video.log.error(err, 'failed to write %s',
+				    video.eventsFile);
+				callback();
+				return;
+			}
+
+			parseKartvid(video, stdout);
+			callback();
+		});
+	});
+}
+
+/*
+ * Parse the kartvid output and store the results in "races".
+ */
+function parseKartvid(video, data)
+{
+	var log = video.log;
+	var lines = data.split('\n');
+	var races = [];
+	var i, line, race, segment, entry;
+
+	for (i = 0; i < lines.length; i++) {
+		line = lines[i];
+
+		if (line.length === 0)
+			continue;
+
+		try {
+			entry = JSON.parse(line);
+		} catch (ex) {
+			log.warn(ex, 'ignoring invalid JSON object at line %s',
+			    i + 1);
+			continue;
+		}
+
+		if (entry.start) {
+			if (race !== undefined)
+				log.warn('ignoring race aborted at %s',
+				    entry.source);
+
+			race = { 'start': entry, 'segments': [] };
+			continue;
+		}
+
+		if (race === undefined) {
+			log.warn('ignoring line %d (not in a race)');
+			continue;
+		}
+
+		if (!entry.done) {
+			if (segment !== undefined) {
+				segment.end = entry.time;
+				race['segments'].push(segment);
+			}
+
+			segment = {
+				'start': entry.time,
+				'players': entry.players
+			};
+
+			continue;
+		}
+
+		if (segment !== undefined) {
+			segment.end = entry.time;
+			race['segments'].push(segment);
+		}
+
+		race.end = entry.time;
+		race.results = entry.players;
+		races.push(race);
+	}
+
+	video.races = races;
+}
+
+/*
+ * Kang (introspection) entry points
+ */
+function kangListTypes()
+{
+	return ([ 'queue', 'video' ]);
+}
+
+function kangListObjects(type)
+{
+	if (type == 'queue')
+		return ([ 0 ]);
+
+	return (Object.keys(klVideos));
+}
+
+function kangGetObject(type, ident)
+{
+	if (type == 'queue')
+		return (klVideoQueue);
+
+	var video = klVideos[ident];
+
+	return ({
+		'name': video.name,
+		'uploaded': video.uploaded,
+		'saved': video.saved,
+		'confirmed': video.confirmed,
+		'races': video.races,
+		'error': video.error
+	});
 }
 
 main();

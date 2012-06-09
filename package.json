@@ -9,8 +9,11 @@
   },
   "dependencies": {
     "bunyan": "0.8.0",
+    "extsprintf": "1.0.0",
     "formidable": "1.0.11",
+    "kang": "0.0.2",
     "mkdirp": "0.3.3",
-    "restify": "1.4.2"
+    "restify": "1.4.2",
+    "vasync": "1.3.0"
   }
 }
