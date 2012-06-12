@@ -12,6 +12,7 @@
     "carrier": "0.1.7",
     "extsprintf": "1.0.0",
     "formidable": "1.0.11",
+    "jsprim": "0.0.5",
     "kang": "0.0.2",
     "mkdirp": "0.3.3",
     "restify": "1.4.2",

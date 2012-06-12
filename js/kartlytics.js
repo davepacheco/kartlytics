@@ -11,6 +11,7 @@ var mod_path = require('path');
 var mod_bunyan = require('bunyan');
 var mod_carrier = require('carrier');
 var mod_extsprintf = require('extsprintf');
+var mod_jsprim = require('jsprim');
 var mod_kang = require('kang');
 var mod_formidable = require('formidable');
 var mod_restify = require('restify');
@@ -77,6 +78,7 @@ function initServer()
 	klServer.get('/', redirect.bind(null, '/f/index.htm'));
 	klServer.get('/f/.*', fileServer.bind(null, '/f/', filespath));
 	klServer.post('/kart/video', upload);
+	klServer.get('/api/videos', apiVideos);
 
 	klServer.on('after', mod_restify.auditLogger({ 'log': klLog }));
 
@@ -146,6 +148,43 @@ function fileServer(baseuri, basedir, request, response, next)
 }
 
 /*
+ * GET /api/videos: returns all known videos
+ */
+function apiVideos(request, response, next)
+{
+	var rv = [];
+
+	mod_jsprim.forEachKey(klVideos, function (uuid, video) {
+		var obj = {
+			'id': uuid,
+			'name': video.name,
+			'uploaded': video.uploaded,
+			'races': video.races,
+			'error': video.error,
+			'stderr': video.stderr
+		};
+
+		if (video.error) {
+			obj.state = 'error';
+		} else if (!video.saved) {
+			obj.state = 'uploading';
+		} else if (!video.processed) {
+			video.state = 'reading';
+			obj['frame'] = video.frame;
+			obj['nframes'] = video.maxframes;
+		} else if (!video.confirmed) {
+			obj.state = 'unconfirmed';
+		} else {
+			obj.state = 'done';
+		}
+
+		rv.push(obj);
+	});
+
+	response.send(rv);
+}
+
+/*
  * Restify handler for handling form uploads.
  */
 function upload(request, response, next)
@@ -191,6 +230,7 @@ function processVideo(file)
 	    'metadataFile': filename + '.md.json',
 	    'eventsFile': filename + '.events.json',
 	    'saved': false,
+	    'processed': false,
 	    'confirmed': false,
 	    'maxframes': undefined,
 	    'frame': undefined,
@@ -256,6 +296,7 @@ function vidProcessFrames(vidid, callback)
 
 		video.log.info('kartvid successfully processed %s',
 		    video.filename);
+		video.processed = true;
 		mod_fs.writeFile(video.eventsFile, stdout, function (err) {
 			if (err) {
 				video.error = mod_extsprintf.sprintf(

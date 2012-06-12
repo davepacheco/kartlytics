@@ -4,182 +4,160 @@
 
 $(document).ready(kInit);
 
-var kNewSetElt;			/* "New Set" dialog DOM element */
-var kNewSetDialog;		/* jquery dialog object */
-var kNewSetPeopleTable;		/* jquery DataTable for list of people */
-var kNewSetPeople = [];		/* raw list of people's names */
+var kVideos = {};
+var kUploading = {};
+var kReading = {};
+var kUnconfirmed = {};
+var kFailed = {};
+
+var kPlayers = {};
+
+var kId = 0;
+var kDomConsole;
+var kDomUpdated;
 
 function kInit()
 {
-	kNewSetElt = document.getElementById('kNewSet');
+	kLoadData();
 
-	/*
-	 * Throw up the modal "New Set" dialog, since we can't do anything
-	 * useful without a current set.
-	 */
-	kNewSetDialog = $(kNewSetElt).dialog({
-	    'buttons': {
-	        'Begin': kNewSetDialogOk
-	    },
-	    'dialogClass': 'kNewSetDialog kDlgUnclosable',
-	    'closeOnEscape': false,
-	    'modal': true,
-	    'resizable': false,
-	    'title': 'Begin Set',
-	    'width': '70%'
+	kDomConsole = $('.kConsole');
+	kDomUpdated = $('.kLastUpdateTime');
+}
+
+function kLoadData()
+{
+	$.ajax({
+	    'url': '/api/videos',
+	    'dataType': 'json',
+	    'success': kOnData,
+	    'error': kFatal
 	});
-
-	kNewSetPeopleTable = $('#kNewSetPeople').dataTable({
-		'bAutoWidth': false,
-		'bPaginate': false,
-		'bLengthChange': false,
-		'bFilter': false,
-		'bSort': false,
-		'bInfo': false,
-		'bSearchable': false,
-		'oLanguage': {
-			'sEmptyTable': 'No players added.'
-		},
-		'aoColumns': [ {
-		    'sTitle': '',
-		    'sClass': 'kPlayerLabel'
-		}, {
-		    'sTitle': ''
-		} ],
-		'aaData': kNewSetPeopleData(kNewSetPeople)
-	});
-
-	kNewSetRefreshPeople();
 }
 
-/*
- * Returns the currently selected number of players (NOT the same as the number
- * of people configured)
- */
-function kNewSetNPlayers()
+function kFatal(_, text, err)
 {
-	return (parseInt($('input[name="nplayers"]:checked').val(), 10));
+	var message = 'Error loading data';
+
+	if (text)
+		message += ': ' + text;
+
+	if (err && err.message)
+		message += ' (' + err.message + ')';
+
+	alert(message);
 }
 
-/*
- * Given the current raw list of people, return data for the player DataTable.
- */
-function kNewSetPeopleData(people)
+function kOnData(data, text)
 {
-	var npl = kNewSetNPlayers();
-
-	/*
-	 * Truncate the list of people to the maximum allowable given the number
-	 * of players selected.  We do this here when displaying the list rather
-	 * than truncating the raw data in order to "remember" the extra people
-	 * in case the user bumps the number of players back up.
-	 */
-	var allowed = people.slice(0, npl + 1);
-
-	return (allowed.map(function (name, i) {
-		return ([ i < npl ? 'Player ' + (i + 1) : 'Alternate', name ]);
-	}));
-}
-
-/*
- * Invoked when the selected number of players changes to update the list of
- * configured people.
- */
-function kNewSetNPlayersChanged()
-{
-	kNewSetRefreshPeople();
-}
-
-/*
- * Invoked when the selected mode is changed to enable or disable the "level"
- * radio buttons.
- */
-function kNewSetModeChanged()
-{
-	var mode = $('input[name="mode"]:checked').val();
-
-	$('input[name="level"]').prop('disabled', mode == 'battle');
-}
-
-/*
- * Invoked when the user adds a new person to the set.
- */
-function kNewSetAddPlayer()
-{
-	var name = $('input[name="newPlayer"]').val();
-
-	if (name.length === 0) {
-		kNewPlayerWarn('Enter a name.');
+	if (!data) {
+		var message = 'invalid data';
+		if (text)
+			message += ': ' + text;
+		alert(message);
 		return;
 	}
 
-	for (var i = 0; i < kNewSetPeople.length; i++) {
-		if (kNewSetPeople[i] == name) {
-			kNewPlayerWarn('Player already exists.');
-			return;
-		}
-	}
+	data.forEach(function (video) {
+		if (kVideos.hasOwnProperty(video.id) &&
+		    kVideos[video.id].used === true)
+		    	return;
 
-	kNewSetPeople.push(name);
-	kNewSetRefreshPeople();
+		kVideos[video.id] = video;
 
-	$('input[name="newPlayer"]').val('').focus();
+		if (video.state == 'error')
+			kFailed[video.id] = true;
+		else
+			delete (kFailed[video.id]);
+
+		if (video.state == 'uploading')
+			kUploading[video.id] = true;
+		else
+			delete (kUploading[video.id]);
+
+		if (video.state == 'reading')
+			kReading[video.id] = true;
+		else
+			delete (kReading[video.id]);
+
+		if (video.state == 'unconfirmed')
+			kUnconfirmed[video.id] = true;
+		else
+			delete (kUnconfirmed[video.id]);
+
+		kUpdateStats(video);
+	});
+
+	kDomUpdated.text(new Date());
+	kRefresh();
 }
 
-/*
- * Displays a validation error next to the "new person" field.
- */
-function kNewPlayerWarn(message)
+function kUpdateStats(video)
 {
-	$('#kNewPlayerWarning').text(message);
+	/* XXX */
 }
 
-/*
- * Refresh the list of configured people based on the current state of the form.
- */
-function kNewSetRefreshPeople()
+function kRefresh()
 {
-	var nplayers = kNewSetNPlayers();
+	var id = kId++;
+	var tblid = 'kTable' + id;
+	var divid = 'kDiv' + id;
+	var videos = [];
 
-	/*
-	 * Refresh the actual table.
-	 */
-	kNewSetPeopleTable.fnClearTable();
-	kNewSetPeopleTable.fnAddData(
-	    kNewSetPeopleData(kNewSetPeople));
+	$('.kDynamic').remove();
 
-	/*
-	 * Check whether the user is allowed to add more people, given the
-	 * configured list of players.  Disable the controls to do so if not.
-	 */
-	if (nplayers <= kNewSetPeople.length - 1) {
-		$('input[name="newPlayer"]').prop('disabled', true);
-		$('input[name="newPlayerAdd"]').prop('disabled', true);
-	} else {
-		$('input[name="newPlayer"]').prop('disabled', false);
-		$('input[name="newPlayerAdd"]').prop('disabled', false);
+	for (var id in kVideos) {
+		var video = kVideos[id];
+
+		if (video.state != 'error' &&
+		    video.state != 'unconfirmed')
+		    	continue;
+
+		var elt = [ video.name, video.uploaded,
+		    kCapitalize(video.state) ];
+
+		if (video.state == 'error')
+			elt.push(video.error);
+		else
+			elt.push('');
+
+		videos.push(elt);
 	}
 
-	/*
-	 * Check whether the user must add more people to proceed.  Disable the
-	 * "OK" button if so.  This isn't quite the inverse of the above
-	 * condition, since you may be able to add more players but not required
-	 * to (since we support one alternate).
-	 */
-	var okay = nplayers == kNewSetPeople.length ||
-	    nplayers == kNewSetPeople.length - 1;
-	var button = $('.kNewSetDialog .ui-dialog-buttonset .ui-button');
-	if (okay) {
-		button.removeClass('ui-state-disabled');
-		button.removeAttr('disabled');
-	} else {
-		button.addClass('ui-state-disabled');
-		button.attr('disabled', 'disabled');
-	}
+	kDomConsole.append('<div class="kDynamic kSubHeader" ' +
+	    'id="' + divid + '">' +
+	    'Videos requiring attention</div>',
+	    '<table id="' + tblid + '" ' +
+	    'class="kDynamic kDataTable"></table>');
+
+	var table = $('table#' + tblid);
+
+	table.dataTable({
+	    'bAutoWidth': false,
+	    'bPaginate': false,
+	    'pLengthChange': false,
+	    'bFilter': false,
+	    'bSort': false,
+	    'bInfo': false,
+	    'bSearchable': false,
+	    'oLanguage': {
+		'sEmptyTable': 'No videos added.'
+	    },
+	    'aoColumns': [ {
+	        'sTitle': 'Video',
+		'sClass': 'kDataColumnVideoName'
+	    }, {
+	        'sTitle': 'Uploaded',
+		'sClass': 'kDataColumnUploaded'
+	    }, {
+	        'sTitle': 'State'
+	    }, {
+	    	'sTitle': 'Details'
+	    } ],
+	    'aaData': videos
+	});
 }
 
-function kNewSetDialogOk()
+function kCapitalize(str)
 {
-	/* This doesn't do anything yet. */
-	$(this).dialog('close');
+	return (str[0].toUpperCase() + str.substr(1));
 }
