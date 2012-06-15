@@ -85,7 +85,7 @@ div.kBody {
 }
 
 	.kConsoleHeader > * {
-		margin-right: 30px;
+		margin-right: 10px;
 	}
 
 	.kConsole > div {
@@ -95,7 +95,6 @@ div.kBody {
 .kDataTable {
 	margin-left: 30px;
 	margin-right: 30px;
-	width: auto;
 }
 
 	.kDataTable th {
@@ -113,6 +112,11 @@ div.kBody {
 	.kDataTable .kDataColumnUploaded {
 		white-space: nowrap;
 	}
+
+	.kDataTable .kDataColumnState {
+		white-space: nowrap;
+	}
+
 
 /*
  * kPropertyTable: Configure a list of key-value pairs.

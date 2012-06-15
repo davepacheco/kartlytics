@@ -169,9 +169,9 @@ function apiVideos(request, response, next)
 		} else if (!video.saved) {
 			obj.state = 'uploading';
 		} else if (!video.processed) {
-			video.state = 'reading';
-			obj['frame'] = video.frame;
-			obj['nframes'] = video.maxframes;
+			obj.state = 'reading';
+			obj['frame'] = video.frame || 0;
+			obj['nframes'] = video.maxframes || video.frame || 100;
 		} else if (!video.confirmed) {
 			obj.state = 'unconfirmed';
 		} else {
@@ -182,6 +182,7 @@ function apiVideos(request, response, next)
 	});
 
 	response.send(rv);
+	next();
 }
 
 /*

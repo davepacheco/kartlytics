@@ -57,6 +57,7 @@ function kOnData(data, text)
 		return;
 	}
 
+	/* XXX remove old videos */
 	data.forEach(function (video) {
 		if (kVideos.hasOwnProperty(video.id) &&
 		    kVideos[video.id].used === true)
@@ -109,7 +110,8 @@ function kRefresh()
 		var video = kVideos[id];
 
 		if (video.state != 'error' &&
-		    video.state != 'unconfirmed')
+		    video.state != 'unconfirmed' &&
+		    video.state != 'reading')
 		    	continue;
 
 		var elt = [ video.name, video.uploaded,
@@ -117,6 +119,9 @@ function kRefresh()
 
 		if (video.state == 'error')
 			elt.push(video.error);
+		else if (video.state == 'reading')
+			elt.push(Math.floor(
+			    (video.frame / video.nframes) * 100) + '%');
 		else
 			elt.push('');
 
@@ -144,14 +149,20 @@ function kRefresh()
 	    },
 	    'aoColumns': [ {
 	        'sTitle': 'Video',
-		'sClass': 'kDataColumnVideoName'
+		'sClass': 'kDataColumnVideoName',
+		'sWidth': '100px'
 	    }, {
 	        'sTitle': 'Uploaded',
-		'sClass': 'kDataColumnUploaded'
+		'sClass': 'kDataColumnUploaded',
+		'sWidth': '200px'
 	    }, {
-	        'sTitle': 'State'
+	        'sTitle': 'State',
+		'sClass': 'kDataColumnState',
+		'sWidth': '100px'
 	    }, {
-	    	'sTitle': 'Details'
+	    	'sTitle': 'Details',
+		'sClass': 'kDataColumnDetails',
+		'sWidth': '200px'
 	    } ],
 	    'aaData': videos
 	});
@@ -160,4 +171,40 @@ function kRefresh()
 function kCapitalize(str)
 {
 	return (str[0].toUpperCase() + str.substr(1));
+}
+
+function kUploadDialog()
+{
+	var div = $([
+	    '<div>',
+	    '    <form id="upload" method="post" action="/kart/video"',
+	    '          enctype="multipart/form-data">',
+	    '        <input type="file" name="file"/>',
+	    '    </form>',
+	    '    <div id="uploadText"></div>',
+	    '</div>'
+	].join('\n'));
+
+	var dlog = $(div).dialog({
+		'buttons': {
+			'Upload': function () {
+				$('#uploadText').text('Uploading...');
+				$('#upload').ajaxForm().ajaxSubmit({
+					'success': function () {
+						$('#uploadText').text('Done!');
+						$(div).dialog('destroy');
+						kLoadData();
+					},
+					'error': function () {
+						alert('Upload failed!');
+						$(div).dialog('destroy');
+					}
+				});
+			}
+		},
+		'dialogClass': 'kUploadDialog',
+		'modal': true,
+		'title': 'Upload video',
+		'width': '400px'
+	});
 }
