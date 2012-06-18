@@ -123,8 +123,9 @@ function kRefresh()
 			elt.push(Math.floor(
 			    (video.frame / video.nframes) * 100) + '%');
 		else
-			elt.push('');
+			elt.push('Import');
 
+		elt.push(video.id);
 		videos.push(elt);
 	}
 
@@ -163,8 +164,19 @@ function kRefresh()
 	    	'sTitle': 'Details',
 		'sClass': 'kDataColumnDetails',
 		'sWidth': '200px'
+	    }, {
+		'bVisible': false
 	    } ],
-	    'aaData': videos
+	    'aaData': videos,
+	    'fnCreatedRow': function (tr, data) {
+		var uuid = data[4];
+	    	var lasttd = tr.lastChild;
+		if ($(lasttd).text() == 'Import') {
+			lasttd.replaceChild($(
+			    '<a href="javascript:kImportDialog(\'' + uuid +
+			    '\')">Import</a>')[0], lasttd.firstChild);
+		}
+	    }
 	});
 }
 
@@ -185,7 +197,7 @@ function kUploadDialog()
 	    '</div>'
 	].join('\n'));
 
-	var dlog = $(div).dialog({
+	$(div).dialog({
 		'buttons': {
 			'Upload': function () {
 				$('#uploadText').text('Uploading...');
@@ -194,10 +206,12 @@ function kUploadDialog()
 						$('#uploadText').text('Done!');
 						$(div).dialog('destroy');
 						kLoadData();
+						$(div).remove();
 					},
 					'error': function () {
 						alert('Upload failed!');
 						$(div).dialog('destroy');
+						$(div).remove();
 					}
 				});
 			}
@@ -206,5 +220,75 @@ function kUploadDialog()
 		'modal': true,
 		'title': 'Upload video',
 		'width': '400px'
+	});
+
+	$(div).bind('dialogclose', function () {
+		$(div).remove();
+	});
+}
+
+function kImportDialog(uuid)
+{
+	var racecode = [
+	    '        <tr>',
+	    '            <td id="label$id" colspan="2"></td>',
+	    '        </tr>',
+	    '        <tr>',
+	    '            <td class="kTableLabel">Level:</td>',
+	    '            <td class="kTableValue">',
+            '                <input type="radio" id="level50cc$id"',
+	    '                    name="level$id" value="50cc"/>',
+            '                <label for="level50cc$id">50cc</label>',
+            '                <input type="radio" id="level100cc$id"',
+	    '                    name="level$id" value="100cc"/>',
+            '                <label for="level100cc$id">100cc</label>',
+            '                <input type="radio" id="level150cc$id"',
+	    '                    name="level$id" value="150cc"/>',
+            '                <label for="level150cc$id">150cc</label>',
+            '                <input type="radio" id="levelExtra$id"',
+	    '                    name="level$id" value="Extra"/>',
+            '                <label for="levelExtra$id">Extra</label>',
+	    '            </td>',
+	    '        </tr>'
+	].join('\n');
+
+	var div = $([
+	    '<div id="import">',
+	    '    <table class="kPropertyTable"><tbody>',
+	    '    </tbody></table>',
+	    '</div>'
+	].join('\n'));
+
+	var video = kVideos[uuid];
+
+	video.races.forEach(function (race, i) {
+		var code = racecode.replace(/\$id/g, i);
+		$(div).find('tbody').append($(code));
+	});
+
+	$(div).dialog({
+		'buttons': {
+			'Import': function () {
+				alert('not yet implemented');
+				$(div).dialog('destroy');
+			}
+		},
+		'dialogClass': 'kConfirmDialog',
+		'modal': true,
+		'title': 'Import video',
+		'width': '80%'
+	});
+
+	$(div).bind('dialogclose', function () {
+		$(div).remove();
+	});
+
+	video.races.forEach(function (race, i) {
+		var time = Math.floor(race.start_time / 1000) + '.' +
+		    (race.start_time % 1000);
+		var label = '<strong>Race ' + (i+1) + ': ' +
+		    race.players.length + 'P ' + race.mode + ' on ' +
+		    race.track + '</strong> (start time: ' + time + 's)';
+		$('#label' + i).html(label);
 	});
 }

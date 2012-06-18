@@ -350,7 +350,13 @@ function parseKartvid(video)
 				log.warn('ignoring race aborted at %s',
 				    entry.source);
 
-			race = { 'start': entry, 'segments': [] };
+			race = {
+				'start_time': entry.time,
+				'mode': trackMode(entry.track),
+				'track': trackName(entry.track),
+				'players': entry.players,
+				'segments': []
+			};
 			return;
 		}
 
@@ -382,6 +388,38 @@ function parseKartvid(video)
 		race.results = entry.players;
 		races.push(race);
 	});
+}
+
+var trackNames = {
+    'banshee': 'Banshee Boardwalk',
+    'beach': 'Koopa Troopa Beach',
+    'bowser': 'Bowser\'s Castle',
+    'choco': 'Choco Mountain',
+    'desert': 'Kalimari Desert',
+    'dk': 'DK\'s Jungle Parkway',
+    'frappe': 'Frappe Snowland',
+    'luigi': 'Luigi Raceway',
+    'mario': 'Mario Raceway',
+    'moo': 'Moo Moo Farm',
+    'rainbow': 'Rainbow Road',
+    'royal': 'Royal Raceway',
+    'sherbet': 'Sherbet Land',
+    'toad': 'Toad\'s Turnpike',
+    'wario': 'Wario Raceway',
+    'yoshi': 'Yoshi Valley'
+};
+
+function trackName(trackid)
+{
+	if (trackNames.hasOwnProperty(trackid))
+		return (trackNames[trackid]);
+
+	return ('Unknown Track');
+}
+
+function trackMode(trackid)
+{
+	return ('VS');
 }
 
 /*
