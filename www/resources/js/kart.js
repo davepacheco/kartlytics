@@ -61,7 +61,7 @@ function kOnData(data, text)
 	data.forEach(function (video) {
 		if (kVideos.hasOwnProperty(video.id) &&
 		    kVideos[video.id].used === true)
-		    	return;
+			return;
 
 		kVideos[video.id] = video;
 
@@ -106,13 +106,13 @@ function kRefresh()
 
 	$('.kDynamic').remove();
 
-	for (var id in kVideos) {
-		var video = kVideos[id];
+	for (var vid in kVideos) {
+		var video = kVideos[vid];
 
 		if (video.state != 'error' &&
 		    video.state != 'unconfirmed' &&
 		    video.state != 'reading')
-		    	continue;
+			continue;
 
 		var elt = [ video.name, video.uploaded,
 		    kCapitalize(video.state) ];
@@ -161,7 +161,7 @@ function kRefresh()
 		'sClass': 'kDataColumnState',
 		'sWidth': '100px'
 	    }, {
-	    	'sTitle': 'Details',
+		'sTitle': 'Details',
 		'sClass': 'kDataColumnDetails',
 		'sWidth': '200px'
 	    }, {
@@ -170,7 +170,7 @@ function kRefresh()
 	    'aaData': videos,
 	    'fnCreatedRow': function (tr, data) {
 		var uuid = data[4];
-	    	var lasttd = tr.lastChild;
+		var lasttd = tr.lastChild;
 		if ($(lasttd).text() == 'Import') {
 			lasttd.replaceChild($(
 			    '<a href="javascript:kImportDialog(\'' + uuid +
@@ -236,18 +236,18 @@ function kImportDialog(uuid)
 	    '        <tr>',
 	    '            <td class="kTableLabel">Level:</td>',
 	    '            <td class="kTableValue">',
-            '                <input type="radio" id="level50cc$id"',
+	    '                <input type="radio" id="level50cc$id"',
 	    '                    name="level$id" value="50cc"/>',
-            '                <label for="level50cc$id">50cc</label>',
-            '                <input type="radio" id="level100cc$id"',
+	    '                <label for="level50cc$id">50cc</label>',
+	    '                <input type="radio" id="level100cc$id"',
 	    '                    name="level$id" value="100cc"/>',
-            '                <label for="level100cc$id">100cc</label>',
-            '                <input type="radio" id="level150cc$id"',
+	    '                <label for="level100cc$id">100cc</label>',
+	    '                <input type="radio" id="level150cc$id"',
 	    '                    name="level$id" value="150cc"/>',
-            '                <label for="level150cc$id">150cc</label>',
-            '                <input type="radio" id="levelExtra$id"',
+	    '                <label for="level150cc$id">150cc</label>',
+	    '                <input type="radio" id="levelExtra$id"',
 	    '                    name="level$id" value="Extra"/>',
-            '                <label for="levelExtra$id">Extra</label>',
+	    '                <label for="levelExtra$id">Extra</label>',
 	    '            </td>',
 	    '        </tr>'
 	].join('\n');
@@ -262,8 +262,51 @@ function kImportDialog(uuid)
 	var video = kVideos[uuid];
 
 	video.races.forEach(function (race, i) {
+		if (!race.end)
+			return;
+
 		var code = racecode.replace(/\$id/g, i);
-		$(div).find('tbody').append($(code));
+		var tbody = $(div).find('tbody');
+		var pcode = $('<table class="kPlayerTable"></table>');
+		var data = race.players.map(function (p, j) {
+			var result = ordinal(race.results[j].position);
+			return ([ 'P' + (j + 1), ucfirst(p.character),
+			    result, '' ]);
+		});
+
+		tbody.append($(code));
+		tbody.append($([
+		    '<tr>',
+		    '    <td class="kTableLabel">Players:</td>',
+		    '    <td id="players' + i + '" class="kTableValue"></td>',
+		    '</tr>'
+		].join('\n')));
+
+		$(tbody).find('#players' + i).append(pcode);
+
+		$(pcode).dataTable({
+			'bAutoWidth': false,
+			'bPaginate': false,
+			'bLengthChange': false,
+			'bFilter': false,
+			'bSort': false,
+			'bInfo': false,
+			'bSearchable': false,
+			'aoColumns': [ {
+				'sTitle': '',
+				'sClass': 'kPlayerNumber'
+			}, {
+				'sTitle': 'Character',
+				'sClass': 'kPlayerCharacter'
+			}, {
+				'sTitle': 'Place',
+				'sClass': 'kPlayerPlace'
+			}, {
+				'sTitle': 'Human',
+				'sClass': 'kPlayerHuman'
+			} ],
+			'aaData': data
+		});
 	});
 
 	$(div).dialog({
@@ -291,4 +334,23 @@ function kImportDialog(uuid)
 		    race.track + '</strong> (start time: ' + time + 's)';
 		$('#label' + i).html(label);
 	});
+}
+
+function ucfirst(str)
+{
+	return (str[0].toUpperCase() + str.substr(1));
+}
+
+function ordinal(num)
+{
+	if (num == 1)
+		return ('1st');
+	if (num == 2)
+		return ('2nd');
+	if (num == 3)
+		return ('3rd');
+	if (num == 4)
+		return ('4th');
+
+	return (num);
 }

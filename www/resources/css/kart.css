@@ -121,10 +121,6 @@ div.kBody {
 /*
  * kPropertyTable: Configure a list of key-value pairs.
  */
-table.kPropertyTable tr {
-	vertical-align: middle;	/* override the default "top" valign */
-}
-
 	table.kPropertyTable td {
 		padding-top: 7px;
 		padding-bottom: 7px;
@@ -160,24 +156,24 @@ table.kPropertyTable tr {
 
 
 /*
- * "New Set" dialog
+ * Player table
  */
-
-.kNewSetDialog table.kPropertyTable {
-	margin-left: auto;	/* center the main property table */
-	margin-right: auto;
+table.kPlayerTable th {
+	text-align: left;
 }
 
-table.kPlayerTable {
-	width: 100%;
+td.kPlayerNumber {
+	width: 30px;
 }
 
-	table.kPlayerTable td {
-		text-align: left;
-		padding-left: 10px;
-		padding-right: 10px;
-	}
+td.kPlayerCharacter {
+	width: 100px;
+}
 
-	table.kPlayerTable td.kPlayerLabel {
-		width: 65px;
-	}
+td.kPlayerPlace {
+	width: 50px;
+}
+
+td.kPlayerHuman {
+	width: 300px;
+}
