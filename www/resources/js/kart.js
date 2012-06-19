@@ -305,7 +305,12 @@ function kImportDialog(uuid)
 				'sTitle': 'Human',
 				'sClass': 'kPlayerHuman'
 			} ],
-			'aaData': data
+			'aaData': data,
+			'fnCreatedRow': function (tr, data, j) {
+				$(tr.lastChild).html(
+				    '<input type="text" id="race' +
+				    i + 'p' + j + '"></input>');
+			}
 		});
 	});
 
@@ -334,6 +339,8 @@ function kImportDialog(uuid)
 		    race.track + '</strong> (start time: ' + time + 's)';
 		$('#label' + i).html(label);
 	});
+
+	$('#race0p0').focus();
 }
 
 function ucfirst(str)
