@@ -11,6 +11,10 @@ var kUnconfirmed = {};
 var kFailed = {};
 
 var kPlayers = {};
+var kPlayersAutocomplete = {
+    'dap': true,
+    'rm': true
+};
 
 var kId = 0;
 var kDomConsole;
@@ -90,6 +94,9 @@ function kOnData(data, text)
 
 	kDomUpdated.text(new Date());
 	kRefresh();
+
+	if (!isEmpty(kReading))
+		setTimeout(kLoadData, 1000);
 }
 
 function kUpdateStats(video)
@@ -133,7 +140,7 @@ function kRefresh()
 	    'id="' + divid + '">' +
 	    'Videos requiring attention</div>',
 	    '<table id="' + tblid + '" ' +
-	    'class="kDynamic kDataTable"></table>');
+	    'class="kDynamic kDataTable"></table></div>');
 
 	var table = $('table#' + tblid);
 
@@ -266,7 +273,7 @@ function kImportDialog(uuid)
 			return;
 
 		var code = racecode.replace(/\$id/g, i);
-		var tbody = $(div).find('tbody');
+		var tbody = $(div).find('table.kPropertyTable > tbody');
 		var pcode = $('<table class="kPlayerTable"></table>');
 		var data = race.players.map(function (p, j) {
 			var result = ordinal(race.results[j].position);
@@ -306,10 +313,21 @@ function kImportDialog(uuid)
 				'sClass': 'kPlayerHuman'
 			} ],
 			'aaData': data,
-			'fnCreatedRow': function (tr, data, j) {
+			'fnCreatedRow': function (tr, _, j) {
 				$(tr.lastChild).html(
 				    '<input type="text" id="race' +
-				    i + 'p' + j + '"></input>');
+				    i + 'p' + j + '" />');
+				$(tr).find('input').autocomplete({
+					/*
+					 * XXX this could be a lot more clever
+					 * by showing all people from all
+					 * previous races AND all people entered
+					 * on this entire form, MINUS any that
+					 * have been used in this race already.
+					 */
+					'source': Object.keys(
+					    kPlayersAutocomplete)
+				});
 			}
 		});
 	});
@@ -360,4 +378,11 @@ function ordinal(num)
 		return ('4th');
 
 	return (num);
+}
+
+function isEmpty(obj)
+{
+	for (var key in obj)
+		return (false);
+	return (true);
 }
