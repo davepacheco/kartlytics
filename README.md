@@ -131,10 +131,19 @@ Later, it will be useful to get more complex statistics:
 - Detect weapons.  The most reliable way to detect weapons gotten is probably to
   look at the *last* weapon in the weapon box before the box itself disappears.
   (All the other ideas I've come up with can't really handle the case where a
-  player immediately uses the weapon.)
-- Detect lap completion.
+  player immediately uses the weapon.)  But even then, you have to worry about
+  super mushrooms (which flash), triple mushrooms (which become 2 or 1 before
+  going away), and people stealing weapons with ghosts.
+- Position along the track for detecting "hot spots" where people tend to get
+  slowed down.
+- Detect lap completion for lap times.
 - Billing: spending most of the race in 1st place, but losing due to weapon
   usage late in the race.
 - Keithing: going from 1st to 4th within a few seconds.
 - Average, median, Nth percentile race and lap times, per player per track (per
   racer?)
+- Banana-saves: times when someone saves themselves from a banana spin-out
+- Rescues: times when Lakitu has to come fetch you
+- Impacts-by-shell: use explosion or "crash" to detect getting hit by something
+- Impact of bomb?
+- Power slides, boosts, and attempts?
