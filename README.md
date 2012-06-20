@@ -128,6 +128,7 @@ Remaining items include:
 
 Later, it will be useful to get more complex statistics:
 
+- Pause screen
 - Detect weapons.  The most reliable way to detect weapons gotten is probably to
   look at the *last* weapon in the weapon box before the box itself disappears.
   (All the other ideas I've come up with can't really handle the case where a

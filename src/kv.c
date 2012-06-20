@@ -171,9 +171,13 @@ kv_ident_matches(kv_screen_t *ksp, const char *mask, double score)
 	(void) strlcpy(buf, mask, sizeof (buf));
 
 	if (strncmp(buf, "track_", sizeof ("track_") - 1) == 0) {
+		if (ksp->ks_track[0] != '\0' && ksp->ks_trackscore < score)
+			return;
+
 		(void) strtok(buf + sizeof ("track_"), "_.");
 		(void) strlcpy(ksp->ks_track, buf + sizeof ("track_") - 1,
 		    sizeof (ksp->ks_track));
+		ksp->ks_trackscore = score;
 		return;
 	}
 
@@ -247,6 +251,12 @@ kv_screen_invalid(kv_screen_t *ksp, kv_screen_t *pksp)
 
 	for (i = 0; i < ksp->ks_nplayers; i++) {
 		if (ksp->ks_players[i].kp_place == 0)
+			return (1);
+	}
+
+	for (i = 0; i < ksp->ks_nplayers; i++) {
+		if (pksp->ks_players[i].kp_lapnum != 0 &&
+		    ksp->ks_players[i].kp_lapnum == 0)
 			return (1);
 	}
 

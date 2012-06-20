@@ -12,9 +12,9 @@
 #include "img.h"
 
 #define	KV_FRAMERATE		29.97
-#define	KV_THRESHOLD_CHAR	0.15
-#define	KV_THRESHOLD_TRACK	0.11
-#define	KV_THRESHOLD_LAKITU	0.08
+#define	KV_THRESHOLD_CHAR	0.20
+#define	KV_THRESHOLD_TRACK	0.20
+#define	KV_THRESHOLD_LAKITU	0.15
 #define	KV_MIN_RACE_FRAMES	(2 * KV_FRAMERATE)	/* 2 seconds */
 
 #define KV_MAXPLAYERS	4
@@ -36,6 +36,7 @@ typedef struct {
 	kv_events_t	ks_events;		/* active events */
 	unsigned short	ks_nplayers;		/* number of active players */
 	char		ks_track[32];		/* name, "" = unknown */
+	double		ks_trackscore;		/* score for track match */
 	kv_player_t	ks_players[KV_MAXPLAYERS];	/* player details */
 } kv_screen_t;
 
