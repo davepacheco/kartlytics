@@ -78,7 +78,9 @@ function initServer()
 	klServer.get('/', redirect.bind(null, '/f/index.htm'));
 	klServer.get('/f/.*', fileServer.bind(null, '/f/', filespath));
 	klServer.post('/kart/video', upload);
-	klServer.get('/api/videos', apiVideos);
+	klServer.get('/api/videos', apiVideosGet);
+	klServer.put('/api/videos/:id',
+	    mod_restify.bodyParser({ 'mapParams': false }), apiVideosPut);
 
 	klServer.on('after', mod_restify.auditLogger({ 'log': klLog }));
 
@@ -150,7 +152,7 @@ function fileServer(baseuri, basedir, request, response, next)
 /*
  * GET /api/videos: returns all known videos
  */
-function apiVideos(request, response, next)
+function apiVideosGet(request, response, next)
 {
 	var rv = [];
 
@@ -159,6 +161,7 @@ function apiVideos(request, response, next)
 			'id': uuid,
 			'name': video.name,
 			'uploaded': video.uploaded,
+			'mtime': video.lastUpdated,
 			'races': video.races,
 			'error': video.error,
 			'stderr': video.stderr
@@ -172,7 +175,7 @@ function apiVideos(request, response, next)
 			obj.state = 'reading';
 			obj['frame'] = video.frame || 0;
 			obj['nframes'] = video.maxframes || video.frame || 100;
-		} else if (!video.confirmed) {
+		} else if (!video.metadata) {
 			obj.state = 'unconfirmed';
 		} else {
 			obj.state = 'done';
@@ -183,6 +186,83 @@ function apiVideos(request, response, next)
 
 	response.send(rv);
 	next();
+}
+
+var klMetadataSchema = {
+    'type': 'object',
+    'additionalProperties': false,
+    'properties': {
+	'races': {
+	    'type': 'array',
+	    'items': {
+		'type': 'object',
+		'additionalProperties': false,
+		'properties': {
+		    'level': {
+			'type': 'string',
+			'enum': [ '50cc', '100cc', '150cc', 'Extra' ]
+		    },
+		    'people': {
+			'type': 'array',
+			'uniqueItems': true,
+			'items': {
+			    'type': 'string',
+			    'minLength': 1
+			}
+		    }
+		}
+	    }
+	}
+    }
+};
+
+/*
+ * PUT /api/videos/:id: saves video metadata
+ */
+function apiVideosPut(request, response, next)
+{
+	var uuid, body, error, video, race, i;
+
+	uuid = request.params['id'];
+	body = request.body;
+
+	if (!klVideos.hasOwnProperty(uuid)) {
+		next(new mod_restify.ResourceNotFoundError());
+		return;
+	}
+
+	video = klVideos[uuid];
+	if (video.error || !video.saved || !video.processed) {
+		next(new mod_restify.ResourceNotFoundError());
+		return;
+	}
+
+	error = mod_jsprim.validateJsonObject(klMetadataSchema, body);
+	if (error) {
+		next(new mod_restify.BadRequestError(error.message));
+		return;
+	}
+
+	if (body['races'].length != video['races'].length) {
+		next(new mod_restify.BadRequestError('wrong number of races'));
+		return;
+	}
+
+	for (i = 0; i < body['races'].length; i++) {
+		race = body['races'][i];
+
+		if (race['people'].length !=
+		    video.races[i]['players'].length) {
+			next(new mod_restify.BadRequestError(
+			    'wrong number of players for race ' + i));
+			return;
+		}
+	}
+
+	/* XXX write to disk (serialize?) */
+	video.metadata = body;
+	video.lastUpdated = new Date();
+	response.send(200);
 }
 
 /*
@@ -228,11 +308,12 @@ function processVideo(file)
 	    'name': vidname,
 	    'filename': filename,
 	    'uploaded': new Date(),
+	    'lastUpdated': new Date(),
 	    'metadataFile': filename + '.md.json',
 	    'eventsFile': filename + '.events.json',
 	    'saved': false,
 	    'processed': false,
-	    'confirmed': false,
+	    'metadata': undefined,
 	    'maxframes': undefined,
 	    'frame': undefined,
 	    'log': undefined,
@@ -449,7 +530,7 @@ function kangGetObject(type, ident)
 		'name': video.name,
 		'uploaded': video.uploaded,
 		'saved': video.saved,
-		'confirmed': video.confirmed,
+		'metadata': video.metadata,
 		'frame': video.frame,
 		'maxframes': video.maxframes,
 		'races': video.races,

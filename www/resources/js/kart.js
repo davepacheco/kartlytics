@@ -38,15 +38,18 @@ function kLoadData()
 	});
 }
 
-function kFatal(_, text, err)
+function kFatal(xhr, text, err)
 {
-	var message = 'Error loading data';
+	var message = 'Server error';
 
 	if (text)
 		message += ': ' + text;
 
 	if (err && err.message)
 		message += ' (' + err.message + ')';
+
+	if (xhr.responseText)
+		message += ': ' + xhr.responseText;
 
 	alert(message);
 }
@@ -109,40 +112,46 @@ function kRefresh()
 	var id = kId++;
 	var tblid = 'kTable' + id;
 	var divid = 'kDiv' + id;
-	var videos = [];
+	var done = [], unimported = [];
+	var table;
 
 	$('.kDynamic').remove();
 
 	for (var vid in kVideos) {
 		var video = kVideos[vid];
 
-		if (video.state != 'error' &&
+		if (video.state != 'done' &&
+		    video.state != 'error' &&
 		    video.state != 'unconfirmed' &&
 		    video.state != 'reading')
 			continue;
 
-		var elt = [ video.name, video.uploaded,
-		    kCapitalize(video.state) ];
+		var elt = [ video.id, video.name, video.uploaded ];
 
-		if (video.state == 'error')
-			elt.push(video.error);
-		else if (video.state == 'reading')
-			elt.push(Math.floor(
-			    (video.frame / video.nframes) * 100) + '%');
-		else
-			elt.push('Import');
+		if (video.state == 'done') {
+			elt.push(video.races.length);
+			done.push(elt);
+		} else {
+			elt.push(kCapitalize(video.state));
 
-		elt.push(video.id);
-		videos.push(elt);
+			if (video.state == 'error')
+				elt.push(video.error);
+			else if (video.state == 'reading')
+				elt.push(Math.floor(
+				    (video.frame / video.nframes) * 100) + '%');
+			else
+				elt.push('Import');
+
+			unimported.push(elt);
+		}
 	}
 
 	kDomConsole.append('<div class="kDynamic kSubHeader" ' +
-	    'id="' + divid + '">' +
-	    'Videos requiring attention</div>',
+	    'id="' + divid + '">' + 'Unimported videos</div>',
 	    '<table id="' + tblid + '" ' +
 	    'class="kDynamic kDataTable"></table></div>');
 
-	var table = $('table#' + tblid);
+	table = $('table#' + tblid);
 
 	table.dataTable({
 	    'bAutoWidth': false,
@@ -156,6 +165,8 @@ function kRefresh()
 		'sEmptyTable': 'No videos added.'
 	    },
 	    'aoColumns': [ {
+		'bVisible': false
+	    }, {
 	        'sTitle': 'Video',
 		'sClass': 'kDataColumnVideoName',
 		'sWidth': '100px'
@@ -171,12 +182,10 @@ function kRefresh()
 		'sTitle': 'Details',
 		'sClass': 'kDataColumnDetails',
 		'sWidth': '200px'
-	    }, {
-		'bVisible': false
 	    } ],
-	    'aaData': videos,
+	    'aaData': unimported,
 	    'fnCreatedRow': function (tr, data) {
-		var uuid = data[4];
+		var uuid = data[0];
 		var lasttd = tr.lastChild;
 		if ($(lasttd).text() == 'Import') {
 			lasttd.replaceChild($(
@@ -185,6 +194,45 @@ function kRefresh()
 		}
 	    }
 	});
+
+	divid += '2';
+	tblid += '2';
+	kDomConsole.append('<div class="kDynamic kSubHeader" ' +
+	    'id="' + divid + '">' + 'Imported videos</div>',
+	    '<table id="' + tblid + '2" ' +
+	    'class="kDynamic kDataTable"></table></div>');
+
+	table = $('table#' + tblid + '2');
+
+	table.dataTable({
+	    'bAutoWidth': false,
+	    'bPaginate': false,
+	    'pLengthChange': false,
+	    'bFilter': false,
+	    'bSort': false,
+	    'bInfo': false,
+	    'bSearchable': false,
+	    'oLanguage': {
+		'sEmptyTable': 'No videos added.'
+	    },
+	    'aoColumns': [ {
+		'bVisible': false
+	    }, {
+	        'sTitle': 'Video',
+		'sClass': 'kDataColumnVideoName',
+		'sWidth': '100px'
+	    }, {
+	        'sTitle': 'Uploaded',
+		'sClass': 'kDataColumnUploaded',
+		'sWidth': '200px'
+	    }, {
+	        'sTitle': 'Races',
+		'sClass': 'kDataColumnNumRaces',
+		'sWidth': '100px'
+	    } ],
+	    'aaData': done
+	});
+
 }
 
 function kCapitalize(str)
@@ -238,7 +286,10 @@ function kImportDialog(uuid)
 {
 	var racecode = [
 	    '        <tr>',
-	    '            <td id="label$id" colspan="2"></td>',
+	    '            <td colspan="2">',
+	    '                <span id="label$id"></span>',
+	    '                <span class="kWarning" id="error$id"></span>',
+	    '            </td>',
 	    '        </tr>',
 	    '        <tr>',
 	    '            <td class="kTableLabel">Level:</td>',
@@ -255,6 +306,7 @@ function kImportDialog(uuid)
 	    '                <input type="radio" id="levelExtra$id"',
 	    '                    name="level$id" value="Extra"/>',
 	    '                <label for="levelExtra$id">Extra</label>',
+	    '                <span class="kWarning" id="level$iderror" />',
 	    '            </td>',
 	    '        </tr>'
 	].join('\n');
@@ -316,7 +368,9 @@ function kImportDialog(uuid)
 			'fnCreatedRow': function (tr, _, j) {
 				$(tr.lastChild).html(
 				    '<input type="text" id="race' +
-				    i + 'p' + j + '" />');
+				    i + 'p' + j + '" />' +
+				    '<span class="kWarning" id="race' +
+				    i + 'p' + j + 'error" />');
 				$(tr).find('input').autocomplete({
 					/*
 					 * XXX this could be a lot more clever
@@ -335,8 +389,7 @@ function kImportDialog(uuid)
 	$(div).dialog({
 		'buttons': {
 			'Import': function () {
-				alert('not yet implemented');
-				$(div).dialog('destroy');
+				kImportOk(uuid, div);
 			}
 		},
 		'dialogClass': 'kConfirmDialog',
@@ -361,6 +414,90 @@ function kImportDialog(uuid)
 	$('#race0p0').focus();
 }
 
+function kImportOk(uuid, div)
+{
+	var video = kVideos[uuid];
+	var races = video.races;
+	var metadata = {};
+	var i, j, k, entry, errors;
+
+	metadata.races = [];
+
+	for (i = 0; i < races.length; i++) {
+		entry = {};
+		entry['level'] = $(div).find('input:radio[name=level' + i +
+		    ']:checked').val();
+		entry['people'] = [];
+
+		for (j = 0; j < races[i].players.length; j++)
+			entry['people'].push($(div).find(
+			    '#race' + i + 'p' + j).val());
+
+		metadata.races.push(entry);
+	}
+
+	/*
+	 * Validate what we've got.  While we're at it, clear existing
+	 * validation errors.
+	 */
+	errors = [];
+	for (i = 0; i < metadata.races.length; i++) {
+		entry = metadata.races[i];
+
+		$('#error' + i).text('');
+		$('#level' + i + 'error').text('');
+
+		if (!entry['level'])
+			errors.push([ i, 'level' + i, 'Select a level' ]);
+
+		for (j = 0; j < entry.people.length; j++) {
+			$('#race' + i + 'p' + j + 'error').text('');
+
+			if (!entry.people[j]) {
+				errors.push([ i, 'race' + i + 'p' + j,
+				    'Enter a player name' ]);
+				continue;
+			}
+
+			for (k = j + 1; k < entry.people.length; k++) {
+				if (entry.people[j] != entry.people[k])
+					continue;
+
+				errors.push([ i, 'race' + i + 'p' + k,
+				    '"' + entry.people[k] + '" is already ' +
+				    'player ' + (j + 1) ]);
+			}
+		}
+	}
+
+	if (errors.length === 0) {
+		kImportSave(uuid, metadata, div);
+		return;
+	}
+
+	errors.forEach(function (err) {
+		$('#error' + err[0]).text('*');
+		$('#' + err[1] + 'error').text(err[2]);
+	});
+}
+
+function kImportSave(uuid, metadata, div)
+{
+	$.ajax({
+	    'type': 'PUT',
+	    'url': '/api/videos/' + uuid,
+	    'contentType': 'application/json',
+	    'processData': false,
+	    'data': JSON.stringify(metadata),
+	    'error': kFatal,
+	    'success': function () {
+		$(div).dialog('destroy');
+		$(div).remove();
+		kLoadData();
+	    }
+	});
+}
+
 function ucfirst(str)
 {
 	return (str[0].toUpperCase() + str.substr(1));
@@ -382,7 +519,8 @@ function ordinal(num)
 
 function isEmpty(obj)
 {
-	for (var key in obj)
+	var key;
+	for (key in obj)
 		return (false);
 	return (true);
 }
