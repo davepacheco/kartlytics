@@ -57,6 +57,10 @@ div.kBody {
 	border-bottom: 1px #000044 dashed;
 }
 
+div.kProgressBar {
+	height: 10px;
+}
+
 
 /*
  * The "Console" is the actual body of the page where the real content lives.

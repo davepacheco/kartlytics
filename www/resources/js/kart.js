@@ -19,6 +19,7 @@ var kPlayersAutocomplete = {
 var kId = 0;
 var kDomConsole;
 var kDomUpdated;
+var kTables = [];
 
 function kInit()
 {
@@ -115,6 +116,8 @@ function kRefresh()
 	var done = [], unimported = [];
 	var table;
 
+	kTables.forEach(function (t) { t.fnDestroy(); });
+	kTables = [];
 	$('.kDynamic').remove();
 
 	for (var vid in kVideos) {
@@ -137,8 +140,7 @@ function kRefresh()
 			if (video.state == 'error')
 				elt.push(video.error);
 			else if (video.state == 'reading')
-				elt.push(Math.floor(
-				    (video.frame / video.nframes) * 100) + '%');
+				elt.push('');
 			else
 				elt.push('Import');
 
@@ -153,7 +155,7 @@ function kRefresh()
 
 	table = $('table#' + tblid);
 
-	table.dataTable({
+	kTables.push(table.dataTable({
 	    'bAutoWidth': false,
 	    'bPaginate': false,
 	    'pLengthChange': false,
@@ -186,14 +188,25 @@ function kRefresh()
 	    'aaData': unimported,
 	    'fnCreatedRow': function (tr, data) {
 		var uuid = data[0];
-		var lasttd = tr.lastChild;
-		if ($(lasttd).text() == 'Import') {
-			lasttd.replaceChild($(
-			    '<a href="javascript:kImportDialog(\'' + uuid +
-			    '\')">Import</a>')[0], lasttd.firstChild);
+		var vidobj = kVideos[uuid];
+		var td;
+
+		if (vidobj.state == 'unconfirmed') {
+			td = $(tr).find('td.kDataColumnDetails');
+			td.html('<a href="javascript:kImportDialog(\'' + uuid +
+			    '\')">Import</a>');
+			return;
+		}
+
+		if (vidobj.state == 'reading') {
+			td = $(tr).find('td.kDataColumnDetails');
+			$('<div class="kProgressBar"></div>').appendTo(td).
+			    progressbar({ 'value': Math.floor(
+				(vidobj.frame / vidobj.nframes) * 100) });
+			return;
 		}
 	    }
-	});
+	}));
 
 	divid += '2';
 	tblid += '2';
@@ -204,7 +217,7 @@ function kRefresh()
 
 	table = $('table#' + tblid + '2');
 
-	table.dataTable({
+	kTables.push(table.dataTable({
 	    'bAutoWidth': false,
 	    'bPaginate': false,
 	    'pLengthChange': false,
@@ -231,7 +244,7 @@ function kRefresh()
 		'sWidth': '100px'
 	    } ],
 	    'aaData': done
-	});
+	}));
 
 }
 
