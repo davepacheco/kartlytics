@@ -181,3 +181,31 @@ td.kPlayerPlace {
 td.kPlayerHuman {
 	width: 300px;
 }
+
+/*
+ * Race table
+ */
+td.kDataRaceID {
+	font-family: monospace;
+	text-align: right;
+}
+
+td.kDataRaceNPl {
+	text-align: right;
+}
+
+td.kDataRaceLvl {
+	text-align: right;
+}
+
+td.kDataRaceVStart {
+	text-align: right;
+}
+
+td.kDataRaceVEnd {
+	text-align: right;
+}
+
+td.kDataRaceTime {
+	text-align: right;
+}

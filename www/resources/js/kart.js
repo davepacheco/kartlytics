@@ -1,25 +1,61 @@
 /*
  * kart.js: kart web console
+ *
+ * This file implements the kartlytics webapp, through which users browse
+ * historical records of Mario Kart races and upload their own videos to be
+ * included in these records.
+ *
+ * The basic workflow is as follows: a user uploads a video, the server
+ * processes it to extract details about each of the races recorded in the
+ * video, the user annotates each race with the names of the human players in
+ * each square, and then the video becomes part of the historical records.
+ *
+ * The goal is to be able to slice and dice the data any way we want: filtering
+ * and/or decomposing by day, week, game character, human player, race, track,
+ * and so on.  As a result, the server doesn't bother organizing the data for
+ * us.  It presents it as simply as it came in: as a set of videos, each with a
+ * set of races, each describing the characters, players, and race "segments"
+ * (periods during which there was no state change within the race, where each
+ * character held a particular rank).
+ *
+ * When loading data, this client makes one API call to retrieve all video
+ * records.  Those videos which have not been "imported" (that is, for which the
+ * user has not indicated which humans played which characters in each of the
+ * video's races) are put aside as "needing attention".  For the rest, we
+ * compute our stats client-side and then present them.  For details on how that
+ * works, see "Stat computation" below.
  */
 
+/*
+ * TODO:
+ * - add table of basic stats by player
+ * - video details screen, including video download link
+ * - race details screen (race transcript)
+ * - player details screen (list of races including character played)
+ * - clean up "upload" dialog
+ */
+
+/*
+ * Data model.
+ */
+var kVideos = {};		/* raw data -- records for all videos */
+var kPlayersAutocomplete = {};	/* cache of all player names */
+				/* (used for autocomplete) */
+
+/*
+ * DOM state.
+ */
+var kId = 0;			/* used to generate unique ids */
+var kDomConsole;		/* DOM element for main console */
+var kDomUpdated;		/* DOM element for "last updated" text */
+var kTables = [];		/* list of dynamic tables */
+
+/*
+ * Initialization and data load.  Data is reloaded on page load, after making a
+ * server-side change, and periodically when we know there are videos being
+ * processed (and updated) on the server.
+ */
 $(document).ready(kInit);
-
-var kVideos = {};
-var kUploading = {};
-var kReading = {};
-var kUnconfirmed = {};
-var kFailed = {};
-
-var kPlayers = {};
-var kPlayersAutocomplete = {
-    'dap': true,
-    'rm': true
-};
-
-var kId = 0;
-var kDomConsole;
-var kDomUpdated;
-var kTables = [];
 
 function kInit()
 {
@@ -57,15 +93,20 @@ function kFatal(xhr, text, err)
 
 function kOnData(data, text)
 {
+	var message, key, nreading;
+
 	if (!data) {
-		var message = 'invalid data';
+		message = 'invalid data';
 		if (text)
 			message += ': ' + text;
 		alert(message);
 		return;
 	}
 
-	/* XXX remove old videos */
+	for (key in kVideos)
+		kVideos[key].deleteMark = true;
+
+	nreading = 0;
 	data.forEach(function (video) {
 		if (kVideos.hasOwnProperty(video.id) &&
 		    kVideos[video.id].used === true)
@@ -73,72 +114,100 @@ function kOnData(data, text)
 
 		kVideos[video.id] = video;
 
-		if (video.state == 'error')
-			kFailed[video.id] = true;
-		else
-			delete (kFailed[video.id]);
-
-		if (video.state == 'uploading')
-			kUploading[video.id] = true;
-		else
-			delete (kUploading[video.id]);
-
 		if (video.state == 'reading')
-			kReading[video.id] = true;
-		else
-			delete (kReading[video.id]);
+			nreading++;
 
-		if (video.state == 'unconfirmed')
-			kUnconfirmed[video.id] = true;
-		else
-			delete (kUnconfirmed[video.id]);
-
-		kUpdateStats(video);
+		if (video.state == 'done')
+			kUpdateStats(video);
 	});
+
+	for (key in kVideos) {
+		if (!kVideos[key].deleteMark)
+			continue;
+
+		delete (kVideos[key]);
+	}
 
 	kDomUpdated.text(new Date());
 	kRefresh();
 
-	if (!isEmpty(kReading))
+	if (nreading > 0)
 		setTimeout(kLoadData, 1000);
 }
 
 function kUpdateStats(video)
 {
-	/* XXX */
+	/*
+	 * Update the set of players for autocomplete.
+	 */
+	video.metadata.races.forEach(function (race) {
+		race.people.forEach(function (p) {
+			kPlayersAutocomplete[p] = true;
+		});
+	});
 }
 
-function kRefresh()
+
+/*
+ * Rendering.
+ */
+
+var kTableDefaults = {
+    'bAutoWidth': false,
+    'bPaginate': false,
+    'bLengthChange': false,
+    'bFilter': false,
+    'bInfo': false,
+    'bSearchable': false
+};
+
+function kMakeDynamicTable(parent, header, opts)
 {
 	var id = kId++;
 	var tblid = 'kTable' + id;
 	var divid = 'kDiv' + id;
-	var done = [], unimported = [];
-	var table;
+	var fullopts, key, rv, table;
 
+	fullopts = {};
+	for (key in kTableDefaults)
+		fullopts[key] = kTableDefaults[key];
+	for (key in opts)
+		fullopts[key] = opts[key];
+
+	rv = $('<div class="kDynamic kSubHeader" id="' + divid + '">' +
+	    header + '</div>\n' +
+	    '<table id="' + tblid + '" class="kDynamic kDataTable">\n' +
+	    '</table></div>');
+	rv.appendTo(parent);
+	table = $('table#' + tblid);
+	console.log(table);
+	kTables.push(table.dataTable(fullopts));
+}
+
+function kRemoveDynamicTables()
+{
 	kTables.forEach(function (t) { t.fnDestroy(); });
 	kTables = [];
 	$('.kDynamic').remove();
+}
 
-	for (var vid in kVideos) {
-		var video = kVideos[vid];
+function kRefresh()
+{
+	var done = [], unimported = [];
+	var id, video, elt, races;
 
-		if (video.state != 'done' &&
-		    video.state != 'error' &&
-		    video.state != 'unconfirmed' &&
-		    video.state != 'reading' &&
-		    video.state != 'uploading' &&
-		    video.state != 'waiting')
-			continue;
+	kRemoveDynamicTables();
 
-		var elt = [ video.id, video.name,
-		    video.uploaded || '' ];
+	for (id in kVideos) {
+		video = kVideos[id];
+
+		elt = [ video.id, video.name, video.uploaded || '' ];
 
 		if (video.state == 'done') {
 			elt.push(video.races.length);
 			done.push(elt);
 		} else {
-			elt.push(kCapitalize(video.state));
+			elt.push(ucfirst(video.state));
 
 			if (video.state == 'error')
 				elt.push(video.error);
@@ -151,32 +220,18 @@ function kRefresh()
 		}
 	}
 
-	kDomConsole.append('<div class="kDynamic kSubHeader" ' +
-	    'id="' + divid + '">' + 'Unimported videos</div>',
-	    '<table id="' + tblid + '" ' +
-	    'class="kDynamic kDataTable"></table></div>');
-
-	table = $('table#' + tblid);
-
-	kTables.push(table.dataTable({
-	    'bAutoWidth': false,
-	    'bPaginate': false,
-	    'pLengthChange': false,
-	    'bFilter': false,
-	    'bSort': false,
-	    'bInfo': false,
-	    'bSearchable': false,
+	kMakeDynamicTable(kDomConsole, 'Unimported videos', {
 	    'oLanguage': {
-		'sEmptyTable': 'No videos added.'
+		'sEmptyTable': 'No videos to import.'
 	    },
 	    'aoColumns': [ {
-		'bVisible': false
+		'sTitle': 'Video ID'
 	    }, {
-	        'sTitle': 'Video',
+		'sTitle': 'Filename',
 		'sClass': 'kDataColumnVideoName',
 		'sWidth': '100px'
 	    }, {
-	        'sTitle': 'Uploaded',
+		'sTitle': 'Uploaded',
 		'sClass': 'kDataColumnUploaded',
 		'sWidth': '200px'
 	    }, {
@@ -209,30 +264,14 @@ function kRefresh()
 			return;
 		}
 	    }
-	}));
+	});
 
-	divid += '2';
-	tblid += '2';
-	kDomConsole.append('<div class="kDynamic kSubHeader" ' +
-	    'id="' + divid + '">' + 'Imported videos</div>',
-	    '<table id="' + tblid + '2" ' +
-	    'class="kDynamic kDataTable"></table></div>');
-
-	table = $('table#' + tblid + '2');
-
-	kTables.push(table.dataTable({
-	    'bAutoWidth': false,
-	    'bPaginate': false,
-	    'pLengthChange': false,
-	    'bFilter': false,
-	    'bSort': false,
-	    'bInfo': false,
-	    'bSearchable': false,
+	kMakeDynamicTable(kDomConsole, 'Imported videos', {
 	    'oLanguage': {
-		'sEmptyTable': 'No videos added.'
+		'sEmptyTable': 'No videos imported.'
 	    },
 	    'aoColumns': [ {
-		'bVisible': false
+		'sTitle': 'Video ID'
 	    }, {
 	        'sTitle': 'Video',
 		'sClass': 'kDataColumnVideoName',
@@ -247,14 +286,62 @@ function kRefresh()
 		'sWidth': '100px'
 	    } ],
 	    'aaData': done
-	}));
+	});
 
+	races = [];
+	kEachRace(true, function (race) {
+		races.push([
+		    race,
+		    race['raceid'],
+		    race['players'].length + 'P',
+		    race['mode'],
+		    race['level'] || '',
+		    race['track'],
+		    kDuration(race['vstart']),
+		    kDuration(race['vend']),
+		    kDuration(race['duration'])
+		]);
+	});
+
+	kMakeDynamicTable(kDomConsole, 'All Races', {
+	    'bFilter': true,
+	    'oLanguage': {
+		'sEmptyTable': 'No races found.'
+	    },
+	    'aoColumns': [ {
+		'bVisible': false
+	    }, {
+		'sTitle': 'RaceID',
+		'sClass': 'kDataRaceID'
+	    }, {
+		'sTitle': 'NPl',
+		'sClass': 'kDataRaceNPl'
+	    }, {
+		'sTitle': 'Mode',
+		'sClass': 'kDataRaceMode'
+	    }, {
+		'sTitle': 'Lvl',
+		'sClass': 'kDataRaceLvl'
+	    }, {
+		'sTitle': 'Track',
+		'sClass': 'kDataRaceTrack'
+	    }, {
+		'sTitle': 'VStart',
+		'sClass': 'kDataRaceVStart'
+	    }, {
+		'sTitle': 'VEnd',
+		'sClass': 'kDataRaceVEnd'
+	    }, {
+		'sTitle': 'Time',
+		'sClass': 'kDataRaceTime'
+	    } ],
+	    'aaData': races
+	});
 }
 
-function kCapitalize(str)
-{
-	return (str[0].toUpperCase() + str.substr(1));
-}
+/*
+ * Workflow: dialogs through which users modify video records.
+ */
 
 function kUploadDialog()
 {
@@ -419,8 +506,7 @@ function kImportDialog(uuid)
 	});
 
 	video.races.forEach(function (race, i) {
-		var time = Math.floor(race.start_time / 1000) + '.' +
-		    (race.start_time % 1000);
+		var time = kDuration(race.start_time);
 		var label = '<strong>Race ' + (i+1) + ': ' +
 		    race.players.length + 'P ' + race.mode + ' on ' +
 		    race.track + '</strong> (start time: ' + time + 's)';
@@ -514,6 +600,11 @@ function kImportSave(uuid, metadata, div)
 	});
 }
 
+
+/*
+ * Utility functions.
+ */
+
 function ucfirst(str)
 {
 	return (str[0].toUpperCase() + str.substr(1));
@@ -539,4 +630,192 @@ function isEmpty(obj)
 	for (key in obj)
 		return (false);
 	return (true);
+}
+
+function kDuration(ms)
+{
+	var hour, min, sec, rv;
+
+	/* compute totals in each unit */
+	sec = Math.floor(ms / 1000);
+	min = Math.floor(sec / 60);
+	hour = Math.floor(min / 60);
+
+	/* compute offsets for each unit */
+	ms %= 1000;
+	sec %= 60;
+	min %= 60;
+
+	rv = '';
+	if (hour > 0)
+		rv += hour + ':';
+
+	if (hour > 0 || min > 0) {
+		if (hour > 0 && min < 10)
+			rv += '0' + min + ':';
+		else
+			rv += min + ':';
+	}
+
+	if ((hour > 0 || min > 0) && sec < 10)
+		rv += '0' + sec + '.';
+	else
+		rv += sec + '.';
+
+	if (ms < 10)
+		rv += '00' + ms;
+	else if (ms < 100)
+		rv += '0' + ms;
+	else
+		rv += ms;
+
+	return (rv);
+}
+
+/*
+ * Stat computation.  The rest of this file is essentially a library for doing
+ * stat queries on the race data.
+ *
+ * As described above, the goal is to be able to slice and dice the data in all
+ * kinds of ways.  We start with just one type of object, the "race", which
+ * defines the following properties:
+ *
+ *	raceid		Unique identifier for this race (composed from the
+ *			"vidid" and "num" fields).
+ *
+ *	vidid		Unique identifier for the video this race came from.
+ *
+ *	num		Ordinal number of this race within its video.
+ *
+ *	start_time	The datetime when this race was started.
+ *
+ *	end_time	The datetime when this race completed.
+ *
+ * 	duration	The duration of the race, in milliseconds.
+ *
+ * 	mode		"VS" (future versions may support "battle")
+ *
+ * 	level		For mode == "vs", this is "50cc", "100cc", "150cc", or
+ * 			"Extra".
+ *
+ * 	track		The name of the track raced.  The corresponding cup can
+ * 			be obtained via the kTrackToCup() function.
+ *
+ *	players		Array of players in the race, in "player" order (e.g.,
+ *			player 1, player2, and so on), each with the following
+ *			fields:
+ *
+ *		char		Character name (e.g., "Yoshi")
+ *
+ *		person		Human player name
+ *
+ * We provide a primitive, kSelectRaces([filter]), which selects all races
+ * matching the given filter (a standard JS filter function).
+ *
+ * The current data also allows us to define a "segment" type, which would
+ * enable us to compute per-segment data (e.g., the percentage of time a person
+ * was in 1st place, or the number of times they went from 1st to 4th within 5
+ * seconds).  This is not yet implemented.
+ *
+ * Future revisions may have other events within a race: e.g., slips on a banana
+ * peel, rescues, power slide boosts, and so on.
+ */
+
+/*
+ * Given a track name, returns the corresponding cup.
+ */
+var kTracks = {
+    'Luigi Raceway': 'Mushroom',
+    'Moo Moo Farm': 'Mushroom',
+    'Koopa Troopa Beach': 'Mushroom',
+    'Kalimari Desert': 'Mushroom',
+
+    'Toad\'s Turnpike': 'Flower',
+    'Frappe Snowland': 'Flower',
+    'Choco Mountain': 'Flower',
+    'Mario Raceway': 'Flower',
+
+    'Wario Raceway': 'Star',
+    'Sherbet Land': 'Star',
+    'Royal Raceway': 'Star',
+    'Bowser\'s Castle': 'Star',
+
+    'DK\'s Jungle Parkway': 'Special',
+    'Yoshi Valley': 'Special',
+    'Banshee Boardwalk': 'Special',
+    'Rainbow Road': 'Special'
+};
+
+function kTrackToCup(track)
+{
+	return (kTracks[track] || 'Unknown');
+}
+
+var kChars = {
+    'mario': 'middle',
+    'luigi': 'middle',
+    'peach': 'light',
+    'toad': 'light',
+    'yoshi': 'light',
+    'wario': 'heavy',
+    'dk': 'heavy',
+    'bowser': 'heavy'
+};
+
+function kCharToClass(character)
+{
+	return (kChars(character) || 'Unknown');
+}
+
+function kEachRace(filter, iter)
+{
+	var key, video;
+
+	for (key in kVideos) {
+		video = kVideos[key];
+
+		if (video.state != 'done')
+			continue;
+
+		video.races.forEach(function (race, i) {
+			var raceobj = makeRaceObject(video, race, i);
+			if (filter === true || filter(raceobj))
+				iter(raceobj);
+		});
+	}
+}
+
+function makeRaceObject(video, race, num)
+{
+	var racemeta, players, i, rv;
+
+	racemeta = video.metadata.races[num];
+	players = new Array(race.players.length);
+
+	for (i = 0; i < race.players.length; i++)
+		players[i] = {
+		    'char': race.players[i].character,
+		    'person': racemeta.people[i],
+		    'rank': race.results[i].position
+		};
+
+	if (num < 10)
+		num = '0' + num;
+
+	rv = {
+	    'raceid': video.id + '/' + num,
+	    'vidid': video.id,
+	    'num': num,
+	    'start_time': undefined,	/* XXX need video start time */
+	    'end_time': undefined, 	/* XXX ditto */
+	    'vstart': race.start_time,
+	    'vend': race.end,
+	    'duration': race.end - race.start_time,
+	    'mode': race.mode,
+	    'level': racemeta.level,
+	    'track': race.track,
+	    'players': players
+	};
+
+	return (rv);
 }

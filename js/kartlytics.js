@@ -186,6 +186,7 @@ function apiVideosGet(request, response, next)
 			'uploaded': video.uploaded,
 			'mtime': video.lastUpdated,
 			'races': video.races,
+			'metadata': video.metadata,
 			'error': video.error,
 			'stderr': video.stderr
 		};
