@@ -29,6 +29,15 @@ var klVideoQueue;
 
 function main()
 {
+	if (process.argv.length > 2) {
+		klPort = parseInt(process.argv[2]);
+		if (isNaN(klPort)) {
+			console.error('usage: %s %s [port_number]',
+			    process.argv[0], process.argv[1]);
+			process.exit(2);
+		}
+	}
+
 	klLog = new mod_bunyan({ 'name': klName });
 	klVideoQueue = mod_vasync.queuev({
 	    'concurrency': 1,

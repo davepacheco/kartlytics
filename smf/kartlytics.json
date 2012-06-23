@@ -1,5 +1,5 @@
 {
 	"ident": "kartlytics",
 	"label": "kartlytics web service",
-	"start": "/usr/local/bin/node /home/kartlytics/current/js/kartlytics.js"
+	"start": "/usr/local/bin/node /home/kartlytics/current/js/kartlytics.js 80"
 }
