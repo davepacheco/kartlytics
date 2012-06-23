@@ -31,7 +31,7 @@ function main()
 {
 	klLog = new mod_bunyan({ 'name': klName });
 	klVideoQueue = mod_vasync.queuev({
-	    'concurrency': 2,
+	    'concurrency': 1,
 	    'worker': vidProcessFrames
 	});
 
@@ -44,7 +44,30 @@ function main()
  */
 function initData()
 {
+	var ents;
+
 	mkdirp.sync(klDatadir);
+
+	klLog.info('loading data from %s', klDatadir);
+	ents = mod_fs.readdirSync(klDatadir);
+	ents.forEach(function (name) {
+		if (!mod_jsprim.endsWith(name, '.md.json'))
+			return;
+
+		var contents = mod_fs.readFileSync(mod_path.join(
+		    klDatadir, name));
+		var video = JSON.parse(contents);
+
+		video.log = klLog.child({ 'video': video.name });
+		klVideos[video.id] = video;
+	});
+
+	mod_jsprim.forEachKey(klVideos, function (_, video) {
+		if (video.processed)
+			return;
+
+		klVideoQueue.push(video.id);
+	});
 }
 
 /*
@@ -82,7 +105,7 @@ function initServer()
 	klServer.put('/api/videos/:id',
 	    mod_restify.bodyParser({ 'mapParams': false }), apiVideosPut);
 
-	klServer.on('after', mod_restify.auditLogger({ 'log': klLog }));
+	// klServer.on('after', mod_restify.auditLogger({ 'log': klLog }));
 
 	klServer.listen(klPort, function () {
 		klLog.info('%s server listening at %s',
@@ -171,6 +194,8 @@ function apiVideosGet(request, response, next)
 			obj.state = 'error';
 		} else if (!video.saved) {
 			obj.state = 'uploading';
+		} else if (!video.processed && !video.child) {
+			obj.state = 'waiting';
 		} else if (!video.processed) {
 			obj.state = 'reading';
 			obj['frame'] = video.frame || 0;
@@ -259,10 +284,15 @@ function apiVideosPut(request, response, next)
 		}
 	}
 
-	/* XXX write to disk (serialize?) */
-	video.metadata = body;
-	video.lastUpdated = new Date();
-	response.send(200);
+	saveVideo(video, body, function (err) {
+		if (err) {
+			next(err);
+			return;
+		}
+
+		response.send(200);
+		next();
+	});
 }
 
 /*
@@ -307,16 +337,16 @@ function processVideo(file)
 	    'id': uuid,
 	    'name': vidname,
 	    'filename': filename,
-	    'uploaded': new Date(),
-	    'lastUpdated': new Date(),
+	    'uploaded': mod_jsprim.iso8601(new Date()),
+	    'lastUpdated': mod_jsprim.iso8601(new Date()),
 	    'metadataFile': filename + '.md.json',
 	    'eventsFile': filename + '.events.json',
+	    'log': klLog.child({ 'video': vidname }),
 	    'saved': false,
 	    'processed': false,
 	    'metadata': undefined,
 	    'maxframes': undefined,
 	    'frame': undefined,
-	    'log': undefined,
 	    'races': undefined,
 	    'error': undefined,
 	    'child': undefined,
@@ -324,21 +354,60 @@ function processVideo(file)
 	    'stderr': undefined
 	};
 
+	saveVideo(video, undefined, function (err) {
+		if (err)
+			return;
+
+		video.saved = true;
+		klVideoQueue.push(video.id);
+	});
+}
+
+function saveVideo(video, metadata, callback)
+{
 	/*
 	 * Once the upload completes, we write a blank metadata file.  If we
 	 * don't find this file on startup, we assume the upload failed partway.
 	 */
-	mod_fs.writeFile(video.metadataFile, JSON.stringify(video, null, 4),
+	var tmpfile = video.metadataFile + 'tmp';
+	var keys = [ 'id', 'name', 'filename', 'uploaded', 'metadataFile',
+	    'eventsFile', 'saved', 'processed', 'metadata', 'races', 'error',
+	    'stdout', 'stderr' ];
+	var obj = {};
+	var when = mod_jsprim.iso8601(new Date());
+
+	keys.forEach(function (key) {
+		obj[key] = video[key];
+	});
+
+	obj['saved'] = true;
+	obj['lastUpdated'] = when;
+
+	if (metadata)
+		obj['metadata'] = metadata;
+
+	mod_fs.writeFile(tmpfile, JSON.stringify(obj, null, 4),
 	    function (err) {
 		if (err) {
 			klLog.error(err, 'failed to write metadata file %s',
-			    video['metadataFile']);
+			    tmpfile);
+			callback(err);
 			return;
 		}
 
-		video.saved = true;
-		video.log = klLog.child({ 'video': vidname });
-		klVideoQueue.push(video.id);
+		mod_fs.rename(tmpfile, video.metadataFile, function (suberr) {
+			if (err) {
+				klLog.error(err, 'failed to rename %s',
+				    tmpfile);
+				callback(err);
+				return;
+			}
+
+			video.metadata = metadata;
+			video.lastUpdated = when;
+			klLog.info('saved video record %s', video.id);
+			callback();
+		});
 	    });
 }
 
@@ -376,9 +445,6 @@ function vidProcessFrames(vidid, callback)
 			return;
 		}
 
-		video.log.info('kartvid successfully processed %s',
-		    video.filename);
-		video.processed = true;
 		mod_fs.writeFile(video.eventsFile, stdout, function (err) {
 			if (err) {
 				video.error = mod_extsprintf.sprintf(
@@ -390,7 +456,10 @@ function vidProcessFrames(vidid, callback)
 				return;
 			}
 
-			callback();
+			video.log.info('kartvid successfully ' +
+			    'processed %s', video.filename);
+			video.processed = true;
+			saveVideo(video, undefined, callback);
 		});
 	});
 }

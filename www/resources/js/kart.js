@@ -126,10 +126,13 @@ function kRefresh()
 		if (video.state != 'done' &&
 		    video.state != 'error' &&
 		    video.state != 'unconfirmed' &&
-		    video.state != 'reading')
+		    video.state != 'reading' &&
+		    video.state != 'uploading' &&
+		    video.state != 'waiting')
 			continue;
 
-		var elt = [ video.id, video.name, video.uploaded ];
+		var elt = [ video.id, video.name,
+		    video.uploaded || '' ];
 
 		if (video.state == 'done') {
 			elt.push(video.races.length);
@@ -139,10 +142,10 @@ function kRefresh()
 
 			if (video.state == 'error')
 				elt.push(video.error);
-			else if (video.state == 'reading')
-				elt.push('');
-			else
+			else if (video.state == 'unconfirmed')
 				elt.push('Import');
+			else
+				elt.push('');
 
 			unimported.push(elt);
 		}
