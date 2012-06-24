@@ -195,7 +195,7 @@ function kRemoveDynamicTables()
 function kRefresh()
 {
 	var done = [], unimported = [];
-	var id, video, elt, races;
+	var id, video, elt, races, players, pnames, pdata;
 
 	kRemoveDynamicTables();
 
@@ -337,6 +337,50 @@ function kRefresh()
 		'sClass': 'kDataRaceTime'
 	    } ],
 	    'aaData': races
+	});
+
+	players = {};
+	kEachRace(true, function (race) {
+		race.players.forEach(function (p) {
+			if (!players[p.person])
+				players[p.person] = {
+					'nraces': 0,
+					'n1': 0,
+					'n2': 0,
+					'n3': 0,
+					'n4': 0
+				};
+
+			players[p.person]['nraces']++;
+			players[p.person]['n' + p.rank]++;
+		});
+	});
+
+	pnames = Object.keys(players);
+	pnames.sort();
+	pdata = pnames.map(function (p) {
+	    return ([ p, players[p]['nraces'], players[p]['n1'],
+		players[p]['n2'], players[p]['n3'], players[p]['n4'] ]);
+	});
+
+	kMakeDynamicTable(kDomConsole, 'Players', {
+	    'oLanguage': {
+		'sEmptyTable': 'No videos imported.'
+	    },
+	    'aoColumns': [ {
+	        'sTitle': 'Player'
+	    }, {
+	        'sTitle': 'Races'
+	    }, {
+	        'sTitle': '1'
+	    }, {
+	        'sTitle': '2'
+	    }, {
+	        'sTitle': '3'
+	    }, {
+	        'sTitle': '4'
+	    } ],
+	    'aaData': pdata
 	});
 }
 

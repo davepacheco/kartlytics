@@ -31,7 +31,7 @@ var klVideoQueue;
 function main()
 {
 	var parser, option;
-	
+
 	parser = new mod_getopt.BasicParser('l:d:', process.argv);
 
 	while ((option = parser.getopt())) {
@@ -40,7 +40,7 @@ function main()
 
 		switch (option.option) {
 		case 'l':
-			klPort = parseInt(option.optarg);
+			klPort = parseInt(option.optarg, 10);
 			if (isNaN(klPort))
 				usage();
 			break;
