@@ -26,6 +26,8 @@
  * works, see "Stat computation" below.
  */
 
+/* jsl:declare window */
+
 /*
  * TODO:
  * - video details screen, including video download link
@@ -44,6 +46,7 @@ var kPlayersAutocomplete = {};	/* cache of all player names */
 /*
  * DOM state.
  */
+var kScreenCurrent;		/* current screen */
 var kId = 0;			/* used to generate unique ids */
 var kDomConsole;		/* DOM element for main console */
 var kDomUpdated;		/* DOM element for "last updated" text */
@@ -58,10 +61,13 @@ $(document).ready(kInit);
 
 function kInit()
 {
-	kLoadData();
-
 	kDomConsole = $('.kConsole');
 	kDomUpdated = $('.kLastUpdateTime');
+
+	$(window).bind('hashchange', kScreenUpdate);
+	kScreenUpdate();
+
+	kLoadData();
 }
 
 function kLoadData()
@@ -107,17 +113,20 @@ function kOnData(data, text)
 
 	nreading = 0;
 	data.forEach(function (video) {
-		if (kVideos.hasOwnProperty(video.id) &&
-		    kVideos[video.id].used === true)
-			return;
-
 		kVideos[video.id] = video;
 
 		if (video.state == 'reading')
 			nreading++;
 
-		if (video.state == 'done')
-			kUpdateStats(video);
+		if (video.state != 'done')
+			return;
+
+		/* Update the set of players for autocomplete. */
+		video.metadata.races.forEach(function (race) {
+			race.people.forEach(function (p) {
+				kPlayersAutocomplete[p] = true;
+			});
+		});
 	});
 
 	for (key in kVideos) {
@@ -128,27 +137,15 @@ function kOnData(data, text)
 	}
 
 	kDomUpdated.text(new Date());
-	kRefresh();
+	kScreenCurrent.refresh();
 
 	if (nreading > 0)
 		setTimeout(kLoadData, 1000);
 }
 
-function kUpdateStats(video)
-{
-	/*
-	 * Update the set of players for autocomplete.
-	 */
-	video.metadata.races.forEach(function (race) {
-		race.people.forEach(function (p) {
-			kPlayersAutocomplete[p] = true;
-		});
-	});
-}
-
 
 /*
- * Rendering.
+ * Rendering utilities.
  */
 
 var kTableDefaults = {
@@ -182,19 +179,66 @@ function kMakeDynamicTable(parent, header, opts)
 	kTables.push(table.dataTable(fullopts));
 }
 
-function kRemoveDynamicTables()
+
+/*
+ * Screens represent different views within the webapp.  The default screen is a
+ * summary showing videos that need attention, overall player stats, and so on.
+ * Other screens include the player details screen, the track details screen,
+ * and so on.  Screens are tied to the browser URL: links within the app change
+ * the URL's "hash" component, which triggers a screen change.
+ *
+ * Each Screen object defines two methods: load(args), which takes the current
+ * URL arguments and populates the DOM for this screen, and clear(), which
+ * restores the DOM to a blank screen.
+ */
+var kScreens = {
+    'summary': {
+	'name': 'summary',
+	'load': kScreenSummaryLoad,
+	'clear': kScreenSummaryClear,
+	'refresh': kScreenSummaryRefresh
+    }
+};
+
+/*
+ * Looks at the current URL hash to figure out which screen should be active,
+ * clears the current screen, and loads the new one.  This is invoked on initial
+ * page load and again when the URL hash changes.
+ */
+function kScreenUpdate()
 {
-	kTables.forEach(function (t) { t.fnDestroy(); });
-	kTables = [];
-	$('.kDynamic').remove();
+	var hash, components, screen, args;
+
+	hash = window.location.hash.substr(1);
+
+	if (!hash)
+		hash = 'summary';
+
+	components = hash.split('/');
+
+	if (!kScreens[components[0]]) {
+		screen = kScreens['summary'];
+		args = [];
+	} else {
+		screen = kScreens[components[0]];
+		args = components.slice(1);
+	}
+
+	if (kScreenCurrent)
+		kScreenCurrent.clear();
+
+	kScreenCurrent = screen;
+	kScreenCurrent.load(args);
 }
 
-function kRefresh()
+/*
+ * Summary screen: shows videos needing attention, basic player stats, and a
+ * paginated view of all races.
+ */
+function kScreenSummaryLoad()
 {
 	var id, video, elt, races, players, pnames, pdata;
 	var unimported = [];
-
-	kRemoveDynamicTables();
 
 	for (id in kVideos) {
 		video = kVideos[id];
@@ -423,6 +467,20 @@ function kRefresh()
 	    'aaData': races
 	});
 }
+
+function kScreenSummaryClear()
+{
+	kTables.forEach(function (t) { t.fnDestroy(); });
+	kTables = [];
+	$('.kDynamic').remove();
+}
+
+function kScreenSummaryRefresh()
+{
+	kScreenSummaryClear();
+	kScreenSummaryLoad();
+}
+
 
 /*
  * Workflow: dialogs through which users modify video records.
