@@ -160,7 +160,7 @@ div.kProgressBar {
 
 
 /*
- * Player table
+ * Player configuration table
  */
 table.kPlayerTable th {
 	text-align: left;
@@ -207,5 +207,19 @@ td.kDataRaceVEnd {
 }
 
 td.kDataRaceTime {
+	text-align: right;
+}
+
+/*
+ * Player results table
+ */
+table td.kDataPlayerNum, table th.kDataPlayerNum {
+	width: 15px;
+	padding-left: 5px;
+	padding-right: 5px;
+}
+
+td.kDataPlayerNum, td.kDataPlayerTime, td.kDataPlayerPercentage,
+th.kDataPlayerNum, th.kDataPlayerTime, th.kDataPlayerPercentage {
 	text-align: right;
 }

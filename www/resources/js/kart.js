@@ -28,7 +28,6 @@
 
 /*
  * TODO:
- * - add table of basic stats by player
  * - video details screen, including video download link
  * - race details screen (race transcript)
  * - player details screen (list of races including character played)
@@ -192,31 +191,28 @@ function kRemoveDynamicTables()
 
 function kRefresh()
 {
-	var done = [], unimported = [];
 	var id, video, elt, races, players, pnames, pdata;
+	var unimported = [];
 
 	kRemoveDynamicTables();
 
 	for (id in kVideos) {
 		video = kVideos[id];
 
-		elt = [ video.id, video.name, video.uploaded || '' ];
+		if (video.state == 'done')
+			continue;
 
-		if (video.state == 'done') {
-			elt.push(video.races.length);
-			done.push(elt);
-		} else {
-			elt.push(ucfirst(video.state));
+		elt = [ video.id, video.name, video.uploaded || '',
+		    ucfirst(video.state) ];
 
-			if (video.state == 'error')
-				elt.push(video.error);
-			else if (video.state == 'unconfirmed')
-				elt.push('Import');
-			else
-				elt.push('');
+		if (video.state == 'error')
+			elt.push(video.error);
+		else if (video.state == 'unconfirmed')
+			elt.push('Import');
+		else
+			elt.push('');
 
-			unimported.push(elt);
-		}
+		unimported.push(elt);
 	}
 
 	kMakeDynamicTable(kDomConsole, 'Unimported videos', {
@@ -265,26 +261,116 @@ function kRefresh()
 	    }
 	});
 
-	kMakeDynamicTable(kDomConsole, 'Imported videos', {
+	players = {};
+	kEachRace(true, function (race) {
+		race.players.forEach(function (p, i) {
+			var pinfo;
+
+			if (!players[p.person])
+				players[p.person] = {
+					'ntot': 0,
+					'n1': 0,
+					'n2': 0,
+					'n3': 0,
+					'n4': 0,
+					'ttot': 0,
+					't1': 0,
+					't2': 0,
+					't3': 0,
+					't4': 0
+				};
+
+			pinfo = players[p.person];
+			pinfo['ntot']++;
+			pinfo['n' + p.rank]++;
+
+			kRaceSegments(race, true, function (_, seg) {
+				var rank = seg.players[i].rank;
+				pinfo['ttot'] += seg.duration;
+				pinfo['t' + rank] += seg.duration;
+			});
+		});
+	});
+
+	pnames = Object.keys(players);
+	pnames.sort();
+
+	pdata = pnames.map(function (p) {
+	    var pinfo = players[p];
+	    return ([
+		p,
+		pinfo['ntot'],
+		pinfo['n1'],
+		pinfo['n2'],
+		pinfo['n3'],
+		pinfo['n4'],
+		kDuration(pinfo['ttot'], false),
+		kDuration(pinfo['t1'], false),
+		kDuration(pinfo['t2'], false),
+		kDuration(pinfo['t3'], false),
+		kDuration(pinfo['t4'], false),
+		kPercentage(pinfo['t1'] / pinfo['ttot']),
+		kPercentage(pinfo['t2'] / pinfo['ttot']),
+		kPercentage(pinfo['t3'] / pinfo['ttot']),
+		kPercentage(pinfo['t4'] / pinfo['ttot'])
+	    ]);
+	});
+
+	kMakeDynamicTable(kDomConsole, 'Player summary', {
 	    'oLanguage': {
 		'sEmptyTable': 'No videos imported.'
 	    },
 	    'aoColumns': [ {
-		'sTitle': 'Video ID'
+		'sTitle': 'Player'
 	    }, {
-	        'sTitle': 'Video',
-		'sClass': 'kDataColumnVideoName',
-		'sWidth': '100px'
+		'sTitle': 'NR',
+		'sClass': 'kDataPlayerNum',
+		'sWidth': '15px'
 	    }, {
-	        'sTitle': 'Uploaded',
-		'sClass': 'kDataColumnUploaded',
-		'sWidth': '200px'
+		'sTitle': 'N1',
+		'sClass': 'kDataPlayerNum',
+		'sWidth': '15px'
 	    }, {
-	        'sTitle': 'Races',
-		'sClass': 'kDataColumnNumRaces',
-		'sWidth': '100px'
+		'sTitle': 'N2',
+		'sClass': 'kDataPlayerNum',
+		'sWidth': '15px'
+	    }, {
+		'sTitle': 'N3',
+		'sClass': 'kDataPlayerNum',
+		'sWidth': '15px'
+	    }, {
+		'sTitle': 'N4',
+		'sClass': 'kDataPlayerNum',
+		'sWidth': '15px'
+	    }, {
+		'sTitle': 'Time',
+		'sClass': 'kDataPlayerTime'
+	    }, {
+		'sTitle': 'T1',
+		'sClass': 'kDataPlayerTime'
+	    }, {
+		'sTitle': 'T2',
+		'sClass': 'kDataPlayerTime'
+	    }, {
+		'sTitle': 'T3',
+		'sClass': 'kDataPlayerTime'
+	    }, {
+		'sTitle': 'T4',
+		'sClass': 'kDataPlayerTime'
+	    }, {
+		'sTitle': '1(%)',
+		'sClass': 'kDataPlayerPercentage'
+	    }, {
+		'sTitle': '2(%)',
+		'sClass': 'kDataPlayerPercentage'
+	    }, {
+		'sTitle': '3(%)',
+		'sClass': 'kDataPlayerPercentage'
+	    }, {
+		'sTitle': '4(%)',
+		'sClass': 'kDataPlayerPercentage'
 	    } ],
-	    'aaData': done
+	    'aaData': pdata
 	});
 
 	races = [];
@@ -296,13 +382,13 @@ function kRefresh()
 		    race['mode'],
 		    race['level'] || '',
 		    race['track'],
-		    kDuration(race['vstart']),
-		    kDuration(race['vend']),
-		    kDuration(race['duration'])
+		    kDuration(race['duration'], true),
+		    kDuration(race['vstart'], true),
+		    kDuration(race['vend'], true)
 		]);
 	});
 
-	kMakeDynamicTable(kDomConsole, 'All Races', {
+	kMakeDynamicTable(kDomConsole, 'Race summary', {
 	    'bFilter': true,
 	    'oLanguage': {
 		'sEmptyTable': 'No races found.'
@@ -325,60 +411,16 @@ function kRefresh()
 		'sTitle': 'Track',
 		'sClass': 'kDataRaceTrack'
 	    }, {
+		'sTitle': 'Time',
+		'sClass': 'kDataRaceTime'
+	    }, {
 		'sTitle': 'VStart',
 		'sClass': 'kDataRaceVStart'
 	    }, {
 		'sTitle': 'VEnd',
 		'sClass': 'kDataRaceVEnd'
-	    }, {
-		'sTitle': 'Time',
-		'sClass': 'kDataRaceTime'
 	    } ],
 	    'aaData': races
-	});
-
-	players = {};
-	kEachRace(true, function (race) {
-		race.players.forEach(function (p) {
-			if (!players[p.person])
-				players[p.person] = {
-					'nraces': 0,
-					'n1': 0,
-					'n2': 0,
-					'n3': 0,
-					'n4': 0
-				};
-
-			players[p.person]['nraces']++;
-			players[p.person]['n' + p.rank]++;
-		});
-	});
-
-	pnames = Object.keys(players);
-	pnames.sort();
-	pdata = pnames.map(function (p) {
-	    return ([ p, players[p]['nraces'], players[p]['n1'],
-		players[p]['n2'], players[p]['n3'], players[p]['n4'] ]);
-	});
-
-	kMakeDynamicTable(kDomConsole, 'Players', {
-	    'oLanguage': {
-		'sEmptyTable': 'No videos imported.'
-	    },
-	    'aoColumns': [ {
-	        'sTitle': 'Player'
-	    }, {
-	        'sTitle': 'Races'
-	    }, {
-	        'sTitle': '1'
-	    }, {
-	        'sTitle': '2'
-	    }, {
-	        'sTitle': '3'
-	    }, {
-	        'sTitle': '4'
-	    } ],
-	    'aaData': pdata
 	});
 }
 
@@ -681,7 +723,7 @@ function isEmpty(obj)
 	return (true);
 }
 
-function kDuration(ms)
+function kDuration(ms, showmillis)
 {
 	var hour, min, sec, rv;
 
@@ -707,18 +749,26 @@ function kDuration(ms)
 	}
 
 	if ((hour > 0 || min > 0) && sec < 10)
-		rv += '0' + sec + '.';
+		rv += '0' + sec;
 	else
-		rv += sec + '.';
+		rv += sec;
+
+	if (!showmillis)
+		return (rv + 's');
 
 	if (ms < 10)
-		rv += '00' + ms;
+		rv += '.00' + ms;
 	else if (ms < 100)
-		rv += '0' + ms;
+		rv += '.0' + ms;
 	else
-		rv += ms;
+		rv += '.' + ms;
 
 	return (rv);
+}
+
+function kPercentage(frac)
+{
+	return ((100 * frac).toFixed(1));
 }
 
 /*
@@ -726,8 +776,7 @@ function kDuration(ms)
  * stat queries on the race data.
  *
  * As described above, the goal is to be able to slice and dice the data in all
- * kinds of ways.  We start with just one type of object, the "race", which
- * defines the following properties:
+ * kinds of ways.  We define a "race" object with the following properties:
  *
  *	raceid		Unique identifier for this race (composed from the
  *			"vidid" and "num" fields).
@@ -741,6 +790,10 @@ function kDuration(ms)
  *	end_time	The datetime when this race completed.
  *
  * 	duration	The duration of the race, in milliseconds.
+ *
+ *      vstart		Time within the video when this race began
+ *
+ *      vend		Time within the video when this race ended
  *
  * 	mode		"VS" (future versions may support "battle")
  *
@@ -758,13 +811,33 @@ function kDuration(ms)
  *
  *		person		Human player name
  *
- * We provide a primitive, kSelectRaces([filter]), which selects all races
- * matching the given filter (a standard JS filter function).
+ *		rank		Player's rank at the end of the race
  *
- * The current data also allows us to define a "segment" type, which would
- * enable us to compute per-segment data (e.g., the percentage of time a person
- * was in 1st place, or the number of times they went from 1st to 4th within 5
- * seconds).  This is not yet implemented.
+ * We provide a primitive, kEachRace(filter, iter), which invokes "iter" for all
+ * races matching the given filter (a standard JS filter function, or "true").
+ *
+ * We also define a "segment" object with the following properties:
+ *
+ *     raceid		ID for race object
+ *
+ *     segnum		Segment number within the race
+ *
+ *     players		Array of players in the race in "player" order, each
+ *     			with:
+ *
+ *		rank		Player's rank in this segment
+ *
+ *			For character and human names, you must look at
+ *			race['players'].
+ *
+ *     duration		Length of this segment (milliseconds)
+ *
+ *     vstart		Time within the video when this segment started
+ *
+ *     vend		Time within the video when this segment ended
+ *
+ * and a function to iterate them, kEachSegment(filter, iter), with "filter" and
+ * "iter" invoked as iter(race, segment) for each segment.
  *
  * Future revisions may have other events within a race: e.g., slips on a banana
  * peel, rescues, power slide boosts, and so on.
@@ -848,9 +921,6 @@ function makeRaceObject(video, race, num)
 		    'rank': race.results[i].position
 		};
 
-	if (num < 10)
-		num = '0' + num;
-
 	rv = {
 	    'raceid': video.id + '/' + num,
 	    'vidid': video.id,
@@ -867,4 +937,36 @@ function makeRaceObject(video, race, num)
 	};
 
 	return (rv);
+}
+
+function kRaceSegments(raceobj, filter, iter)
+{
+	var race = kVideos[raceobj['vidid']].races[raceobj['num']];
+
+	race.segments.forEach(function (seg, i) {
+		var segobj = makeSegmentObject(race, seg, i, raceobj);
+		if (filter === true || filter(raceobj, segobj))
+			iter(raceobj, segobj);
+	});
+}
+
+function kEachSegment(filter, iter)
+{
+	kEachRace(filter, function (raceobj) {
+		kRaceSegments(raceobj, filter, iter);
+	});
+}
+
+function makeSegmentObject(race, segment, i, raceobj)
+{
+	return ({
+	    'raceid': raceobj['raceid'],
+	    'segnum': i,
+	    'players': segment.players.map(function (p) {
+		return ({ 'rank': p.position });
+	    }),
+	    'duration': segment.end - segment.start,
+	    'vstart': segment.start,
+	    'vend': segment.end
+	});
 }
