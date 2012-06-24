@@ -180,7 +180,6 @@ function kMakeDynamicTable(parent, header, opts)
 	    '</table></div>');
 	rv.appendTo(parent);
 	table = $('table#' + tblid);
-	console.log(table);
 	kTables.push(table.dataTable(fullopts));
 }
 
@@ -395,28 +394,13 @@ function kUploadDialog()
 	    '          enctype="multipart/form-data">',
 	    '        <input type="file" name="file"/>',
 	    '    </form>',
-	    '    <div id="uploadText"></div>',
+	    '    <div id="uploadProgress" class="kProgressBar"></div>',
 	    '</div>'
 	].join('\n'));
 
 	$(div).dialog({
 		'buttons': {
-			'Upload': function () {
-				$('#uploadText').text('Uploading...');
-				$('#upload').ajaxForm().ajaxSubmit({
-					'success': function () {
-						$('#uploadText').text('Done!');
-						$(div).dialog('destroy');
-						kLoadData();
-						$(div).remove();
-					},
-					'error': function () {
-						alert('Upload failed!');
-						$(div).dialog('destroy');
-						$(div).remove();
-					}
-				});
-			}
+			'Upload': function () { kUploadOk(div); }
 		},
 		'dialogClass': 'kUploadDialog',
 		'modal': true,
@@ -427,6 +411,27 @@ function kUploadDialog()
 	$(div).bind('dialogclose', function () {
 		$(div).remove();
 	});
+}
+
+function kUploadOk(div)
+{
+	$('#upload').ajaxForm().ajaxSubmit({
+		'success': function () {
+			$(div).dialog('destroy');
+			$(div).remove();
+			kLoadData();
+		},
+		'error': function () {
+			alert('Upload failed!');
+			$(div).dialog('destroy');
+			$(div).remove();
+		},
+		'uploadProgress': function (_0, _1, _2, pct) {
+			$('#uploadProgress').progressbar({ 'value': pct });
+		}
+	});
+
+	$('#uploadProgress').progressbar({ 'value': 0 });
 }
 
 function kImportDialog(uuid)
