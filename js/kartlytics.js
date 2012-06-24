@@ -91,10 +91,10 @@ function usage()
  */
 function initData()
 {
-	var ents, contents, video;
+	var ents, contents;
 
 	if (klAuthfile) {
-		klLog.info('loading auth file %s', klAuthfile)
+		klLog.info('loading auth file %s', klAuthfile);
 		contents = mod_fs.readFileSync(klAuthfile);
 		klAuth = JSON.parse(contents);
 	}
@@ -109,7 +109,7 @@ function initData()
 
 		contents = mod_fs.readFileSync(mod_path.join(
 		    klDatadir, name));
-		video = JSON.parse(contents);
+		var video = JSON.parse(contents);
 
 		video.log = klLog.child({ 'video': video.name });
 		klVideos[video.id] = video;
