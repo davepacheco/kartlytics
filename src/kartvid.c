@@ -473,7 +473,8 @@ cmd_video(int argc, char *argv[])
 	}
 
 	if (emit == kv_screen_json)
-		(void) printf("{ \"nframes\": %d }\n", video_nframes(vp));
+		(void) printf("{ \"nframes\": %d, \"crtime\": \"%s\" }\n",
+		    video_nframes(vp), video_crtime(vp));
 
 	rv = video_iter_frames(vp, ident_frame, kvp);
 	kv_vidctx_free(kvp);

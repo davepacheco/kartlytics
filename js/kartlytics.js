@@ -270,6 +270,7 @@ function apiVideosGet(request, response, next)
 		var obj = {
 			'id': uuid,
 			'name': video.name,
+			'crtime': video.crtime,
 			'uploaded': video.uploaded,
 			'mtime': video.lastUpdated,
 			'races': video.races,
@@ -579,6 +580,7 @@ function parseKartvid(video)
 
 		if (i == 1 && entry.nframes) {
 			video.maxframes = entry.nframes;
+			video.crtime = parseDate(entry.crtime);
 			return;
 		}
 
@@ -631,6 +633,19 @@ function parseKartvid(video)
 		races.push(race);
 		race = undefined;
 	});
+}
+
+/*
+ * The input here is the "creation_time" metadata written by our capture device,
+ * which has the from YYYY-MM-DD HH:MM:SS and is written in UTC.  Amazingly,
+ * V8's Date.parse() handles this format directly.
+ */
+function parseDate(when)
+{
+	if (!when)
+		return (when);
+
+	return (Date.parse(when));
 }
 
 var trackNames = {

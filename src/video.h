@@ -27,6 +27,7 @@ video_t *video_open(const char *);
 int video_iter_frames(video_t *, frame_iter_t, void *);
 double video_framerate(video_t *);
 int video_nframes(video_t *);
+const char *video_crtime(video_t *);
 void video_free(video_t *);
 
 #endif

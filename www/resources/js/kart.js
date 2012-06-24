@@ -437,6 +437,7 @@ function kScreenSummaryLoad()
 		races.push([
 		    race,
 		    race['raceid'],
+		    kDate(race['start_time']),
 		    race['players'].length + 'P',
 		    race['mode'],
 		    race['level'] || '',
@@ -457,6 +458,9 @@ function kScreenSummaryLoad()
 	    }, {
 		'sTitle': 'RaceID',
 		'sClass': 'kDataRaceID'
+	    }, {
+		'sTitle': 'Date',
+		'sClass': 'kDataRaceDate'
 	    }, {
 		'sTitle': 'NPl',
 		'sClass': 'kDataRaceNPl'
@@ -1068,6 +1072,13 @@ function kDuration(ms, showmillis)
 	return (rv);
 }
 
+function kDate(ms)
+{
+	var obj = new Date(ms);
+	return (obj.getFullYear() + '-' + (obj.getMonth() + 1) +
+	    '-' + obj.getDate());
+}
+
 function kPercentage(frac)
 {
 	return ((100 * frac).toFixed(1));
@@ -1259,8 +1270,8 @@ function makeRaceObject(video, race, num)
 	    'raceid': video.id + '/' + num,
 	    'vidid': video.id,
 	    'num': num,
-	    'start_time': undefined,	/* XXX need video start time */
-	    'end_time': undefined, 	/* XXX ditto */
+	    'start_time': video.crtime + race.start_time,
+	    'end_time': video.crtime + race.end_time,
 	    'vstart': race.start_time,
 	    'vend': race.end,
 	    'duration': race.end - race.start_time,

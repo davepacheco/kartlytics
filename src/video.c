@@ -21,6 +21,7 @@ struct video {
 	int		vf_stream;
 	double		vf_framerate;
 	int		vf_nframes;
+	char		vf_crtime[64];
 };
 
 video_t *
@@ -28,6 +29,7 @@ video_open(const char *filename)
 {
 	int i, nbytes;
 	video_t *rv;
+	AVDictionaryEntry *tag;
 
 	if ((rv = calloc(1, sizeof (*rv))) == NULL) {
 		warn("malloc");
@@ -48,6 +50,12 @@ video_open(const char *filename)
 		free(rv);
 		return (NULL);
 	}
+
+	tag = av_dict_get(rv->vf_formatctx->metadata, "creation_time",
+	    NULL, AV_DICT_IGNORE_SUFFIX);
+	if (tag != NULL)
+		(void) strlcpy(rv->vf_crtime, tag->value,
+		    sizeof (rv->vf_crtime));
 
 	rv->vf_stream = -1;
 	for (i = 0; i < rv->vf_formatctx->nb_streams; i++) {
@@ -118,6 +126,12 @@ int
 video_nframes(video_t *vp)
 {
 	return (vp->vf_nframes);
+}
+
+const char *
+video_crtime(video_t *vp)
+{
+	return (vp->vf_crtime);
 }
 
 int
