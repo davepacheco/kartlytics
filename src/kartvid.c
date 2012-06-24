@@ -81,7 +81,7 @@ main(int argc, char *argv[])
 	argc -= optind;
 	argv += optind;
 
-	optreset = 1;
+	GETOPT_RESET();
 	optind = 0;
 
 	if (argc < 1)

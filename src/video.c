@@ -20,7 +20,7 @@ struct video {
 	uint8_t		*vf_buffer;
 	int		vf_stream;
 	double		vf_framerate;
-	int64_t		vf_nframes;
+	int		vf_nframes;
 };
 
 video_t *
@@ -114,7 +114,7 @@ video_framerate(video_t *vp)
 	return (vp->vf_framerate);
 }
 
-int64_t
+int
 video_nframes(video_t *vp)
 {
 	return (vp->vf_nframes);

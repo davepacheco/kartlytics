@@ -1,12 +1,29 @@
 #
 # kartvid configuration
 #
+BUILDOS=$(shell uname -s)
 CC = gcc
 CFLAGS = -Wall -O -fno-omit-frame-pointer
-LIBPNG_CPPFLAGS = -I/usr/X11/include
-LIBPNG_LDFLAGS  = -L/usr/X11/lib -lpng
-FFMPEG_CPPFLAGS = -I/usr/local/include -Wno-deprecated-declarations
-FFMPEG_LDFLAGS  = -L/usr/local/lib -lavformat -lavcodec -lavutil -lswscale
+
+ifeq ($(BUILDOS),Darwin)
+	LIBPNG_CPPFLAGS = -I/usr/X11/include 
+	LIBPNG_LDFLAGS  = -L/usr/X11/lib -lpng
+	FFMPEG_CPPFLAGS = -I/usr/local/include 
+	FFMPEG_LDFLAGS  = -L/usr/local/lib
+else
+	LIBPNG_CPPFLAGS = -I/opt/local/include
+	LIBPNG_LDFLAGS  = -L/opt/local/lib -lpng15
+	FFMPEG_CPPFLAGS = -I/opt/local/include
+	FFMPEG_LDFLAGS  = -L/opt/local/lib
+endif
+
+ifeq ($(BUILDOS),SunOS)
+	LDFLAGS += -lm
+endif
+
+FFMPEG_CPPFLAGS += -Wno-deprecated-declarations
+FFMPEG_LDFLAGS  += -lavformat -lavcodec -lavutil -lswscale
+
 KARTVID = out/kartvid
 CSCOPE_DIRS += src
 CLEAN_FILES += $(KARTVID)
@@ -74,7 +91,7 @@ out/%.o: src/%.c | out
 	    $(FFMPEG_CPPFLAGS) $^
 
 $(KARTVID): out/kartvid.o out/img.o out/kv.o out/video.o | out
-	$(CC) -o $@ $(LIBPNG_LDFLAGS) $(FFMPEG_LDFLAGS) $^
+	$(CC) -o $@ $(LDFLAGS) $(LIBPNG_LDFLAGS) $(FFMPEG_LDFLAGS) $^
 
 #
 # mask targets
