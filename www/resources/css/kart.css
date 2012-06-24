@@ -9,7 +9,7 @@
 html, body {
 	font-family: sans-serif;
 	font-size: small;
-	color: #000044;
+	color: #1F1F66;
 	margin: 0;
 	padding: 0;
 }
@@ -41,6 +41,7 @@ div.kBody {
 }
 
 .kHeader {
+	color: #000044;
 	font-size: x-large;
 	font-weight: bold;
 	margin-right: 30px;
@@ -48,9 +49,14 @@ div.kBody {
 }
 
 .kSubHeader {
+	color: #000044;
 	font-size: large;
 	font-weight: bold;
 	margin-right: 30px;
+}
+
+th {
+	color: #000044;
 }
 
 .kHorizontalSeparator {
@@ -69,7 +75,7 @@ div.kProgressBar {
 	background: #eeeeee;
 	border: 1px #000044 solid;
 	border-radius: 10px;
-	opacity: 0.6;
+	opacity: 0.8;
 
 	position: absolute;
 	margin-left: 5%;
