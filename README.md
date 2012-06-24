@@ -1,41 +1,82 @@
-# kartvid
+# kartlytics
 
-kartvid is a simple facility for processing Mario Kart 64 still frames from a
-screen capture video.  The goal is to take a video of a session and extract
-information about the courses played, the characters in each box, each
-character's position at every point in the race, and the final lap times.
-Future enhancements could include weapon information, too.
+kartlytics is a web app for browsing records and statistics of recorded Mario
+Kart 64 races.
 
+kartvid (the underlying engine for kartlytics) is a facility for processing
+Mario Kart 64 still frames from a screen capture video.  The goal is to take a
+video of a session and extract information about the courses played, the
+characters in each box, each character's position at every point in the race,
+and the final lap times.  Future enhancements could include weapon information,
+too.
 
-# Recommended prerequisites
+# Running kartlytics
 
-I've only used kartvid on OS X, but it should run anywhere its dependencies are
-available.
+## Recommended prerequisites
 
-The most important dependency is:
+kartlytics runs on SmartOS and Mac OS X, and should run anywhere else its
+dependencies are available:
 
-- [ffmpeg](http://ffmpeg.org/).  I've successfully used homebrew to install it,
-  as well as built v0.10.3 from source using a stock configuration (but only
-  after using homebrew to try to install it, which installed its dependencies).
-  ffmpeg is used to decode screen capture videos to portable network bitmaps,
-  which can be processed directly by kartvid.
+- [ffmpeg](http://ffmpeg.org/).  ffmpeg is used to decode screen capture videos.
+- libpng, which is used to read individual frames and masks.
+- imagemagick, for the command-line "convert" utility.
+- Node.js 0.6.x, for the web server.
+- cscope for source browsing.
 
-You may also want:
+On **SmartOS**, you can install these with:
 
-- [homebrew](http://mxcl.github.com/homebrew/), for installing the following
-- cscope (via "brew install cscope") for source browsing
-- imagemagick (via "brew install imagemagick"), for the command-line "convert"
-  utility
-- Photoshop, the GIMP, or some other image editor.  See information about
-  creating masks below.  You'll need support for portable bitmap (PPM or PBM)
-  images.  For PS, you can get that using the [CartaPGM
-  plugin](http://www.reliefshading.com/software/CartaPGM/CartaPGM.html).
+    pkgin -y install ffmpeg png ImageMagick cscope
+
+I do this in a smartos-1.6.3 zone.
+
+On **MacOS**, I suggest first installing XCode and
+[homebrew](http://mxcl.github.com/homebrew/).  Then you can install the
+dependencies with:
+
+    brew install ffmpeg
+    brew install imagemagick
+    brew install cscope
+
+An old version of libpng is shipped with OS X in /usr/X11.
+
+For reference, kartlytics works with ffmpeg versions v0.7.8nb1 (pkgsrc, SmartOS)
+and v0.10.3 (built from source, MacOS, but only after using homebrew to try to
+install it, which installed its dependencies).
+
+For both SmartOS and MacOS I build Node.js from source.  On SmartOS, you'll want
+the scmgit, python27, gcc-compiler, gcc-runtime, and gmake packages to build
+it.
+
+## Build and run
+
+Run "make" to build kartvid, generate masks, and install the required Node
+packages.  It assumes your compiler, ImageMagick's "convert", and Node's "npm"
+are in your path.
+
+You can run `out/kartvid` directly to see its usage information.
+
+You can run the web server with:
+
+    node js/kartlytics.js
+
+To run kartlytics as an SMF service on SmartOS, modify the paths in
+smf/kartlytics.json as desired, regenerate the SMF manifest with
+[smfgen](https://github.com/davepacheco/smfgen), and then
+
+    svccfg import yournewmanifest.xml
+
+## Working with images
+
+I use Photoshop (but you could use the GIMP or some other image editor) for
+creating masks and debugging (see below).  You'll want support for portable
+bitmap (PPM or PBM) images.  For PS, you can get that using the [CartaPGM
+plugin](http://www.reliefshading.com/software/CartaPGM/CartaPGM.html).
 
 To capture stills and video, I'm using an iGrabber device with the stock
 software.
 
 
-# Approach
+# Approach to data extraction
 
 The basic approach relies on the fact that most objects in the game are either
 2D objects (like text) or 3D objects (like characters) rendered using a series
@@ -119,16 +160,13 @@ This project is still just a prototype.  Currently, on at least some input, it's
 able to identify the start of the race, the characters playing, the positions of
 each player during the race, and the end of the race.  It emits both plaintext
 and JSON, and reads PNGs, PPMs, and raw videos.  There's also a primitive Node
-server that will eventually process video uploads, but for now just saves them.
-Remaining items include:
+server that processes video uploads.  Remaining items include:
 
-- finish web server that processes uploads and serves up an API
-- implement web client that uses the API to present stats by player, track,
-  date, etc., with links to race transcripts and maybe even videos
-
-Later, it will be useful to get more complex statistics:
-
-- Pause screen
+- finish web client (see TODO in www/resources/js/kart.js)
+- try on more types of inputs
+- handle aborted races better. (kartvid detects this, but doesn't emit events
+  very nicely.)
+- detect pause screen.
 - Detect weapons.  The most reliable way to detect weapons gotten is probably to
   look at the *last* weapon in the weapon box before the box itself disappears.
   (All the other ideas I've come up with can't really handle the case where a
@@ -147,4 +185,4 @@ Later, it will be useful to get more complex statistics:
 - Rescues: times when Lakitu has to come fetch you
 - Impacts-by-shell: use explosion or "crash" to detect getting hit by something
 - Impact of bomb?
-- Power slides, boosts, and attempts?
+- Power slides, boosts, and boost attempts?
