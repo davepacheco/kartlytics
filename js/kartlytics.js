@@ -11,6 +11,7 @@ var mod_path = require('path');
 var mod_bunyan = require('bunyan');
 var mod_carrier = require('carrier');
 var mod_extsprintf = require('extsprintf');
+var mod_getopt = require('posix-getopt');
 var mod_jsprim = require('jsprim');
 var mod_kang = require('kang');
 var mod_formidable = require('formidable');
@@ -29,23 +30,51 @@ var klVideoQueue;
 
 function main()
 {
-	if (process.argv.length > 2) {
-		klPort = parseInt(process.argv[2]);
-		if (isNaN(klPort)) {
-			console.error('usage: %s %s [port_number]',
-			    process.argv[0], process.argv[1]);
-			process.exit(2);
+	var parser, option;
+	
+	parser = new mod_getopt.BasicParser('l:d:', process.argv);
+
+	while ((option = parser.getopt())) {
+		if (option.error)
+			usage();
+
+		switch (option.option) {
+		case 'l':
+			klPort = parseInt(option.optarg);
+			if (isNaN(klPort))
+				usage();
+			break;
+
+		case 'd':
+			klDatadir = option.optarg;
+			break;
+
+		default:
+			/* can't happen */
+			throw (new Error('unknown option: ' + option.option));
 		}
 	}
 
 	klLog = new mod_bunyan({ 'name': klName });
+
 	klVideoQueue = mod_vasync.queuev({
 	    'concurrency': 1,
 	    'worker': vidProcessFrames
 	});
 
+	/*
+	 * kartvid assumes it's running out of the root of the repo in order to
+	 * find its assets.
+	 */
+	process.chdir(mod_path.join(__dirname, '..'));
 	initData();
 	initServer();
+}
+
+function usage()
+{
+	console.error('usage: node kartlytics.js [-l port] [-d data_dir]');
+	process.exit(2);
 }
 
 /*
