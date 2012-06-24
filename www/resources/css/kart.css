@@ -48,6 +48,11 @@ div.kBody {
 	text-shadow: 1px 1px 1px #cccccc;
 }
 
+.kHeader a {
+	color: #000044;
+	text-decoration: none;
+}
+
 .kSubHeader {
 	color: #000044;
 	font-size: large;

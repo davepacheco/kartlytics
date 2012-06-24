@@ -374,7 +374,8 @@ function kScreenSummaryLoad()
 		'sEmptyTable': 'No videos imported.'
 	    },
 	    'aoColumns': [ {
-		'sTitle': 'Player'
+		'sTitle': 'Player',
+		'sClass': 'kDataPlayerName'
 	    }, {
 		'sTitle': 'NR',
 		'sClass': 'kDataPlayerNum',
@@ -423,7 +424,12 @@ function kScreenSummaryLoad()
 		'sTitle': '4(%)',
 		'sClass': 'kDataPlayerPercentage'
 	    } ],
-	    'aaData': pdata
+	    'aaData': pdata,
+	    'fnCreatedRow': function (tr, _1, _2) {
+		var td = $(tr).find('td.kDataPlayerName')[0];
+		var name = $(td).text();
+		$(td).html('<a href="#player/' + name + '">' + name + '</a>');
+	    }
 	});
 
 	races = [];
@@ -501,6 +507,9 @@ function kScreenPlayerLoad(args)
 	var bychardata, bytrackdata;
 
 	pname = args[0];
+	$(kDomConsole).append('<div class="kHeader kDynamic">Player ' +
+	    'details: ' + pname + '</div>');
+
 	filter = function (race) {
 		for (var i = 0; i < race.players.length; i++) {
 			if (race.players[i]['person'] == pname)
