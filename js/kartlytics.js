@@ -140,8 +140,6 @@ function initServer()
 	klServer.use(mod_restify.queryParser());
 	klServer.use(mod_restify.urlEncodedBodyParser());
 
-	filespath = mod_path.normalize(mod_path.join(__dirname, '..', 'www'));
-
 	klServer.get('/kang/.*', mod_kang.knRestifyHandler({
 	    'uri_base': '/kang',
 	    'service_name': 'kartlytics',
@@ -152,8 +150,12 @@ function initServer()
 	    'get': kangGetObject
 	}));
 
-	klServer.get('/', redirect.bind(null, '/f/index.htm'));
-	klServer.get('/f/.*', fileServer.bind(null, '/f/', filespath));
+	filespath = mod_path.normalize(mod_path.join(__dirname, '..', 'www'));
+
+	klServer.get('/', fileServer.bind(
+	    null, mod_path.join(filespath, 'index.htm')));
+	klServer.get('/resources/.*', dirServer.bind(null, '/resources/',
+	    mod_path.join(filespath, 'resources')));
 	klServer.post('/kart/video', auth, upload);
 	klServer.get('/api/videos', apiVideosGet);
 	klServer.put('/api/videos/:id', auth,
@@ -203,7 +205,7 @@ function redirect(path, request, response, next)
 /*
  * Restify handler to serve flat files at "baseuri" out of "basedir".
  */
-function fileServer(baseuri, basedir, request, response, next)
+function dirServer(baseuri, basedir, request, response, next)
 {
 	/*
 	 * This is only safe as long as there are no symlinks inside this
@@ -223,6 +225,14 @@ function fileServer(baseuri, basedir, request, response, next)
 		return;
 	}
 
+	fileServer(filename, request, response, next);
+}
+
+/*
+ * Restify handler to serve the given file.
+ */
+function fileServer(filename, request, response, next)
+{
 	var file = mod_fs.createReadStream(filename);
 
 	file.on('error', function (err) {
