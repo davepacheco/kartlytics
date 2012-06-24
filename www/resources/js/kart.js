@@ -32,7 +32,6 @@
  * TODO:
  * - video details screen, including video download link
  * - race details screen (race transcript)
- * - player details screen (list of races including character played)
  * - clean up "upload" dialog
  */
 
@@ -47,6 +46,8 @@ var kPlayersAutocomplete = {};	/* cache of all player names */
  * DOM state.
  */
 var kScreenCurrent;		/* current screen */
+var kScreenName;		/* current screen name */
+var kScreenArgs;		/* current screen args */
 var kId = 0;			/* used to generate unique ids */
 var kDomConsole;		/* DOM element for main console */
 var kDomUpdated;		/* DOM element for "last updated" text */
@@ -65,7 +66,6 @@ function kInit()
 	kDomUpdated = $('.kLastUpdateTime');
 
 	$(window).bind('hashchange', kScreenUpdate);
-	kScreenUpdate();
 
 	kLoadData();
 }
@@ -137,7 +137,8 @@ function kOnData(data, text)
 	}
 
 	kDomUpdated.text(new Date());
-	kScreenCurrent.refresh();
+
+	kScreenUpdate();
 
 	if (nreading > 0)
 		setTimeout(kLoadData, 1000);
@@ -197,6 +198,12 @@ var kScreens = {
 	'load': kScreenSummaryLoad,
 	'clear': kScreenSummaryClear,
 	'refresh': kScreenSummaryRefresh
+    },
+    'player': {
+	'name': 'player',
+	'load': kScreenPlayerLoad,
+	'clear': kScreenPlayerClear,
+	'refresh': kScreenPlayerRefresh
     }
 };
 
@@ -228,6 +235,8 @@ function kScreenUpdate()
 		kScreenCurrent.clear();
 
 	kScreenCurrent = screen;
+	kScreenName = screen.name;
+	kScreenArgs = args;
 	kScreenCurrent.load(args);
 }
 
@@ -479,6 +488,232 @@ function kScreenSummaryRefresh()
 {
 	kScreenSummaryClear();
 	kScreenSummaryLoad();
+}
+
+
+/*
+ * Player details screen
+ */
+function kScreenPlayerLoad(args)
+{
+	var pname, filter;
+	var allraces, bychar, bytrack;
+	var bychardata, bytrackdata;
+
+	pname = args[0];
+	filter = function (race) {
+		for (var i = 0; i < race.players.length; i++) {
+			if (race.players[i]['person'] == pname)
+				return (true);
+		}
+
+		return (false);
+	};
+
+	allraces = [];
+	bychar = {};
+	bytrack = {};
+
+	kEachRace(filter, function (race) {
+		var i, p, time;
+
+		for (i = 0; i < race.players.length; i++) {
+			if (race.players[i]['person'] == pname)
+				break;
+		}
+
+		p = race.players[i];
+		time = p['time'] ? kDuration(p['time'], true) : 'Unfinished';
+
+		allraces.push([
+		    race['raceid'],
+		    race['level'] || '',
+		    race['players'].length + 'P',
+		    ordinal(p['rank']),
+		    time,
+		    race['mode'],
+		    'P' + (i + 1),
+		    ucfirst(p['char']),
+		    ucfirst(kCharToClass(p['char'])),
+		    race['track'],
+		    kTrackToCup(race['track'])
+		]);
+
+		if (!bychar[p['char']])
+			bychar[p['char']] = {
+			    'tot': 0,
+			    'p1': 0,
+			    'p2': 0,
+			    'p3': 0,
+			    'p4': 0
+			};
+
+		bychar[p['char']]['tot']++;
+		bychar[p['char']]['p' + p['rank']]++;
+
+		if (!bytrack[race['track']])
+			bytrack[race['track']] = {
+			    'tot': 0,
+			    'p1': 0,
+			    'p2': 0,
+			    'p3': 0,
+			    'p4': 0,
+			    'best': Number.MAX_VALUE
+			};
+
+		bytrack[race['track']]['tot']++;
+		bytrack[race['track']]['p' + p['rank']]++;
+
+		if (p['time'] < bytrack[race['track']]['best'])
+			bytrack[race['track']]['best'] = p['time'];
+	});
+
+	kMakeDynamicTable(kDomConsole, 'Races', {
+	    'bFilter': true,
+	    'oLanguage': {
+		'sEmptyTable': 'No races for ' + pname + '.'
+	    },
+	    'aoColumns': [ {
+		'sTitle': 'RaceID',
+		'sClass': 'kDataRaceID'
+	    }, {
+		'sTitle': 'Lvl',
+		'sClass': 'kDataRaceLvl'
+	    }, {
+		'sTitle': 'NPl',
+		'sClass': 'kDataRaceNPl'
+	    }, {
+	        'sTitle': 'Rank',
+		'sClass': 'kDataRaceRank'
+	    }, {
+		'sTitle': 'Time',
+		'sClass': 'kDataRaceTime'
+	    }, {
+		'sTitle': 'Mode',
+		'sClass': 'kDataRaceMode'
+	    }, {
+		'sTitle': 'Pl',
+		'sClass': 'kDataRacePl'
+	    }, {
+		'sTitle': 'Char',
+		'sClass': 'kDataRaceChar'
+	    }, {
+		'sTitle': 'CharClass',
+		'sClass': 'kDataRaceCharClass'
+	    }, {
+		'sTitle': 'Track',
+		'sClass': 'kDataRaceTrack'
+	    }, {
+		'sTitle': 'Cup',
+		'sClass': 'kDataRaceCup'
+	    } ],
+	    'aaData': allraces
+	});
+
+	bychardata = Object.keys(bychar).map(function (chr) {
+		return ([
+		    ucfirst(chr),
+		    bychar[chr]['tot'],
+		    kPercentage(bychar[chr]['tot'] / allraces.length),
+		    bychar[chr]['p1'],
+		    bychar[chr]['p2'],
+		    bychar[chr]['p3'],
+		    bychar[chr]['p4']
+		]);
+	});
+
+	kMakeDynamicTable(kDomConsole, 'Races by character', {
+	    'oLanguage': {
+		'sEmptyTable': 'No races for ' + pname + '.'
+	    },
+	    'aoColumns': [ {
+		'sTitle': 'Character',
+		'sClass': 'kDataPlayerCharacter'
+	    }, {
+		'sTitle': 'NR',
+		'sClass': 'kDataPlayerNum',
+		'sWidth': '15px'
+	    }, {
+		'sTitle': '%',
+		'sClass': 'kDataPlayerNum',
+		'sWidth': '15px'
+	    }, {
+		'sTitle': 'N1',
+		'sClass': 'kDataPlayerNum',
+		'sWidth': '15px'
+	    }, {
+		'sTitle': 'N2',
+		'sClass': 'kDataPlayerNum',
+		'sWidth': '15px'
+	    }, {
+		'sTitle': 'N3',
+		'sClass': 'kDataPlayerNum',
+		'sWidth': '15px'
+	    }, {
+		'sTitle': 'N4',
+		'sClass': 'kDataPlayerNum',
+		'sWidth': '15px'
+	    } ],
+	    'aaData': bychardata
+	});
+
+	bytrackdata = Object.keys(bytrack).map(function (trk) {
+	    var best = bytrack[trk]['best'] == Number.MAX_VALUE ?
+	        'Never finished' : kDuration(bytrack[trk]['best'], true);
+	    return ([
+		trk,
+		best,
+		bytrack[trk]['tot'],
+		bytrack[trk]['p1'],
+		bytrack[trk]['p2'],
+		bytrack[trk]['p3'],
+		bytrack[trk]['p4']
+	    ]);
+	});
+	kMakeDynamicTable(kDomConsole, 'Races by track', {
+	    'oLanguage': {
+		'sEmptyTable': 'No races for ' + pname + '.'
+	    },
+	    'aoColumns': [ {
+		'sTitle': 'Track',
+		'sClass': 'kDataRaceTrack'
+	    }, {
+		'sTitle': 'Best',
+		'sClass': 'kDataRaceTime'
+	    }, {
+		'sTitle': 'NR',
+		'sClass': 'kDataPlayerNum',
+		'sWidth': '15px'
+	    }, {
+		'sTitle': 'N1',
+		'sClass': 'kDataPlayerNum',
+		'sWidth': '15px'
+	    }, {
+		'sTitle': 'N2',
+		'sClass': 'kDataPlayerNum',
+		'sWidth': '15px'
+	    }, {
+		'sTitle': 'N3',
+		'sClass': 'kDataPlayerNum',
+		'sWidth': '15px'
+	    }, {
+		'sTitle': 'N4',
+		'sClass': 'kDataPlayerNum',
+		'sWidth': '15px'
+	    } ],
+	    'aaData': bytrackdata
+	});
+}
+
+function kScreenPlayerClear()
+{
+	kScreenSummaryClear();
+}
+
+function kScreenPlayerRefresh()
+{
+	kScreenPlayerClear();
+	kScreenPlayerLoad(kScreenArgs);
 }
 
 
@@ -871,6 +1106,9 @@ function kPercentage(frac)
  *
  *		rank		Player's rank at the end of the race
  *
+ *		time		Player's time on the race.  May be undefined if
+ *				the player did not finish (i.e., last place).
+ *
  * We provide a primitive, kEachRace(filter, iter), which invokes "iter" for all
  * races matching the given filter (a standard JS filter function, or "true").
  *
@@ -884,6 +1122,9 @@ function kPercentage(frac)
  *     			with:
  *
  *		rank		Player's rank in this segment
+ *
+ *		lap		Lap number (currently, only 0 or 4 for
+ *				"unknown" or "done")
  *
  *			For character and human names, you must look at
  *			race['players'].
@@ -944,7 +1185,10 @@ var kChars = {
 
 function kCharToClass(character)
 {
-	return (kChars(character) || 'Unknown');
+	if (kChars[character])
+		return (kChars[character] + 'weight');
+
+	return ('Unknown');
 }
 
 function kEachRace(filter, iter)
@@ -967,17 +1211,40 @@ function kEachRace(filter, iter)
 
 function makeRaceObject(video, race, num)
 {
-	var racemeta, players, i, rv;
+	var racemeta, players, i, j, rv;
 
 	racemeta = video.metadata.races[num];
 	players = new Array(race.players.length);
 
-	for (i = 0; i < race.players.length; i++)
+	for (i = 0; i < race.players.length; i++) {
 		players[i] = {
 		    'char': race.players[i].character,
 		    'person': racemeta.people[i],
 		    'rank': race.results[i].position
 		};
+	}
+
+	for (i = 0; i < race.segments.length; i++) {
+		if (race.segments[i].start < race.start_time) {
+			console.log(video.id, num, i);
+		}
+
+		for (j = 0; j < players.length; j++) {
+			if (players[j].hasOwnProperty('time'))
+				continue;
+
+			if (race.segments[i]['players'][j]['lap'] == 4)
+				players[j]['time'] = race.segments[i].start -
+				    race.start_time;
+		}
+	}
+
+	for (j = 0; j < players.length; j++) {
+		if (players[j]['rank'] != players.length - 1)
+			continue;
+
+		players[j]['time'] = race.end - race.start_time;
+	}
 
 	rv = {
 	    'raceid': video.id + '/' + num,
@@ -1021,7 +1288,7 @@ function makeSegmentObject(race, segment, i, raceobj)
 	    'raceid': raceobj['raceid'],
 	    'segnum': i,
 	    'players': segment.players.map(function (p) {
-		return ({ 'rank': p.position });
+		return ({ 'rank': p.position, 'lap': p.lap });
 	    }),
 	    'duration': segment.end - segment.start,
 	    'vstart': segment.start,

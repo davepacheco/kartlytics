@@ -196,12 +196,42 @@ td.kDataRaceID {
 	text-align: right;
 }
 
-td.kDataRaceNPl {
-	text-align: right;
+td.kDataRaceNPl, th.kDataRaceNPl {
+	width: 15px;
+	padding-left: 5px;
+	padding-right: 5px;
+}
+
+td.kDataRaceMode, th.kDataRaceMode {
+	width: 15px;
+	padding-left: 5px;
+	padding-right: 5px;
+}
+
+td.kDataRaceLvl, th.kDataRaceLvl {
+	width: 15px;
+	padding-left: 5px;
+	padding-right: 5px;
+}
+
+td.kDataRaceRank, th.kDataRaceRank {
+	width: 15px;
+	padding-left: 5px;
+	padding-right: 5px;
 }
 
 td.kDataRaceLvl {
 	text-align: right;
+}
+
+td.kDataRacePl, th.kDataRacePl {
+	width: 15px;
+	padding-left: 5px;
+	padding-right: 5px;
+}
+
+td.kDataRaceTrack {
+	white-space: nowrap;
 }
 
 td.kDataRaceVStart {
