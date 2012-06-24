@@ -28,7 +28,6 @@
 
 /*
  * TODO:
- * - add basic auth
  * - add table of basic stats by player
  * - video details screen, including video download link
  * - race details screen (race transcript)

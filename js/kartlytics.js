@@ -23,7 +23,8 @@ var mkdirp = require('mkdirp');
 var klName = 'kartlytics';
 var klPort = 8085;
 var klDatadir = '/var/tmp/kartlytics_data';
-var klLog, klServer;
+var klAuthfile;
+var klAuth, klLog, klServer;
 
 var klVideos = {};
 var klVideoQueue;
@@ -32,7 +33,7 @@ function main()
 {
 	var parser, option;
 
-	parser = new mod_getopt.BasicParser('l:d:', process.argv);
+	parser = new mod_getopt.BasicParser('l:d:a:', process.argv);
 
 	while ((option = parser.getopt())) {
 		if (option.error)
@@ -49,13 +50,20 @@ function main()
 			klDatadir = option.optarg;
 			break;
 
+		case 'a':
+			klAuthfile = option.optarg;
+			break;
+
 		default:
 			/* can't happen */
 			throw (new Error('unknown option: ' + option.option));
 		}
 	}
 
-	klLog = new mod_bunyan({ 'name': klName });
+	klLog = new mod_bunyan({
+	    'name': klName,
+	    'level': process.env['LOG_LEVEL'] || 'info'
+	});
 
 	klVideoQueue = mod_vasync.queuev({
 	    'concurrency': 1,
@@ -66,14 +74,15 @@ function main()
 	 * kartvid assumes it's running out of the root of the repo in order to
 	 * find its assets.
 	 */
-	process.chdir(mod_path.join(__dirname, '..'));
 	initData();
+	process.chdir(mod_path.join(__dirname, '..'));
 	initServer();
 }
 
 function usage()
 {
-	console.error('usage: node kartlytics.js [-l port] [-d data_dir]');
+	console.error('usage: node kartlytics.js [-l port] [-d data_dir] ' +
+	    '[-a authfile]');
 	process.exit(2);
 }
 
@@ -82,7 +91,13 @@ function usage()
  */
 function initData()
 {
-	var ents;
+	var ents, contents, video;
+
+	if (klAuthfile) {
+		klLog.info('loading auth file %s', klAuthfile)
+		contents = mod_fs.readFileSync(klAuthfile);
+		klAuth = JSON.parse(contents);
+	}
 
 	mkdirp.sync(klDatadir);
 
@@ -92,9 +107,9 @@ function initData()
 		if (!mod_jsprim.endsWith(name, '.md.json'))
 			return;
 
-		var contents = mod_fs.readFileSync(mod_path.join(
+		contents = mod_fs.readFileSync(mod_path.join(
 		    klDatadir, name));
-		var video = JSON.parse(contents);
+		video = JSON.parse(contents);
 
 		video.log = klLog.child({ 'video': video.name });
 		klVideos[video.id] = video;
@@ -120,6 +135,7 @@ function initServer()
 	    'log': klLog
 	});
 
+	klServer.use(mod_restify.authorizationParser());
 	klServer.use(mod_restify.acceptParser(klServer.acceptable));
 	klServer.use(mod_restify.queryParser());
 	klServer.use(mod_restify.urlEncodedBodyParser());
@@ -138,9 +154,9 @@ function initServer()
 
 	klServer.get('/', redirect.bind(null, '/f/index.htm'));
 	klServer.get('/f/.*', fileServer.bind(null, '/f/', filespath));
-	klServer.post('/kart/video', upload);
+	klServer.post('/kart/video', auth, upload);
 	klServer.get('/api/videos', apiVideosGet);
-	klServer.put('/api/videos/:id',
+	klServer.put('/api/videos/:id', auth,
 	    mod_restify.bodyParser({ 'mapParams': false }), apiVideosPut);
 
 	// klServer.on('after', mod_restify.auditLogger({ 'log': klLog }));
@@ -149,6 +165,29 @@ function initServer()
 		klLog.info('%s server listening at %s',
 		    klServer.name, klServer.url);
 	});
+}
+
+/*
+ * Restify handler to authenticate a request.
+ */
+function auth(request, response, next)
+{
+	if (!klAuth) {
+		next();
+		return;
+	}
+
+	if (request.authorization &&
+	    request.authorization.basic &&
+	    request.authorization.basic.username &&
+	    klAuth[request.authorization.basic.username] ==
+	    request.authorization.basic.password) {
+		next();
+		return;
+	}
+
+	response.header('WWW-authenticate', 'Basic realm="kartlytics"');
+	next(new mod_restify.UnauthorizedError());
 }
 
 /*
