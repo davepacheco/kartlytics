@@ -491,7 +491,8 @@ function saveVideo(video, metadata, callback)
 				return;
 			}
 
-			video.metadata = metadata;
+			if (metadata)
+				video.metadata = metadata;
 			video.lastUpdated = when;
 			klLog.info('saved video record %s', video.id);
 			callback();
@@ -584,9 +585,11 @@ function parseKartvid(video)
 		video.frame = entry.frame;
 
 		if (entry.start) {
-			if (race !== undefined)
+			if (race !== undefined) {
 				log.warn('ignoring race aborted at %s',
 				    entry.source);
+				segment = undefined;
+			}
 
 			race = {
 				'start_time': entry.time,
@@ -620,11 +623,13 @@ function parseKartvid(video)
 		if (segment !== undefined) {
 			segment.end = entry.time;
 			race['segments'].push(segment);
+			segment = undefined;
 		}
 
 		race.end = entry.time;
 		race.results = entry.players;
 		races.push(race);
+		race = undefined;
 	});
 }
 
