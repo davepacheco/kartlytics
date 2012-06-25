@@ -416,10 +416,11 @@ kv_screen_json(const char *source, int frame, int msec, kv_screen_t *ksp,
 
 	for (i = 0; i < ksp->ks_nplayers; i++) {
 		kpp = &ksp->ks_players[i];
-		charname = kpp->kp_character;
-		if (charname[0] == '\0' && raceksp != NULL)
+		if (raceksp != NULL)
 			charname = raceksp->ks_players[i].kp_character;
-		if (charname[0] == '\0')
+		else if (kpp->kp_character)
+			charname = kpp->kp_character;
+		else
 			charname = "?";
 
 		(void) fprintf(out, "{ ");
