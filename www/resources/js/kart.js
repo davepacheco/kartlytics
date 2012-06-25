@@ -903,10 +903,10 @@ function kImportDialog(uuid)
 	});
 
 	video.races.forEach(function (race, i) {
-		var time = kDuration(race.start_time);
+		var time = kDuration(race.start_time, false);
 		var label = '<strong>Race ' + (i+1) + ': ' +
 		    race.players.length + 'P ' + race.mode + ' on ' +
-		    race.track + '</strong> (start time: ' + time + 's)';
+		    race.track + '</strong> (start time: ' + time + ')';
 		$('#label' + i).html(label);
 	});
 
