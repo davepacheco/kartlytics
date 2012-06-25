@@ -12,7 +12,7 @@
 #include "img.h"
 
 #define	KV_FRAMERATE		29.97
-#define	KV_THRESHOLD_CHAR	0.22
+#define	KV_THRESHOLD_CHAR	0.23
 #define	KV_THRESHOLD_TRACK	0.20
 #define	KV_THRESHOLD_LAKITU	0.154
 #define	KV_MIN_RACE_FRAMES	(2 * KV_FRAMERATE)	/* 2 seconds */
