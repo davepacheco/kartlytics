@@ -276,7 +276,7 @@ cmd_ident(int argc, char *argv[])
 	if (kv_ident(image, &info, B_TRUE) != 0) {
 		warnx("failed to process image");
 	} else {
-		kv_screen_print(argv[0], 0, 0, &info, NULL, stdout);
+		kv_screen_json(argv[0], 0, 0, &info, NULL, stdout);
 	}
 
 	return (EXIT_SUCCESS);
