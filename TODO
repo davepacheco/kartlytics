@@ -1,0 +1,17 @@
+Current status:
+- Debugging inconsistency in kartvid's character identification.  I've created a
+  small suite of test data in test/, which can be used to automate testing as
+  the algorithm is tweaked.
+- The next step is to modify "kartvid ident" to emit JSON instead of plaintext,
+  and write a little test runner that checks the output for each one (character,
+  track, and that the race is starting).
+- Check whether the ones we failed to identify correlate with videos taken at
+  low quality.  If so, maybe we could punt on these and just make sure to take
+  higher quality videos.
+- Otherwise, tweak the algorithm or masks: consider using HSV instead of RGB?
+
+- Then manually check the full output on all videos.  Specific problem videos
+  include output-1, output-4, and recording-0003.
+
+- Then finish uploading the remaining videos.
+- Then add video details, track details, race details views.

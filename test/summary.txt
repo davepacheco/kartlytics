@@ -1,0 +1,51 @@
+The following information was manually collected and used to build
+extract-frames.sh, which extracts starting frames from these videos.
+
+1.mov (verified):
+    (53) around 30.496: yoshi, peach, toad, mario @ luigi
+    (75) around 200.950: yoshi, peach, toad, mario @ moo
+    (61) around 351.308: yoshi, peach, toad, mario @ royal
+
+2.mov (verified):
+    (69) around 8.971s: yoshi, peach, toad, mario @ sherbet
+
+3.mov (verified):
+    (56) around 16.822s: yoshi, peach, toad, mario @ frappe
+    (41) around 176.231s: yoshi, peach, toad, mario @ choco
+
+4.mov (verified):
+    (58) around 8.734: yoshi, peach, toad, mario @ yoshi
+    (66) around 193.777: yoshi, peach, toad, mario @ banshee
+
+5.mov (verified):
+    (49) around 12.181: yoshi, peach, toad, mario @ bowser
+
+0000.mov (verified):
+    (21) around 8s: peach, wario, yoshi, toad @ luigi
+
+0002.mov (verified):
+    (26) around 7s: peach, wario, yoshi, toad @ frappe
+
+0003.mov (verified):
+    (51) around 7s: peach, wario, yoshi, toad @ beach
+
+0004.mov (verified):
+    (24) around 7s: peach, wario, yoshi, toad @ choco
+
+0005.mov (verified):
+    (29) around 14s: peach, wario, yoshi, toad @ desert
+
+0006.mov (verified):
+    (45) around 7s: peach, wario, yoshi, toad @ sherbet
+
+0007.mov (verified):
+    (37) around 3s: peach, wario, yoshi, toad @ banshee
+
+0008.mov (verified):
+    (74) around 8s: peach, wario, yoshi, toad @ yoshi
+
+0009.mov (verified):
+    (26) around 7s: peach, wario, yoshi, toad @ bowser
+
+0010.mov (verified):
+    (42) around 9s: peach, wario, yoshi, toad @ dk
