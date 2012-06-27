@@ -17,6 +17,12 @@ typedef struct img_pixel {
 	uint8_t b;
 } img_pixel_t;
 
+typedef struct img_pixelhsv {
+	uint8_t	h;
+	uint8_t s;
+	uint8_t v;
+} img_pixelhsv_t;
+
 typedef struct img {
 	unsigned int	img_width;
 	unsigned int	img_height;
@@ -36,5 +42,7 @@ void img_free(img_t *);
 inline unsigned int img_coord(img_t *, unsigned int, unsigned int);
 double img_compare(img_t *, img_t *, img_t **);
 void img_and(img_t *, img_t *);
+
+void img_pix_rgb2hsv(img_pixelhsv_t *, img_pixel_t *);
 
 #endif

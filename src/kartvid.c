@@ -26,6 +26,7 @@ static int cmd_decode(int, char *[]);
 static int write_frame(video_frame_t *, void *);
 static int cmd_video(int, char *[]);
 static int ident_frame(video_frame_t *, void *);
+static int cmd_rgb2hsv(int, char *[]);
 
 #define	MAX_FRAMES	16384
 
@@ -49,6 +50,7 @@ static kv_cmd_t kv_commands[] = {
       "report the current game state for the given image" },
     { "frames", cmd_frames, "[-j] dir_of_image_files", 
       "emit race events for a sequence of video frames" },
+    { "rgb2hsv", cmd_rgb2hsv, "r g b", "convert rgb value to hsv" },
     { "video", cmd_video, "[-j] video_file",
       "emit race events for an entire video" }
 };
@@ -526,4 +528,25 @@ ident_frame(video_frame_t *vp, void *rawarg)
 	kv_vidctx_frame(framename, vp->vf_framenum, (int)vp->vf_frametime,
 	    &vp->vf_image, kvp);
 	return (0);
+}
+
+static int
+cmd_rgb2hsv(int argc, char *argv[])
+{
+	img_pixel_t rgb;
+	img_pixelhsv_t hsv;
+
+	if (argc < 3)
+		return (EXIT_USAGE);
+
+	rgb.r = atoi(argv[0]);
+	rgb.g = atoi(argv[1]);
+	rgb.b = atoi(argv[2]);
+
+	img_pix_rgb2hsv(&hsv, &rgb);
+
+	(void) printf("r g b = (%d, %d, %d)\n", rgb.r, rgb.g, rgb.b);
+	(void) printf("h s v = (%d, %d, %d)\n", hsv.h, hsv.s, hsv.v);
+
+	return (EXIT_SUCCESS);
 }

@@ -257,6 +257,49 @@ img_free(img_t *imgp)
 	free(imgp->img_pixels);
 	free(imgp);
 }
+ 
+#define	MIN(x, y)	((x) < (y) ? (x) : (y))
+#define	MAX(x, y)	((x) > (y) ? (x) : (y))
+
+/*
+ * This implementation is adapted from that by Eugene Vishnevsky:
+ * http://www.cs.rit.edu/~ncs/color/t_convert.html
+ */
+void
+img_pix_rgb2hsv(img_pixelhsv_t *hsv, img_pixel_t *rgb)
+{
+	double r, g, b, delta;
+	double min, max, h;
+
+	r = (double)rgb->r / 255;
+	g = (double)rgb->g / 255;
+	b = (double)rgb->b / 255;
+
+	min = MIN(MIN(r, g), b);
+	max = MAX(MAX(r, g), b);
+	delta = max - min;
+	
+	if (max == 0) {
+		hsv->h = hsv->s = hsv->v = 0;
+		return;
+	}
+	
+	hsv->v = max;
+	hsv->s = 255 * delta / max;
+
+	if (r == max)
+		h = (g - b) / delta;
+	else if (g == max)
+		h = 2 + (b - r) / delta;
+	else
+		h = 4 + (r - g) / delta;
+
+	h *= 60;
+	if (h < 0)
+		h += 360;
+
+	hsv->h = h;
+}
 
 double
 img_compare(img_t *image, img_t *mask, img_t **dbgmask)
