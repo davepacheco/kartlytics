@@ -124,7 +124,7 @@ kv_ident(img_t *image, kv_screen_t *ksp, boolean_t do_all)
 		    (KV_MASK_CHAR(kmp->km_name) || KV_MASK_TRACK(kmp->km_name)))
 			continue;
 
-		score = img_compare(image, kmp->km_image);
+		score = img_compare(image, kmp->km_image, NULL);
 
 		if (kv_debug > 1)
 			(void) printf("mask %s: %f\n", kmp->km_name, score);

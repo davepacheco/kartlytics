@@ -29,6 +29,31 @@ stdio_error(FILE *fp)
 }
 
 img_t *
+img_alloc(unsigned int width, unsigned int height)
+{
+	img_t *rv;
+
+	rv = calloc(1, sizeof (*rv));
+	if (rv == NULL)
+		return (NULL);
+
+	rv->img_pixels = calloc(sizeof (rv->img_pixels[0]), width * height);
+	if (rv->img_pixels == NULL) {
+		free(rv);
+		return (NULL);
+	}
+
+	rv->img_width = width;
+	rv->img_height = height;
+	rv->img_maxx = 0;
+	rv->img_minx = rv->img_width;
+	rv->img_maxy = 0;
+	rv->img_miny = rv->img_height;
+
+	return (rv);
+}
+
+img_t *
 img_read(const char *filename)
 {
 	FILE *fp;
@@ -62,11 +87,6 @@ img_read(const char *filename)
 	 * Compute the bounding box for the image, which is used as an
 	 * optimization when operating on masks.
 	 */
-	rv->img_maxx = 0;
-	rv->img_minx = rv->img_width;
-	rv->img_maxy = 0;
-	rv->img_miny = rv->img_height;
-
 	for (y = 0; y < rv->img_height; y++) {
 		for (x = 0; x < rv->img_width; x++) {
 			i = img_coord(rv, x, y);
@@ -107,19 +127,13 @@ img_read_ppm(FILE *fp, const char *filename)
 		return (NULL);
 	}
 
-	if ((rv = calloc(1, sizeof (*rv))) == NULL ||
-	    (rv->img_pixels = malloc(
-	    sizeof (rv->img_pixels[0]) * width * height)) == NULL) {
+	if ((rv = img_alloc(width, height)) == NULL) {
 		warn("img_read_ppm %s", filename);
-		free(rv);
 		return (NULL);
 	}
 
 	/* Skip the single whitespace character that follows the header. */
 	(void) fseek(fp, SEEK_CUR, 1);
-
-	rv->img_width = width;
-	rv->img_height = height;
 
 	nread = fread(rv->img_pixels, sizeof (rv->img_pixels[0]),
 	    rv->img_width * rv->img_height, fp);
@@ -210,16 +224,10 @@ img_read_png(FILE *fp, const char *filename)
 		return (NULL);
 	}
 
-	if ((rv = calloc(1, sizeof (*rv))) == NULL ||
-	    (rv->img_pixels = malloc(
-	    sizeof (rv->img_pixels[0]) * width * height)) == NULL) {
+	if ((rv = img_alloc(width, height)) == NULL) {
 		warn("img_read_png %s");
-		free(rv);
 		return (NULL);
 	}
-
-	rv->img_width = width;
-	rv->img_height = height;
 
 	if ((rows = malloc(sizeof (rows[0]) * height)) == NULL) {
 		warn("img_read_png %s");
@@ -251,7 +259,7 @@ img_free(img_t *imgp)
 }
 
 double
-img_compare(img_t *image, img_t *mask)
+img_compare(img_t *image, img_t *mask, img_t **dbgmask)
 {
 	unsigned int x, y, i;
 	unsigned int dr, dg, db, dz2;
@@ -259,7 +267,10 @@ img_compare(img_t *image, img_t *mask)
 	unsigned int ncompared = 0, nignored = 0, ndifferent = 0;
 	double sum = 0;
 	double score;
-	img_pixel_t *imgpx, *maskpx;
+	img_pixel_t *imgpx, *maskpx, *dbgpx;
+
+	if (dbgmask != NULL)
+		*dbgmask = img_alloc(image->img_width, image->img_height);
 
 	assert(image->img_width == mask->img_width);
 	assert(image->img_height == mask->img_height);
@@ -286,6 +297,11 @@ img_compare(img_t *image, img_t *mask)
 
 			if (dz2 == 0)
 				continue;
+
+			if (*dbgmask != NULL) {
+				dbgpx = &((*dbgmask)->img_pixels[i]);
+				dbgpx->g = 255 - (sqrt(dz2));
+			}
 
 			ndifferent++;
 			sum += sqrt(dz2);

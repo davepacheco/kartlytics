@@ -39,7 +39,7 @@ typedef struct {
 static kv_cmd_t kv_commands[] = {
     { "and", cmd_and, "input1 input2 output",
       "logical-and pixel values of two images" },
-    { "compare", cmd_compare, "image mask",
+    { "compare", cmd_compare, "[-s debugfile] image mask",
       "compute difference score for the given image and mask" },
     { "decode", cmd_decode, "input output-dir",
       "decode a video into its constituent PPM images" },
@@ -133,14 +133,27 @@ usage(const char *message)
 static int
 cmd_compare(int argc, char *argv[])
 {
-	img_t *image, *mask;
+	img_t *image, *mask, *dbgmask;
+	char *dbgfile = NULL;
+	FILE *fp;
 	int rv;
+	char c;
 
-	if (argc < 2)
+	while ((c = getopt(argc, argv, "s:")) != -1) {
+		switch (c) {
+		case 's':
+			dbgfile = optarg;
+			break;
+		default:
+			return (EXIT_USAGE);
+		}
+	}
+
+	if (optind + 2 > argc)
 		return (EXIT_USAGE);
 
-	image = img_read(argv[0]);
-	mask = img_read(argv[1]);
+	image = img_read(argv[optind++]);
+	mask = img_read(argv[optind++]);
 
 	if (mask == NULL || image == NULL) {
 		img_free(image);
@@ -151,11 +164,26 @@ cmd_compare(int argc, char *argv[])
 	    image->img_height != mask->img_height) {
 		warnx("image dimensions do not match");
 		rv = EXIT_FAILURE;
-	} else {
-		(void) printf("%f\n", img_compare(image, mask));
-		rv = EXIT_SUCCESS;
+		goto done;
 	}
 
+	(void) printf("%f\n",
+	    img_compare(image, mask, dbgfile ? &dbgmask : NULL));
+
+	if (dbgfile != NULL && dbgmask != NULL) {
+		if ((fp = fopen(dbgfile, "w")) == NULL) {
+			warn("fopen %s", dbgfile);
+		} else {
+			(void) img_write_ppm(dbgmask, fp);
+			(void) fclose(fp);
+		}
+
+		img_free(dbgmask);
+	}
+
+	rv = EXIT_SUCCESS;
+
+done:
 	img_free(image);
 	img_free(mask);
 	return (rv);
