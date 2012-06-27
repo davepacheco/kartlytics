@@ -258,36 +258,6 @@ img_free(img_t *imgp)
 	free(imgp);
 }
 
-#define	MIN(x, y)	((x) < (y) ? (x) : (y))
-#define	MAX(x, y)	((x) > (y) ? (x) : (y))
-
-static void
-img_pix_rgb2hsv(img_pixelhsv_t *hsv, img_pixel_t *rgb)
-{
-	uint8_t min = MIN(MIN(rgb->r, rgb->g), rgb->b);
-	uint8_t max = MAX(MAX(rgb->r, rgb->g), rgb->b);
-
-	if (max == 0) {
-		hsv->h = hsv->s = hsv->v = 0;
-		return;
-	}
-
-	hsv->v = max;
-	hsv->s = 255 * (long)(max - min)/max;
-	
-	if (hsv->s == 0) {
-		hsv->h = 0;
-		return;
-	}
-
-	if (max == rgb->r)
-		hsv->h = 43 * (rgb->g - rgb->b) / (max - min);
-	else if (max == rgb->g)
-		hsv->h = 85 + 43 * (rgb->b - rgb->r) / (max - min);
-	else
-		hsv->h = 171 + 43 * (rgb->r - rgb->g) / (max - min);
-}
-
 double
 img_compare(img_t *image, img_t *mask, img_t **dbgmask)
 {
@@ -298,7 +268,6 @@ img_compare(img_t *image, img_t *mask, img_t **dbgmask)
 	double sum = 0;
 	double score;
 	img_pixel_t *imgpx, *maskpx, *dbgpx;
-	img_pixelhsv_t imghsvpx, maskhsvpx;
 
 	if (dbgmask != NULL)
 		*dbgmask = img_alloc(image->img_width, image->img_height);
@@ -321,20 +290,9 @@ img_compare(img_t *image, img_t *mask, img_t **dbgmask)
 			}
 
 			ncompared++;
-
-			img_pix_rgb2hsv(&imghsvpx, imgpx);
-			img_pix_rgb2hsv(&maskhsvpx, maskpx);
-
-			if (/*imghsvpx.s < 40*/0) {
-				dr = maskhsvpx.h - imghsvpx.h;
-				dg = maskhsvpx.v - imghsvpx.v;
-				db = 0;
-			} else {
-				dr = maskpx->r - imgpx->r;
-				dg = maskpx->g - imgpx->g;
-				db = maskpx->b - imgpx->b;
-			}
-
+			dr = maskpx->r - imgpx->r;
+			dg = maskpx->g - imgpx->g;
+			db = maskpx->b - imgpx->b;
 			dz2 = dr * dr + dg * dg + db * db;
 
 			if (dz2 == 0)

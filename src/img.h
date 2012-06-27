@@ -17,12 +17,6 @@ typedef struct img_pixel {
 	uint8_t b;
 } img_pixel_t;
 
-typedef struct img_pixelhsv {
-	uint8_t h;
-	uint8_t s;
-	uint8_t v;
-} img_pixelhsv_t;
-
 typedef struct img {
 	unsigned int	img_width;
 	unsigned int	img_height;
