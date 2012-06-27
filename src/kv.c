@@ -26,10 +26,13 @@ static int kv_nmasks = 0;
 #define KV_MASK_TRACK(s)	(s[0] == 't')
 #define	KV_MASK_LAKITU(s)	(s[0] == 'l')
 
+#define	KV_STARTFRAMES	90
+
 struct kv_vidctx {
 	kv_screen_t 	kv_frame;	/* current frame state */
 	kv_screen_t 	kv_pframe;      /* first frame matching current state */
 	kv_screen_t 	kv_raceframe;   /* first frame state for this race */
+	kv_screen_t	kv_startbuffer[KV_STARTFRAMES];
 	int		kv_last_start;
 	kv_emit_f	kv_emit;
 	double		kv_framerate;
@@ -120,8 +123,7 @@ kv_ident(img_t *image, kv_screen_t *ksp, boolean_t do_all)
 	for (i = 0; i < kv_nmasks; i++) {
 		kmp = &kv_masks[i];
 
-		if (!do_all &&
-		    (KV_MASK_CHAR(kmp->km_name) || KV_MASK_TRACK(kmp->km_name)))
+		if (!do_all && KV_MASK_TRACK(kmp->km_name))
 			continue;
 
 		score = img_compare(image, kmp->km_image, NULL);
@@ -465,6 +467,40 @@ kv_vidctx_init(const char *rootdir, kv_emit_f emit)
 	return (kvp);
 }
 
+/*
+ * While processing frames outside a race, we store a ringbuffer of the last
+ * KV_STARTFRAMES worth of frame details in kv_startbuffer.  When we do finally
+ * see a start frame, we call this function to look back at the recent frames
+ * and pick the best character match for each square among all of the recent
+ * frames.  This technique is important to be able to identify characters in the
+ * face of things like smoke that distorts their images
+ */
+static void
+kv_vidctx_chars(kv_vidctx_t *kvp, kv_screen_t *ksp, int i)
+{
+	kv_screen_t *pksp;
+	int j, k;
+
+	for (j = (i + 1) % KV_STARTFRAMES; j != (i % KV_STARTFRAMES);
+	    j = (j + 1) % KV_STARTFRAMES) {
+		pksp = &kvp->kv_startbuffer[j];
+
+		for (k = 0; k < KV_MAXPLAYERS; k++) {
+			if (pksp->ks_players[k].kp_character[0] == '\0' ||
+			    (ksp->ks_players[k].kp_charscore > 0 &&
+			    pksp->ks_players[k].kp_charscore >
+			    ksp->ks_players[k].kp_charscore))
+				continue;
+
+			if (k > ksp->ks_nplayers)
+				ksp->ks_nplayers = k;
+
+			bcopy(&pksp->ks_players[k], &ksp->ks_players[k],
+			    sizeof (pksp->ks_players[k]));
+		}
+	}
+}
+
 void
 kv_vidctx_frame(const char *framename, int i, int timems,
     img_t *image, kv_vidctx_t *kvp)
@@ -510,18 +546,25 @@ kv_vidctx_frame(const char *framename, int i, int timems,
 		}
 
 		kv_ident(image, ksp, B_TRUE);
+		bcopy(ksp, &kvp->kv_startbuffer[i % KV_STARTFRAMES],
+		    sizeof (ksp));
+		kv_vidctx_chars(kvp, ksp, i);
 		kvp->kv_last_start = i;
 		*pksp = *ksp;
 		*raceksp = *ksp;
 		kvp->kv_emit(framename, i, timems, ksp, NULL, stdout);
+		bzero(&kvp->kv_startbuffer[0], sizeof (kvp->kv_startbuffer));
 		return;
 	}
 
 	/*
 	 * Skip frames if we're not currently inside a race.
 	 */
-	if (kvp->kv_last_start == -1)
+	if (kvp->kv_last_start == -1) {
+		bcopy(ksp, &kvp->kv_startbuffer[i % KV_STARTFRAMES],
+		    sizeof (*ksp));
 		return;
+	}
 
 	if (kv_screen_invalid(ksp, pksp))
 		return;

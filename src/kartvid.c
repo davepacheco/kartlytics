@@ -375,6 +375,10 @@ cmd_frames(int argc, char *argv[])
 		    strcmp(entp->d_name, "..") == 0)
 			continue;
 
+		if (strcmp(entp->d_name + strlen(entp->d_name) -
+		    sizeof (".png") + 1, ".png") != 0)
+			continue;
+
 		len = snprintf(NULL, 0, "%s/%s", argv[0], entp->d_name);
 		if ((q = malloc(len + 1)) == NULL) {
 			warn("malloc");
@@ -390,6 +394,7 @@ cmd_frames(int argc, char *argv[])
 	if (entp != NULL)
 		goto out;
 
+	rv = EXIT_SUCCESS;
 	qsort(framenames, nframes, sizeof (framenames[0]), qsort_strcmp);
 
 	for (i = 0; i < nframes; i++) {
