@@ -169,6 +169,11 @@ div.kProgressBar {
 			margin-right: 10px;
 		}
 
+td.kDataLabel {
+	font-weight: bold;
+	white-space: nowrap;
+}
+
 
 /*
  * Player configuration table
