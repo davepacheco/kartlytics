@@ -397,7 +397,7 @@ function kScreenSummaryLoad()
 	    ]);
 	});
 
-	kMakeDynamicTable(kDomConsole, 'Player summary', {
+	kMakeDynamicTable(kDomConsole, 'Players', {
 	    'oLanguage': {
 		'sEmptyTable': 'No videos imported.'
 	    },
@@ -464,8 +464,7 @@ function kScreenSummaryLoad()
 	kEachRace(true, function (race) {
 		races.push([
 		    race,
-		    race['raceid'],
-		    kDate(race['start_time']),
+		    kDateTime(race['start_time']),
 		    race['players'].length + 'P',
 		    race['mode'],
 		    race['level'] || '',
@@ -476,16 +475,13 @@ function kScreenSummaryLoad()
 		]);
 	});
 
-	kMakeDynamicTable(kDomConsole, 'Race summary', {
+	kMakeDynamicTable(kDomConsole, 'All races', {
 	    'bFilter': true,
 	    'oLanguage': {
 		'sEmptyTable': 'No races found.'
 	    },
 	    'aoColumns': [ {
 		'bVisible': false
-	    }, {
-		'sTitle': 'RaceID',
-		'sClass': 'kDataRaceID'
 	    }, {
 		'sTitle': 'Date',
 		'sClass': 'kDataRaceDate'
@@ -512,9 +508,10 @@ function kScreenSummaryLoad()
 		'sClass': 'kDataRaceVEnd'
 	    } ],
 	    'aaData': races,
-	    'fnCreatedRow': function (tr) {
-		var td = $(tr).find('td.kDataRaceID');
-		$(td).html('<a href="#race/' + $(td).text() + '">' +
+	    'fnCreatedRow': function (tr, data) {
+		var td = $(tr).find('td.kDataRaceDate');
+		var raceid = data[0]['raceid'];
+		$(td).html('<a href="#race/' + raceid + '">' +
 		    $(td).text() + '</a>');
 	    }
 	});
