@@ -31,9 +31,11 @@
 /*
  * TODO:
  * - track details screen
+ * - add "all videos" screen
  * - clean up "upload" dialog
  * - race details screen: translate segments into English
  *   (e.g., "dap passes wdp")
+ * - race details screen: add ability to modify human player names
  * - video details screen: add download link
  */
 

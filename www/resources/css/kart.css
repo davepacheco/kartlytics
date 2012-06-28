@@ -240,6 +240,10 @@ td.kDataRacePl, th.kDataRacePl {
 	padding-right: 5px;
 }
 
+td.kDataRaceDate {
+	white-space: nowrap;
+}
+
 td.kDataRaceTrack {
 	white-space: nowrap;
 }
