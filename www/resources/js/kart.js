@@ -1342,7 +1342,18 @@ function kDate(ms)
 
 function kDateTime(ms)
 {
-	return (new Date(ms).toString());
+	var obj = new Date(ms);
+	var hours = obj.getHours();
+	var minutes = obj.getMinutes();
+
+	if (hours < 10)
+		hours = '0' + hours;
+
+	if (minutes < 10)
+		minutes = '0' + minutes;
+
+	return (obj.getFullYear() + '-' + (obj.getMonth() + 1) +
+	    '-' + obj.getDate() + ' ' + hours + ':' + minutes);
 }
 
 function kPercentage(frac)
