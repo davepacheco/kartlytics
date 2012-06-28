@@ -30,11 +30,11 @@
 
 /*
  * TODO:
- * - video details screen, including video download link
  * - track details screen
  * - clean up "upload" dialog
- * - race details screen: translate segments into English (e.g., "dap passes
- *   wdp")
+ * - race details screen: translate segments into English
+ *   (e.g., "dap passes wdp")
+ * - video details screen: add download link
  */
 
 /*
@@ -213,6 +213,12 @@ var kScreens = {
 	'load': kScreenRaceLoad,
 	'clear': kScreenRaceClear,
 	'refresh': kScreenRaceRefresh
+    },
+    'video': {
+    	'name': 'video',
+	'load': kScreenVideoLoad,
+	'clear': kScreenVideoClear,
+	'refresh': kScreenVideoRefresh
     }
 };
 
@@ -288,7 +294,8 @@ function kScreenSummaryLoad()
 		'sEmptyTable': 'No videos to import.'
 	    },
 	    'aoColumns': [ {
-		'sTitle': 'Video ID'
+		'sTitle': 'Video ID',
+		'sClass': 'kDataVideoID'
 	    }, {
 		'sTitle': 'Filename',
 		'sClass': 'kDataColumnVideoName',
@@ -311,6 +318,10 @@ function kScreenSummaryLoad()
 		var uuid = data[0];
 		var vidobj = kVideos[uuid];
 		var td;
+
+		td = $(tr).find('td.kDataVideoID');
+		$(td).html('<a href="#video/' + $(td).text() + '">' +
+		    $(td).text() + '</a>');
 
 		if (vidobj.state == 'unconfirmed') {
 			td = $(tr).find('td.kDataColumnDetails');
@@ -826,7 +837,14 @@ function kScreenRaceLoad(args)
 	    }, {
 		'sClass': 'kDataValue'
 	    } ],
-	    'aaData': metadata
+	    'aaData': metadata,
+	    'fnCreatedRow': function (tr, data) {
+		if (data[0] != 'Video')
+			return;
+		var td = $(tr).find('td.kDataValue');
+		$(td).html('<a href="#video/' + $(td).text() + '">' +
+		    $(td).text() + '</a>');
+	    }
 	});
 
 	kMakeDynamicTable(kDomConsole, 'Players', {
@@ -874,6 +892,103 @@ function kScreenRaceRefresh()
 {
 	kScreenRaceClear();
 	kScreenRaceLoad(kScreenArgs);
+}
+
+
+/*
+ * Video details screen
+ */
+function kScreenVideoLoad(args)
+{
+	var vidid, video, filter;
+	var metadata = [], races = [];
+
+	if (args.length < 1 || !kVideos.hasOwnProperty(args[0])) {
+		kScreenDefault();
+		return;
+	}
+
+	vidid = args[0];
+	video = kVideos[vidid];
+
+	$(kDomConsole).append('<div class="kHeader kDynamic">Video ' +
+	    'details: ' + video.name + '</div>');
+
+	metadata.push([ 'Original filename', video.name ]);
+	metadata.push([ 'Processing state', ucfirst(video.state) ]);
+	metadata.push([ 'Uploaded', video.uploaded ]);
+	metadata.push([ 'Modified', video.mtime ]);
+
+	/* This search could be more efficient. */
+	filter = function (race) { return (race['vidid'] == vidid); };
+	kEachRace(filter, function (race) {
+		races.push([
+			kDuration(race['vstart']),
+			race['num'],
+			kDateTime(race['start_time']),
+			race['players'].length + 'P',
+			race['mode'],
+			race['level'] || '',
+			race['track'],
+			kDuration(race['duration'])
+		]);
+	});
+
+	kMakeDynamicTable(kDomConsole, '', {
+	    'bSort': false,
+	    'aoColumns': [ {
+		'sClass': 'kDataLabel'
+	    }, {
+		'sClass': 'kDataValue'
+	    } ],
+	    'aaData': metadata
+	});
+
+	kMakeDynamicTable(kDomConsole, 'Races', {
+	    'bSort': false,
+	    'aoColumns': [ {
+		'sTitle': 'VStart',
+		'sClass': 'kDataRaceVStart'
+	    }, {
+		'sTitle': 'VNum',
+		'sClass': 'kDataRaceVNum'
+	    }, {
+		'sTitle': 'Date',
+		'sClass': 'kDataRaceDate'
+	    }, {
+		'sTitle': 'NPl',
+		'sClass': 'kDataRaceNPl'
+	    }, {
+		'sTitle': 'Mode',
+		'sClass': 'kDataRaceMode'
+	    }, {
+		'sTitle': 'Lvl',
+		'sClass': 'kDataRaceLvl'
+	    }, {
+		'sTitle': 'Track',
+		'sClass': 'kDataRaceTrack'
+	    }, {
+		'sTitle': 'Time',
+		'sClass': 'kDataRaceTime'
+	    } ],
+	    'aaData': races,
+	    'fnCreatedRow': function (tr) {
+		var td = $(tr).find('td.kDataRaceVNum');
+		$(td).html('<a href="#race/' + vidid + '/' + $(td).text() +
+		    '">' + $(td).text() + '</a>');
+	    }
+	});
+}
+
+function kScreenVideoClear()
+{
+	kRemoveDynamicContent();
+}
+
+function kScreenVideoRefresh()
+{
+	kScreenVideoClear();
+	kScreenVideoLoad(kScreenArgs);
 }
 
 
