@@ -580,7 +580,8 @@ function kScreenPlayerLoad(args)
 		time = p['time'] ? kDuration(p['time'], true) : 'Unfinished';
 
 		allraces.push([
-		    race['raceid'],
+		    race,
+		    kDateTime(race['start_time']),
 		    race['level'] || '',
 		    race['players'].length + 'P',
 		    ordinal(p['rank']),
@@ -628,8 +629,10 @@ function kScreenPlayerLoad(args)
 		'sEmptyTable': 'No races for ' + pname + '.'
 	    },
 	    'aoColumns': [ {
-		'sTitle': 'RaceID',
-		'sClass': 'kDataRaceID'
+		'bVisible': false
+	    }, {
+		'sTitle': 'Date',
+		'sClass': 'kDataRaceDate'
 	    }, {
 		'sTitle': 'Lvl',
 		'sClass': 'kDataRaceLvl'
@@ -662,9 +665,9 @@ function kScreenPlayerLoad(args)
 		'sClass': 'kDataRaceCup'
 	    } ],
 	    'aaData': allraces,
-	    'fnCreatedRow': function (tr) {
-		var td = $(tr).find('td.kDataRaceID');
-		$(td).html('<a href="#race/' + $(td).text() + '">' +
+	    'fnCreatedRow': function (tr, data) {
+		var td = $(tr).find('td.kDataRaceDate');
+		$(td).html('<a href="#race/' + data[0]['raceid'] + '">' +
 		    $(td).text() + '</a>');
 	    }
 	});
