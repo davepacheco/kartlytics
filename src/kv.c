@@ -6,6 +6,7 @@
 #include <dirent.h>
 #include <err.h>
 #include <stdlib.h>
+#include <strings.h>
 
 #include "kv.h"
 extern int kv_debug;
