@@ -1,6 +1,5 @@
 Current status:
 - Figure out why kartlytics.com is getting a different result on some videos
-  (e.g., Recording0000.mov) than my laptop.
+  (e.g., 6/19 Recording0000.mov) than my laptop.
 - Then manually check the full output on all videos.  Previous problem videos
   include output-1, output-4, and recording-0003.
-- Figure out why Yoshi Valley race does the wrong thing (Recording-0008)
