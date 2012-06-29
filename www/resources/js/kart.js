@@ -1540,6 +1540,9 @@ function makeRaceObject(video, race, num)
 		if (players[j].hasOwnProperty('time'))
 			continue;
 
+		if (players[j]['rank'] == players.length)
+			continue;
+
 		players[j]['time'] = race.end - race.start_time;
 	}
 
