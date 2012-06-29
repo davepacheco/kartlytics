@@ -239,7 +239,7 @@ kv_ident_matches(kv_screen_t *ksp, const char *mask, double score)
  * is used to skip frames that show transient invalid state.
  */
 int
-kv_screen_invalid(kv_screen_t *ksp, kv_screen_t *pksp)
+kv_screen_invalid(kv_screen_t *ksp, kv_screen_t *pksp, kv_screen_t *raceksp)
 {
 	int i, j;
 
@@ -251,8 +251,24 @@ kv_screen_invalid(kv_screen_t *ksp, kv_screen_t *pksp)
 	if (ksp->ks_nplayers != pksp->ks_nplayers)
 		return (1);
 
-	for (i = 0; i < ksp->ks_nplayers; i++) {
-		if (ksp->ks_players[i].kp_place == 0)
+	/*
+	 * On most tracks, we ignore frames where we couldn't detect any
+	 * players' ranks, but this would prohibit reporting results for Yoshi
+	 * Valley until all players are done.  On the other hand, on Yoshi
+	 * Valley, we ignore all frames until someone's finished.
+	 */
+	if (raceksp->ks_track[0] != 'y') {
+		for (i = 0; i < ksp->ks_nplayers; i++) {
+			if (ksp->ks_players[i].kp_place == 0)
+				return (1);
+		}
+	} else {
+		for (i = 0; i < ksp->ks_nplayers; i++) {
+			if (ksp->ks_players[i].kp_lapnum == 4)
+				break;
+		}
+
+		if (i == ksp->ks_nplayers)
 			return (1);
 	}
 
@@ -263,6 +279,10 @@ kv_screen_invalid(kv_screen_t *ksp, kv_screen_t *pksp)
 	}
 
 	for (i = 0; i < ksp->ks_nplayers; i++) {
+		if (raceksp->ks_track[0] == 'y' &&
+		    ksp->ks_players[i].kp_place == 0)
+			continue;
+
 		for (j = i + 1; j < ksp->ks_nplayers; j++) {
 			if (ksp->ks_players[i].kp_place ==
 			    ksp->ks_players[j].kp_place)
@@ -281,7 +301,7 @@ kv_screen_invalid(kv_screen_t *ksp, kv_screen_t *pksp)
  * changed by looking for the race start event.
  */
 int
-kv_screen_compare(kv_screen_t *ksp, kv_screen_t *pksp)
+kv_screen_compare(kv_screen_t *ksp, kv_screen_t *pksp, kv_screen_t *raceksp)
 {
 	int i;
 	kv_player_t *kpp, *pkpp;
@@ -290,8 +310,12 @@ kv_screen_compare(kv_screen_t *ksp, kv_screen_t *pksp)
 		kpp = &ksp->ks_players[i];
 		pkpp = &pksp->ks_players[i];
 
-		if (kpp->kp_place != pkpp->kp_place ||
-		    kpp->kp_lapnum != pkpp->kp_lapnum)
+		/*
+		 * Ignore position changes in Yoshi Valley.
+		 */
+		if (kpp->kp_lapnum != pkpp->kp_lapnum ||
+		    (raceksp->ks_track[0] != 'y' &&
+		    kpp->kp_place != pkpp->kp_place))
 			return (1);
 	}
 
@@ -566,10 +590,30 @@ kv_vidctx_frame(const char *framename, int i, int timems,
 		return;
 	}
 
-	if (kv_screen_invalid(ksp, pksp))
+	/*
+	 * kv_screen_invalid() ignores screens that have a different number of
+	 * players than the initial race screen.  This is rare, since on most
+	 * tracks we use the rank numerals in each square to reliably report the
+	 * number of players.  On such tracks, a wrong number of players
+	 * indicates a numeral in transition, in which case the frame can just
+	 * be ignored.  However, on Yoshi Valley, we only have numerals for
+	 * players who have finished the race, so the number of players can
+	 * easily be wrong until the race is over (even after some players have
+	 * finished).  In order to get the correct race times, we must not
+	 * ignore such frames.  We fix this by simply bumping up the number of
+	 * players on that track.  That's sufficient, since the later player
+	 * fields will be initialized to the "unknown" values.  Of course,
+	 * consumers need to be able to handle them.
+	 */
+	if (ksp->ks_nplayers > 1 &&
+	    ksp->ks_nplayers < raceksp->ks_nplayers &&
+	    raceksp->ks_track[0] == 'y')
+		ksp->ks_nplayers = raceksp->ks_nplayers;
+
+	if (kv_screen_invalid(ksp, pksp, raceksp))
 		return;
 
-	if (kv_screen_compare(ksp, pksp) == 0)
+	if (kv_screen_compare(ksp, pksp, raceksp) == 0)
 		return;
 
 	kvp->kv_emit(framename, i, timems, ksp, raceksp, stdout);

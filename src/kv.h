@@ -43,8 +43,8 @@ typedef struct {
 int kv_init(const char *);
 int kv_ident(img_t *, kv_screen_t *, boolean_t);
 void kv_ident_matches(kv_screen_t *, const char *, double);
-int kv_screen_compare(kv_screen_t *, kv_screen_t *);
-int kv_screen_invalid(kv_screen_t *, kv_screen_t *);
+int kv_screen_compare(kv_screen_t *, kv_screen_t *, kv_screen_t *);
+int kv_screen_invalid(kv_screen_t *, kv_screen_t *, kv_screen_t *);
 
 typedef void (*kv_emit_f)(const char *, int, int, kv_screen_t *, kv_screen_t *,
     FILE *);
