@@ -530,6 +530,7 @@ void
 kv_vidctx_frame(const char *framename, int i, int timems,
     img_t *image, kv_vidctx_t *kvp)
 {
+	int j;
 	kv_screen_t *ksp, *pksp, *raceksp;
 
 	ksp = &kvp->kv_frame;
@@ -616,6 +617,22 @@ kv_vidctx_frame(const char *framename, int i, int timems,
 
 	if (kv_screen_compare(ksp, pksp, raceksp) == 0)
 		return;
+
+	/*
+	 * In Yoshi Valley (and only this rare case), we must explicitly fill in
+	 * the last place finisher, since we usually won't have detected it by
+	 * itself.
+	 */
+	if (raceksp->ks_track[0] == 'y' && ksp->ks_events & KVE_RACE_DONE) {
+		for (j = 0; j < ksp->ks_nplayers; j++) {
+			if (ksp->ks_players[j].kp_place == 0) {
+				ksp->ks_players[j].kp_place =
+				    ksp->ks_nplayers;
+				ksp->ks_players[j].kp_placescore = 0.0001;
+				break;
+			}
+		}
+	}
 
 	kvp->kv_emit(framename, i, timems, ksp, raceksp, stdout);
 	*pksp = *ksp;
