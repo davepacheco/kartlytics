@@ -8,20 +8,18 @@ CFLAGS = -Wall -O -fno-omit-frame-pointer
 ifeq ($(BUILDOS),Darwin)
 	LIBPNG_CPPFLAGS = -I/usr/X11/include 
 	LIBPNG_LDFLAGS  = -L/usr/X11/lib -lpng
-	FFMPEG_CPPFLAGS = -I/usr/local/include 
-	FFMPEG_LDFLAGS  = -L/usr/local/lib
 else
 	LIBPNG_CPPFLAGS = -I/opt/local/include
 	LIBPNG_LDFLAGS  = -L/opt/local/lib -lpng15
-	FFMPEG_CPPFLAGS = -I/opt/local/include
-	FFMPEG_LDFLAGS  = -L/opt/local/lib
 endif
 
 ifeq ($(BUILDOS),SunOS)
 	LDFLAGS += -lm
 endif
 
+FFMPEG_CPPFLAGS = -I/usr/local/include 
 FFMPEG_CPPFLAGS += -Wno-deprecated-declarations
+FFMPEG_LDFLAGS  = -L/usr/local/lib -R/usr/local/lib
 FFMPEG_LDFLAGS  += -lavformat -lavcodec -lavutil -lswscale
 
 KARTVID = out/kartvid
