@@ -358,7 +358,8 @@ function kScreenSummaryLoad()
 					't1': 0,
 					't2': 0,
 					't3': 0,
-					't4': 0
+					't4': 0,
+					't?': 0
 				};
 
 			pinfo = players[p.person];
@@ -366,7 +367,7 @@ function kScreenSummaryLoad()
 			pinfo['n' + p.rank]++;
 
 			kRaceSegments(race, true, function (_, seg) {
-				var rank = seg.players[i].rank;
+				var rank = seg.players[i].rank || '?';
 				pinfo['ttot'] += seg.duration;
 				pinfo['t' + rank] += seg.duration;
 			});
@@ -824,7 +825,7 @@ function kScreenRaceLoad(args)
 				kDuration(seg['vstart']),
 				kDuration(seg['duration'])
 			].concat(seg['players'].map(function (p) {
-				return (ordinal(p['rank']));
+				return (ordinal(p['rank']) || '?');
 			})));
 		});
 	});
