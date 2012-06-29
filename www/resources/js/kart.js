@@ -1526,10 +1526,6 @@ function makeRaceObject(video, race, num)
 	}
 
 	for (i = 0; i < race.segments.length; i++) {
-		if (race.segments[i].start < race.start_time) {
-			console.log(video.id, num, i);
-		}
-
 		for (j = 0; j < players.length; j++) {
 			if (players[j].hasOwnProperty('time'))
 				continue;
@@ -1541,7 +1537,7 @@ function makeRaceObject(video, race, num)
 	}
 
 	for (j = 0; j < players.length; j++) {
-		if (players[j]['rank'] != players.length - 1)
+		if (players[j].hasOwnProperty('time'))
 			continue;
 
 		players[j]['time'] = race.end - race.start_time;
