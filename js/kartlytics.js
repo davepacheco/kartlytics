@@ -158,6 +158,7 @@ function initServer()
 	    mod_path.join(filespath, 'resources')));
 	klServer.post('/kart/video', auth, upload);
 	klServer.get('/api/videos', apiVideosGet);
+	klServer.get('/api/files/:id', apiFilesGet);
 	klServer.put('/api/videos/:id', auth,
 	    mod_restify.bodyParser({ 'mapParams': false }), apiVideosPut);
 
@@ -234,6 +235,10 @@ function dirServer(baseuri, basedir, request, response, next)
 function fileServer(filename, request, response, next)
 {
 	var file = mod_fs.createReadStream(filename);
+	var headers = {};
+
+	if (mod_jsprim.endsWith(filename, '.mov'))
+		headers['Content-Type'] = 'video/quicktime';
 
 	file.on('error', function (err) {
 		if (err['code'] == 'ENOENT') {
@@ -247,7 +252,7 @@ function fileServer(filename, request, response, next)
 
 	file.on('open', function () {
 		file.removeAllListeners('error');
-		response.writeHead(200);
+		response.writeHead(200, headers);
 		file.pipe(response);
 
 		file.on('error', function (err) {
@@ -329,6 +334,24 @@ var klMetadataSchema = {
 	}
     }
 };
+
+/*
+ * GET /api/files/:id: retrieve an actual video file
+ */
+function apiFilesGet(request, response, next)
+{
+	var uuid, video;
+
+	uuid = request.params['id'];
+
+	if (!klVideos.hasOwnProperty(uuid)) {
+		next(new mod_restify.ResourceNotFoundError());
+		return;
+	}
+
+	video = klVideos[uuid];
+	fileServer(video.filename, request, response, next);
+}
 
 /*
  * PUT /api/videos/:id: saves video metadata

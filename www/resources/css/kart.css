@@ -273,3 +273,7 @@ td.kDataPlayerNum, td.kDataPlayerTime, td.kDataPlayerPercentage,
 th.kDataPlayerNum, th.kDataPlayerTime, th.kDataPlayerPercentage {
 	text-align: right;
 }
+
+table.kDynamic {
+	margin-bottom: 20px;
+}

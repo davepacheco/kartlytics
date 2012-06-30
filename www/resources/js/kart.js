@@ -1007,6 +1007,13 @@ function kScreenVideoLoad(args)
 	$(kDomConsole).append('<div class="kHeader kDynamic">Video ' +
 	    'details: ' + video.name + '</div>');
 
+	$('<table class="kDynamic" style="width: 100%">' +
+	    '<tr>' +
+	    '<td id="kVideoMetadata" style="width: 50%"></td>' +
+	    '<td id="kVideoVideo" style="width: 50%"></td>' +
+	    '</tr>' +
+	    '</table>').appendTo(kDomConsole);
+
 	metadata.push([ 'Original filename', video.name ]);
 	metadata.push([ 'Processing state', ucfirst(video.state) ]);
 	metadata.push([ 'Uploaded', video.uploaded ]);
@@ -1027,7 +1034,7 @@ function kScreenVideoLoad(args)
 		]);
 	});
 
-	kMakeDynamicTable(kDomConsole, '', {
+	kMakeDynamicTable($('td#kVideoMetadata'), '', {
 	    'bSort': false,
 	    'aoColumns': [ {
 		'sClass': 'kDataLabel'
@@ -1036,6 +1043,11 @@ function kScreenVideoLoad(args)
 	    } ],
 	    'aaData': metadata
 	});
+
+	$('td#kVideoVideo').append(
+	    '<video width="320" height="240" controls="controls">' +
+	    '<source src="/api/files/' + vidid + '" type="video/quicktime" />' +
+	    '</video>');
 
 	kMakeDynamicTable(kDomConsole, 'Races', {
 	    'bSort': false,
