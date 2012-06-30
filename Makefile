@@ -95,7 +95,7 @@ $(KARTVID): out/kartvid.o out/img.o out/kv.o out/video.o | out
 # mask targets
 #
 %.png: %.ppm
-	convert $^ $@
+	convert -define png:preserve-colormap $^ $@
 
 #
 # Masks for characters in squares 2, 3, and 4 are generated from the mask for
