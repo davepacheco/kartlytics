@@ -30,7 +30,6 @@
 
 /*
  * TODO:
- * - track details screen
  * - add "all videos" screen
  * - clean up "upload" dialog
  * - race details screen: translate segments into English
@@ -216,6 +215,12 @@ var kScreens = {
 	'clear': kScreenRaceClear,
 	'refresh': kScreenRaceRefresh
     },
+    'track': {
+    	'name': 'track',
+	'load': kScreenTrackLoad,
+	'clear': kScreenTrackClear,
+	'refresh': kScreenTrackRefresh
+    },
     'video': {
     	'name': 'video',
 	'load': kScreenVideoLoad,
@@ -321,9 +326,7 @@ function kScreenSummaryLoad()
 		var vidobj = kVideos[uuid];
 		var td;
 
-		td = $(tr).find('td.kDataVideoID');
-		$(td).html('<a href="#video/' + $(td).text() + '">' +
-		    $(td).text() + '</a>');
+		klink($(tr).find('td.kDataVideoID'), 'video');
 
 		if (vidobj.state == 'unconfirmed') {
 			td = $(tr).find('td.kDataColumnDetails');
@@ -455,9 +458,7 @@ function kScreenSummaryLoad()
 	    } ],
 	    'aaData': pdata,
 	    'fnCreatedRow': function (tr, _1, _2) {
-		var td = $(tr).find('td.kDataPlayerName')[0];
-		var name = $(td).text();
-		$(td).html('<a href="#player/' + name + '">' + name + '</a>');
+	        klink($(tr).find('td.kDataPlayerName'), 'player');
 	    }
 	});
 
@@ -510,10 +511,9 @@ function kScreenSummaryLoad()
 	    } ],
 	    'aaData': races,
 	    'fnCreatedRow': function (tr, data) {
-		var td = $(tr).find('td.kDataRaceDate');
-		var raceid = data[0]['raceid'];
-		$(td).html('<a href="#race/' + raceid + '">' +
-		    $(td).text() + '</a>');
+		klink($(tr).find('td.kDataRaceDate'), 'race',
+		    data[0]['raceid']);
+		klink($(tr).find('td.kDataRaceTrack'), 'track');
 	    }
 	});
 }
@@ -666,9 +666,9 @@ function kScreenPlayerLoad(args)
 	    } ],
 	    'aaData': allraces,
 	    'fnCreatedRow': function (tr, data) {
-		var td = $(tr).find('td.kDataRaceDate');
-		$(td).html('<a href="#race/' + data[0]['raceid'] + '">' +
-		    $(td).text() + '</a>');
+	        klink($(tr).find('td.kDataRaceDate'), 'race',
+		    data[0]['raceid']);
+		klink($(tr).find('td.kDataRaceTrack'), 'track');
 	    }
 	});
 
@@ -763,7 +763,10 @@ function kScreenPlayerLoad(args)
 		'sClass': 'kDataPlayerNum',
 		'sWidth': '15px'
 	    } ],
-	    'aaData': bytrackdata
+	    'aaData': bytrackdata,
+	    'fnCreatedRow': function (tr) {
+		klink($(tr).find('td.kDataRaceTrack'), 'track');
+	    }
 	});
 }
 
@@ -805,8 +808,7 @@ function kScreenRaceLoad(args)
 			kind += ' (' + race['level'] + ')';
 
 		metadata.push([ 'Kind', kind ]);
-		metadata.push([ 'Track', race['track'] + ' (' +
-		    kTrackToCup(race['track']) + ' Cup)']);
+		metadata.push([ 'Track', race['track']]);
 		metadata.push([ 'Duration', kDuration(race['duration']) ]);
 		metadata.push([ 'Start time', kDateTime(race['start_time']) ]);
 		metadata.push([ 'Video', race['vidid'] ]);
@@ -818,7 +820,8 @@ function kScreenRaceLoad(args)
 			    'P' + (i + 1),
 			    p['person'],
 			    ucfirst(p['char']),
-			    ordinal(p['rank'])
+			    ordinal(p['rank']),
+			    p['time'] ? kDuration(p['time']) : 'Not finished'
 			]);
 		});
 
@@ -842,11 +845,10 @@ function kScreenRaceLoad(args)
 	    } ],
 	    'aaData': metadata,
 	    'fnCreatedRow': function (tr, data) {
-		if (data[0] != 'Video')
-			return;
-		var td = $(tr).find('td.kDataValue');
-		$(td).html('<a href="#video/' + $(td).text() + '">' +
-		    $(td).text() + '</a>');
+		if (data[0] == 'Video')
+			klink($(tr).find('td.kDataValue'), 'video');
+		else if (data[0] == 'Track')
+			klink($(tr).find('td.kDataValue'), 'track');
 	    }
 	});
 
@@ -862,12 +864,13 @@ function kScreenRaceLoad(args)
 		'sTitle': 'Character'
 	    }, {
 		'sTitle': 'Rank'
+	    }, {
+		'sTitle': 'Time',
+		'sClass': 'kDataRaceTime'
 	    } ],
 	    'aaData': players,
 	    'fnCreatedRow': function (tr) {
-		var td = $(tr).find('td.kDataPlayerName');
-		$(td).html('<a href="#player/' + $(td).text() + '">' +
-		    $(td).text() + '</a>');
+		klink($(tr).find('td.kDataPlayerName'), 'player');
 	    }
 	});
 
@@ -895,6 +898,93 @@ function kScreenRaceRefresh()
 {
 	kScreenRaceClear();
 	kScreenRaceLoad(kScreenArgs);
+}
+
+
+/*
+ * Track details screen
+ */
+function kScreenTrackLoad(args)
+{
+	var track, filter;
+	var races = [];
+
+	if (args.length < 1) {
+		kScreenDefault();
+		return;
+	}
+
+	track = args[0];
+	$(kDomConsole).append('<div class="kHeader kDynamic">Track ' +
+	    'details: ' + track + '</div>');
+
+	/* This search could be more efficient. */
+	filter = function (race) { return (race['track'] == track); };
+	kEachRace(filter, function (race) {
+		var i, p;
+
+		for (i = 0; i < race['players'].length; i++) {
+			if (race['players'][i]['rank'] == 1)
+				break;
+		}
+
+		p = race['players'][i];
+
+		races.push([
+		    race,
+		    kDateTime(race['start_time']),
+		    race['players'].length + 'P',
+		    race['mode'],
+		    race['level'] || '',
+		    kDuration(p['time']),
+		    ucfirst(p['char']),
+		    p['person']
+		]);
+	});
+
+	kMakeDynamicTable(kDomConsole, '', {
+	    'bSort': false,
+	    'aoColumns': [ {
+		'bVisible': false
+	    }, {
+		'sTitle': 'Date',
+		'sClass': 'kDataRaceDate'
+	    }, {
+		'sTitle': 'NPl',
+		'sClass': 'kDataRaceNPl'
+	    }, {
+		'sTitle': 'Mode',
+		'sClass': 'kDataRaceMode'
+	    }, {
+		'sTitle': 'Lvl',
+		'sClass': 'kDataRaceLvl'
+	    }, {
+		'sTitle': 'Best(t)',
+		'sClass': 'kDataRaceTime'
+	    }, {
+		'sTitle': 'Best(C)',
+		'sClass': 'kDataPlayerCharacter'
+	    }, {
+		'sTitle': 'Best(P)',
+		'sClass': 'kDataPlayerName'
+	    } ],
+	    'aaData': races,
+	    'fnCreatedRow': function (tr, data) {
+	        klink($(tr).find('td.kDataRaceDate'), 'race',
+		    data[0]['raceid']);
+	    }
+	});
+}
+
+function kScreenTrackClear()
+{
+	kRemoveDynamicContent();
+}
+
+function kScreenTrackRefresh()
+{
+	kScreenTrackClear();
+	kScreenTrackLoad(kScreenArgs);
 }
 
 
@@ -977,8 +1067,8 @@ function kScreenVideoLoad(args)
 	    'aaData': races,
 	    'fnCreatedRow': function (tr) {
 		var td = $(tr).find('td.kDataRaceVNum');
-		$(td).html('<a href="#race/' + vidid + '/' + $(td).text() +
-		    '">' + $(td).text() + '</a>');
+		klink(td, 'race', vidid + '/' + $(td).text());
+		klink($(tr).find('td.kDataRaceTrack'), 'track');
 	    }
 	});
 }
@@ -1266,6 +1356,15 @@ function kImportSave(uuid, metadata, div)
 /*
  * Utility functions.
  */
+
+function klink(elt, type, ident)
+{
+	if (!ident)
+		ident = $(elt).text();
+
+	$(elt).html('<a href="#' + type + '/' + ident + '">' +
+	    $(elt).text() + '</a>');
+}
 
 function ucfirst(str)
 {
