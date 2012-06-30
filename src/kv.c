@@ -291,6 +291,27 @@ kv_screen_invalid(kv_screen_t *ksp, kv_screen_t *pksp, kv_screen_t *raceksp)
 		}
 	}
 
+	/*
+	 * In some courses, it's possible to see a yellow sky and mistake that
+	 * for a final lap number, indicating that someone has completed the
+	 * race.  Ignore frames where a player in rank X has not finished, but a
+	 * player in rank Y > X has.
+	 */
+	int mindone = ksp->ks_nplayers;
+
+	for (i = 0; i < ksp->ks_nplayers; i++) {
+		if (ksp->ks_players[i].kp_lapnum != 4 &&
+		    ksp->ks_players[i].kp_place > 0 &&
+		    ksp->ks_players[i].kp_place < mindone)
+			mindone = ksp->ks_players[i].kp_place;
+	}
+
+	for (i = 0; i < ksp->ks_nplayers; i++) {
+		if (ksp->ks_players[i].kp_lapnum == 4 &&
+		    ksp->ks_players[i].kp_place > mindone)
+			return (1);
+	}
+
 	return (0);
 }
 
