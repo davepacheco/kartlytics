@@ -154,3 +154,18 @@ include ./Makefile.targ
 #
 $(NODE_MODULES): package.json
 	$(NPM) install
+
+#
+# Testing targets
+#
+TEST_ROOT	 = /Users/dap/Desktop/KartCaptures
+TEST_OUTROOT     = test-outputs
+TEST_VIDEOS	 = $(wildcard $(TEST_ROOT)/*.mov)
+TEST_VIDEOS_REL  = $(subst $(TEST_ROOT)/,,$(TEST_VIDEOS))
+TEST_OUTPUTS     = $(TEST_VIDEOS_REL:%.mov=$(TEST_OUTROOT)/%.json)
+
+.PHONY: test
+test: $(TEST_OUTPUTS)
+
+$(TEST_OUTPUTS): $(TEST_OUTROOT)/%.json: $(TEST_ROOT)/%.mov all
+	$(KARTVID) video -j $< > $@ 2>$(TEST_OUTROOT)/$*.err

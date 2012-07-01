@@ -1,0 +1,5 @@
+{ "nframes": 5307, "crtime": "2012-06-30 01:14:11" }
+{ "source": "frame 141", "time": 4880, "frame": 141, "start": true, "players": [ { "character": "yoshi" }, { "character": "peach" }, { "character": "toad" }, { "character": "wario" }],  "track": "yoshi" }
+{ "source": "frame 4709", "time": 157582, "frame": 4709, "players": [ { "character": "yoshi" }, { "position": 1, "lap": 4, "character": "peach" }, { "character": "toad" }, { "character": "wario" }],  "track": "yoshi" }
+{ "source": "frame 4798", "time": 160552, "frame": 4798, "players": [ { "character": "yoshi" }, { "position": 1, "lap": 4, "character": "peach" }, { "character": "toad" }, { "position": 2, "lap": 4, "character": "wario" }],  "track": "yoshi" }
+{ "source": "frame 4979", "time": 166608, "frame": 4979, "done": true, "players": [ { "position": 3, "lap": 4, "character": "yoshi" }, { "position": 1, "lap": 4, "character": "peach" }, { "position": 4, "character": "toad" }, { "position": 2, "lap": 4, "character": "wario" }],  "track": "yoshi" }

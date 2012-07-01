@@ -1,5 +1,15 @@
 Current status:
+- Manually check the full output on all videos.  Previous problem videos include
+  output-1, output-4, and recording-0003.
 - Figure out why kartlytics.com is getting a different result on some videos
   (e.g., 6/19 Recording0000.mov) than my laptop.
-- Then manually check the full output on all videos.  Previous problem videos
-  include output-1, output-4, and recording-0003.
+
+Quality of life:
+- Write a Makefile rule to run kartvid on all videos and save the output.
+- Refactor the code that collapses kartvid output into races, and write the code
+  that converts those objects into English text, and write a command line
+  wrapper tool for running kartvid on multiple files and printing out the
+  results.  Also for diffing results between two runs on the same race.
+- Add a button to the UI for rerunning kartvid?
+- Add support for writing out PNG images.
+- Add a debug flag that causes it to save PNG image of each significant frame
