@@ -138,22 +138,86 @@ function summarize(race)
 {
 	var entries = [];
 	var time = kDuration(race['start_time']);
+	var players = race['results'].slice(0);
+	var last, seg;
 
 	entries.push(race['players'].length + 'P ' + race['mode'] + ' on ' +
 	    race['track'] + ' (starts at ' + time + ' in video)');
+	entries.push('    Racers: ' + players.map(
+	    function (p) { return (ucfirst(p['character'])); }).join(', '));
 
-	var players = race['results'].slice(0);
+	if (race['segments'].length > 0) {
+		seg = race['segments'][0];
+
+		seg.players.forEach(function (p) {
+			entries.push('    ' + kDuration(
+			    seg['start'] - race['start_time']) + ': ' +
+			    ucfirst(p['character']) + ' is in ' +
+			    ordinal(p['position']));
+		});
+
+		last = seg;
+
+		race['segments'].slice(1).forEach(function (segment) {
+			compareSegments(race, last, segment, function (text) {
+				entries.push('    ' + kDuration(
+				    segment['start'] - race['start_time']) +
+				    ': ' + text);
+			});
+
+			last = segment;
+		});
+	}
+
+	entries.push('    ' + kDuration(race['end'] - race['start_time']) +
+	    ': The race is over.');
+
 	players.sort(function (p1, p2) {
 		return (p1['position'] - p2['position']);
 	});
 
-	entries.push('    Final results:');
-	players.forEach(function (p, i) {
-		entries.push('        ' + ordinal(i + 1) + ' ' +
-		    ucfirst(p['character']));
-	});
+	entries.push('    Result: ' + players.map(
+	    function (p) { return (ucfirst(p['character'])); }).join(', '));
 
 	return (entries);
+}
+
+function compareSegments(race, last, next, emit)
+{
+	var cn, lp, np;
+	var i, j, inr, ilr, jnr, jlr;
+
+	cn = race['players'].map(
+	    function (p) { return (ucfirst(p['character'])); });
+	lp = last['players'];
+	np = next['players'];
+
+	for (i = 0; i < np.length; i++) {
+		inr = np[i]['position'];
+		ilr = lp[i]['position'];
+
+		if (!inr || !ilr)
+			continue;
+
+		for (j = i + 1; j < np.length; j++) {
+			jnr = np[j]['position'];
+			jlr = lp[j]['position'];
+
+			if (!jnr || !jlr)
+				continue;
+
+			if (inr < jnr && ilr > jlr) {
+				emit(cn[i] + ' passes ' + cn[j]);
+			} else if (inr > jnr && ilr < jlr) {
+				emit(cn[j] + ' passes ' + cn[i]);
+			}
+		}
+	}
+
+	for (i = 0; i < np.length; i++) {
+		if (np[i]['lap'] == 4 && np[i]['lap'] != lp[i]['lap'])
+			emit(cn[i] + ' finishes');
+	}
 }
 
 /* XXX copied/pasted from www/resources/js/kart.js */
