@@ -142,6 +142,17 @@ function summarize(race)
 	entries.push(race['players'].length + 'P ' + race['mode'] + ' on ' +
 	    race['track'] + ' (starts at ' + time + ' in video)');
 
+	var players = race['results'].slice(0);
+	players.sort(function (p1, p2) {
+		return (p1['position'] - p2['position']);
+	});
+
+	entries.push('    Final results:');
+	players.forEach(function (p, i) {
+		entries.push('        ' + ordinal(i + 1) + ' ' +
+		    ucfirst(p['character']));
+	});
+
 	return (entries);
 }
 
@@ -187,4 +198,25 @@ function kDuration(ms, showmillis)
 		rv += '.' + ms;
 
 	return (rv);
+}
+
+/* XXX ditto */
+function ucfirst(str)
+{
+	return (str[0].toUpperCase() + str.substr(1));
+}
+
+/* XXX ditto */
+function ordinal(num)
+{
+	if (num == 1)
+		return ('1st');
+	if (num == 2)
+		return ('2nd');
+	if (num == 3)
+		return ('3rd');
+	if (num == 4)
+		return ('4th');
+
+	return (num);
 }
