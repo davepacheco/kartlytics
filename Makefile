@@ -23,6 +23,7 @@ FFMPEG_LDFLAGS  = -L/usr/local/lib -R/usr/local/lib
 FFMPEG_LDFLAGS  += -lavformat -lavcodec -lavutil -lswscale
 
 KARTVID = out/kartvid
+KART = js/kart.js
 CSCOPE_DIRS += src
 CLEAN_FILES += $(KARTVID)
 CLEAN_FILES += out/kartvid.o out/img.o out/kv.o out/video.o
@@ -77,6 +78,12 @@ CSCOPE_DIRS 	+= js www
 # "all" builds kartvid, then each of the masks
 #
 all: $(KARTVID) $(MASKS_GENERATED) $(NODE_MODULES)
+
+clean-kartvid:
+	-rm -f $(KARTVID)
+
+clean-masks:
+	-rm -f $(MASKS_GENERATED)
 
 out:
 	mkdir $@
@@ -158,14 +165,20 @@ $(NODE_MODULES): package.json
 #
 # Testing targets
 #
-TEST_ROOT	 = /Users/dap/Desktop/KartCaptures
+TEST_ROOT	 = $(error TEST_ROOT must be defined in Makefile.conf)
 TEST_OUTROOT     = test-outputs
 TEST_VIDEOS	 = $(wildcard $(TEST_ROOT)/*.mov)
 TEST_VIDEOS_REL  = $(subst $(TEST_ROOT)/,,$(TEST_VIDEOS))
 TEST_OUTPUTS     = $(TEST_VIDEOS_REL:%.mov=$(TEST_OUTROOT)/%.json)
+TEXT_OUTPUTS	 = $(TEST_OUTPUTS:%.json=%.txt)
+
+include Makefile.conf
 
 .PHONY: test
-test: $(TEST_OUTPUTS)
+test: $(TEST_OUTPUTS) $(TEXT_OUTPUTS)
 
 $(TEST_OUTPUTS): $(TEST_OUTROOT)/%.json: $(TEST_ROOT)/%.mov all
 	$(KARTVID) video -j $< > $@ 2>$(TEST_OUTROOT)/$*.err
+
+$(TEXT_OUTPUTS): $(TEST_OUTROOT)/%.txt: $(TEST_OUTROOT)/%.json
+	$(KART) < $< > $@

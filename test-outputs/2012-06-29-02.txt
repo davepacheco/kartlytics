@@ -1,0 +1,21 @@
+4P VS on Royal Raceway (starts at 8s in video)
+    Racers: Yoshi, Peach, Toad, Wario
+    6s: Yoshi is in 1st
+    6s: Peach is in 3rd
+    6s: Toad is in 2nd
+    6s: Wario is in 4th
+    6s: Wario passes Peach
+    15s: Wario passes Yoshi
+    15s: Peach passes Toad
+    15s: Wario passes Toad
+    32s: Yoshi passes Wario
+    1:21s: Wario passes Yoshi
+    1:36s: Peach passes Yoshi
+    1:59s: Yoshi passes Peach
+    2:05s: Peach passes Yoshi
+    3:02s: Yoshi passes Peach
+    3:02s: Yoshi passes Wario
+    3:02s: Yoshi finishes
+    3:02s: Wario finishes
+    3:13s: The race is over.
+    Result: Yoshi, Wario, Peach, Toad

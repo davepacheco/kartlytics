@@ -4,6 +4,7 @@
  * kart.js: process kartvid output
  */
 
+var mod_bunyan = require('bunyan');
 var mod_carrier = require('carrier');
 var mod_getopt = require('posix-getopt');
 
@@ -13,6 +14,7 @@ function main()
 {
 	var parser, option, video;
 	var raw = false;
+	var log = new mod_bunyan({ 'name': 'kart' });
 
 	parser = new mod_getopt.BasicParser('r', process.argv);
 	while ((option = parser.getopt()) !== undefined) {
@@ -28,7 +30,7 @@ function main()
 		}
 	}
 
-	video = {};
+	video = { 'log': log };
 	mod_carrier.carry(process.stdin, mod_kartvid.parseKartvid(video));
 	process.stdin.resume();
 

@@ -1,0 +1,36 @@
+4P VS on Frappe Snowland (starts at 7s in video)
+    Racers: Peach, Wario, Yoshi, Toad
+    2s: Peach is in 1st
+    2s: Wario is in 3rd
+    2s: Yoshi is in 4th
+    2s: Toad is in 2nd
+    3s: Yoshi passes Wario
+    4s: Yoshi passes Toad
+    7s: Yoshi passes Peach
+    8s: Wario passes Toad
+    8s: Wario passes Peach
+    8s: Toad passes Peach
+    10s: Toad passes Wario
+    11s: Toad passes Yoshi
+    13s: Yoshi passes Toad
+    14s: Wario passes Toad
+    14s: Peach passes Toad
+    15s: Peach passes Wario
+    16s: Wario passes Peach
+    21s: Peach passes Wario
+    22s: Wario passes Peach
+    23s: Peach passes Wario
+    25s: Wario passes Peach
+    26s: Peach passes Wario
+    28s: Wario passes Peach
+    28s: Peach passes Wario
+    33s: Toad passes Wario
+    44s: Wario passes Toad
+    50s: Toad passes Wario
+    1:00s: Wario passes Toad
+    1:16s: Peach passes Yoshi
+    2:07s: Wario passes Yoshi
+    2:07s: Peach finishes
+    2:10s: Wario finishes
+    2:13s: The race is over.
+    Result: Peach, Wario, Yoshi, Toad

@@ -1,0 +1,20 @@
+4P VS on Banshee Boardwalk (starts at 3s in video)
+    Racers: Peach, Wario, Yoshi, Toad
+    2s: Peach is in 4th
+    2s: Wario is in 2nd
+    2s: Yoshi is in 3rd
+    2s: Toad is in 1st
+    2s: Wario passes Toad
+    2s: Yoshi passes Toad
+    3s: Peach passes Toad
+    13s: Peach passes Yoshi
+    16s: Toad passes Yoshi
+    18s: Peach passes Wario
+    21s: Yoshi passes Toad
+    23s: Yoshi passes Wario
+    49s: Wario passes Yoshi
+    51s: Yoshi passes Wario
+    2:19s: Peach finishes
+    2:24s: Yoshi finishes
+    2:40s: The race is over.
+    Result: Peach, Yoshi, Wario, Toad

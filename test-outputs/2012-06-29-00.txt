@@ -1,0 +1,16 @@
+4P VS on Choco Mountain (starts at 7s in video)
+    Racers: Yoshi, Peach, Toad, Wario
+    2s: Yoshi is in 4th
+    2s: Peach is in 3rd
+    2s: Toad is in 1st
+    2s: Wario is in 2nd
+    2s: Wario passes Toad
+    12s: Peach passes Toad
+    14s: Yoshi passes Toad
+    30s: Yoshi passes Peach
+    1:05s: Yoshi passes Wario
+    1:13s: Wario passes Yoshi
+    2:03s: Wario finishes
+    2:06s: Yoshi finishes
+    2:13s: The race is over.
+    Result: Wario, Yoshi, Peach, Toad

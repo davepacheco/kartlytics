@@ -1,0 +1,161 @@
+4P VS on Yoshi Valley (starts at 1s in video)
+    Racers: Peach, Toad, Yoshi, Toad
+    2:25s: The race is over.
+    Result: Peach, Toad, Yoshi, Toad
+4P VS on DK's Jungle Parkway (starts at 3:06s in video)
+    Racers: Peach, Wario, Yoshi, Toad
+    22s: Peach is in 3rd
+    22s: Wario is in 4th
+    22s: Yoshi is in 1st
+    22s: Toad is in 2nd
+    23s: Wario passes Peach
+    31s: Peach passes Wario
+    36s: Peach passes Toad
+    53s: Wario passes Toad
+    57s: Toad passes Wario
+    1:39s: Wario passes Toad
+    1:45s: Toad passes Wario
+    1:57s: Wario passes Toad
+    2:27s: Peach passes Yoshi
+    2:35s: Yoshi passes Peach
+    2:38s: Peach passes Yoshi
+    2:38s: Wario passes Yoshi
+    2:41s: Yoshi passes Peach
+    2:41s: Yoshi passes Wario
+    2:41s: Yoshi finishes
+    2:41s: Wario passes Peach
+    2:43s: Peach passes Wario
+    2:43s: Peach finishes
+    2:48s: The race is over.
+    Result: Yoshi, Peach, Wario, Toad
+4P VS on Sherbet Land (starts at 6:15s in video)
+    Racers: Peach, Wario, Yoshi, Toad
+    2s: Peach is in 3rd
+    2s: Wario is in 1st
+    2s: Yoshi is in 2nd
+    2s: Toad is in 4th
+    2s: Peach passes Yoshi
+    2s: Toad passes Yoshi
+    27s: Peach passes Wario
+    36s: Yoshi passes Toad
+    48s: Toad passes Yoshi
+    1:05s: Toad passes Wario
+    1:25s: Toad passes Peach
+    1:27s: Wario passes Peach
+    1:28s: Yoshi passes Peach
+    1:38s: Wario passes Toad
+    1:39s: Toad passes Wario
+    1:39s: Yoshi passes Wario
+    1:42s: Yoshi passes Toad
+    1:44s: Wario passes Toad
+    1:44s: Peach passes Toad
+    1:48s: Peach passes Wario
+    1:55s: Wario passes Peach
+    1:56s: Toad passes Peach
+    1:59s: Peach passes Toad
+    2:02s: Peach passes Wario
+    2:06s: Peach passes Yoshi
+    2:07s: Yoshi passes Peach
+    2:10s: Peach finishes
+    2:10s: Yoshi finishes
+    2:11s: The race is over.
+    Result: Yoshi, Peach, Wario, Toad
+4P VS on Bowser's Castle (starts at 8:50s in video)
+    Racers: Peach, Wario, Yoshi, Toad
+    2s: Peach is in 1st
+    2s: Wario is in 4th
+    2s: Yoshi is in 2nd
+    2s: Toad is in 3rd
+    3s: Yoshi passes Peach
+    4s: Toad passes Peach
+    6s: Wario passes Peach
+    10s: Wario passes Toad
+    18s: Peach passes Toad
+    24s: Toad passes Peach
+    33s: Peach passes Toad
+    1:18s: Toad passes Peach
+    1:25s: Peach passes Toad
+    1:29s: Toad passes Peach
+    1:30s: Wario passes Yoshi
+    1:55s: Peach passes Toad
+    2:00s: Peach passes Yoshi
+    2:01s: Peach passes Wario
+    2:03s: Wario passes Peach
+    2:04s: Yoshi passes Peach
+    2:22s: Peach passes Yoshi
+    2:32s: Wario finishes
+    2:35s: Peach finishes
+    2:39s: The race is over.
+    Result: Wario, Peach, Yoshi, Toad
+4P VS on Moo Moo Farm (starts at 11:54s in video)
+    Racers: Peach, Wario, Yoshi, Toad
+    1:15s: Peach is in 1st
+    1:15s: Wario is in 4th
+    1:15s: Yoshi is in 2nd
+    1:15s: Toad is in 3rd
+    1:56s: The race is over.
+    Result: Wario, Peach, Toad, Yoshi
+4P VS on Kalimari Desert (starts at 14:11s in video)
+    Racers: Peach, Wario, Yoshi, Toad
+    2:44s: The race is over.
+    Result: Yoshi, Toad, Wario, Peach
+4P VS on Choco Mountain (starts at 17:16s in video)
+    Racers: Peach, Wario, Yoshi, Toad
+    2s: Peach is in 3rd
+    2s: Wario is in 4th
+    2s: Yoshi is in 2nd
+    2s: Toad is in 1st
+    2s: Yoshi passes Toad
+    3s: Peach passes Toad
+    3s: Wario passes Toad
+    5s: Toad passes Wario
+    7s: Wario passes Toad
+    14s: Peach passes Yoshi
+    16s: Toad passes Wario
+    16s: Toad passes Yoshi
+    19s: Wario passes Yoshi
+    47s: Wario passes Toad
+    52s: Yoshi passes Toad
+    1:03s: Toad passes Yoshi
+    1:19s: Toad passes Wario
+    1:21s: Yoshi passes Wario
+    1:42s: Wario passes Yoshi
+    1:50s: Yoshi passes Wario
+    1:51s: Wario passes Yoshi
+    1:56s: Yoshi passes Wario
+    2:10s: Peach finishes
+    2:24s: Yoshi passes Toad
+    2:27s: Toad passes Yoshi
+    2:27s: Toad finishes
+    2:30s: The race is over.
+    Result: Peach, Toad, Yoshi, Wario
+4P VS on Frappe Snowland (starts at 20:07s in video)
+    Racers: Peach, Wario, Yoshi, Toad
+    2s: Peach is in 4th
+    2s: Wario is in 2nd
+    2s: Yoshi is in 1st
+    2s: Toad is in 3rd
+    5s: Toad passes Wario
+    5s: Peach passes Wario
+    5s: Peach passes Toad
+    6s: Wario passes Toad
+    11s: Toad passes Wario
+    12s: Peach passes Yoshi
+    16s: Wario passes Toad
+    39s: Wario passes Yoshi
+    41s: Yoshi passes Wario
+    1:01s: Wario passes Yoshi
+    1:01s: Toad passes Yoshi
+    1:02s: Yoshi passes Toad
+    1:07s: Wario passes Peach
+    1:09s: Toad passes Yoshi
+    1:12s: Toad passes Peach
+    1:21s: Yoshi passes Peach
+    1:27s: Yoshi passes Toad
+    1:40s: Toad passes Yoshi
+    1:49s: Peach passes Yoshi
+    2:04s: Peach passes Toad
+    2:05s: Wario finishes
+    2:07s: Peach finishes
+    2:09s: The race is over.
+    Result: Wario, Peach, Toad, Yoshi

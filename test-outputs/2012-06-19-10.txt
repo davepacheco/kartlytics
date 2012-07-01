@@ -1,0 +1,30 @@
+4P VS on DK's Jungle Parkway (starts at 9s in video)
+    Racers: Peach, Wario, Yoshi, Toad
+    16s: Peach is in 2nd
+    16s: Wario is in 3rd
+    16s: Yoshi is in 1st
+    16s: Toad is in 4th
+    17s: Peach passes Yoshi
+    26s: Toad passes Wario
+    36s: Wario passes Toad
+    44s: Wario passes Yoshi
+    59s: Yoshi passes Wario
+    1:05s: Toad passes Wario
+    1:15s: Wario passes Yoshi
+    1:15s: Toad passes Yoshi
+    1:28s: Yoshi passes Wario
+    1:34s: Yoshi passes Toad
+    1:35s: Toad passes Yoshi
+    1:36s: Yoshi passes Toad
+    1:39s: Toad passes Yoshi
+    2:07s: Wario passes Peach
+    2:07s: Yoshi passes Peach
+    2:07s: Toad passes Peach
+    2:07s: Wario passes Yoshi
+    2:25s: Peach passes Yoshi
+    2:30s: Toad finishes
+    2:35s: Yoshi passes Peach
+    2:39s: Peach passes Yoshi
+    2:39s: Wario finishes
+    2:43s: The race is over.
+    Result: Toad, Wario, Peach, Yoshi
