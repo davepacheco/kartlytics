@@ -150,8 +150,7 @@ function summarize(race)
 		seg = race['segments'][0];
 
 		seg.players.forEach(function (p) {
-			entries.push('    ' + kDuration(
-			    seg['start'] - race['start_time']) + ': ' +
+			entries.push('    ' + kDuration(seg['start']) + ': ' +
 			    ucfirst(p['character']) + ' is in ' +
 			    ordinal(p['position']));
 		});
@@ -161,16 +160,14 @@ function summarize(race)
 		race['segments'].slice(1).forEach(function (segment) {
 			compareSegments(race, last, segment, function (text) {
 				entries.push('    ' + kDuration(
-				    segment['start'] - race['start_time']) +
-				    ': ' + text);
+				    segment['start']) + ': ' + text);
 			});
 
 			last = segment;
 		});
 	}
 
-	entries.push('    ' + kDuration(race['end'] - race['start_time']) +
-	    ': The race is over.');
+	entries.push('    ' + kDuration(race['end']) + ': The race is over.');
 
 	players.sort(function (p1, p2) {
 		return (p1['position'] - p2['position']);

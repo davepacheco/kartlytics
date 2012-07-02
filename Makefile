@@ -177,6 +177,9 @@ include Makefile.conf
 .PHONY: test
 test: $(TEST_OUTPUTS) $(TEXT_OUTPUTS)
 
+clean-test:
+	-rm -f $(TEST_OUTPUTS) $(TEXT_OUTPUTS)
+
 $(TEST_OUTPUTS): $(TEST_OUTROOT)/%.json: $(TEST_ROOT)/%.mov all
 	$(KARTVID) video -j $< > $@ 2>$(TEST_OUTROOT)/$*.err
 
