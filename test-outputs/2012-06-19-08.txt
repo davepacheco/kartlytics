@@ -1,9 +1,9 @@
 4P VS on Yoshi Valley (starts at 10s in video)
     Racers: Peach, Wario, Yoshi, Toad
-    2:31s: Peach is in undefined
-    2:31s: Wario is in undefined
-    2:31s: Yoshi is in 1st
-    2:31s: Toad is in undefined
-    2:36s: Toad finishes
-    2:40s: The race is over.
+    2:41s: Peach is in undefined
+    2:41s: Wario is in undefined
+    2:41s: Yoshi is in 1st
+    2:41s: Toad is in undefined
+    2:46s: Toad finishes
+    2:50s: The race is over.
     Result: Yoshi, Toad, Wario, Peach

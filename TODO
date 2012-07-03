@@ -1,11 +1,24 @@
 Current status:
-- Manually check the full output on all videos.  Previous problem videos include
-  recording-0003.
+- Manually check the full output on all videos -- see "Known Issues" below.
+  Previous problem videos include recording-0003.
 - Figure out why kartlytics.com is getting a different result on some videos
-  (e.g., 6/19 Recording0000.mov) than my laptop.
+  (e.g., 6/19 Recording0000.mov) than my laptop.  (Is this the bug I just fixed,
+  where I had to brighten the track masks? Maybe I hadn't brightened them in
+  mask_sources, but rather just in assets/masks, which didn't push them up to
+  production.)
 
 Quality of life:
 - Write a tool for diffing results between two runs on the same race.
 - Add a button to the UI for rerunning kartvid?
 - Add support for writing out PNG images.
-- Add a debug flag that causes it to save PNG image of each significant frame
+- Add a debug flag that causes kartvid to save PNG image of each significant
+  frame.
+
+Known issues:
+- 2012-06-19-00.mov:
+  - No position information until 23s into the race (e.g., what about state at
+    10s, change at 12s?)
+  - Not handling pause around 15s
+  - Missing "Yoshi finishes" at 2:29 and "Toad finishes" at 2:30
+
+- 2012-06-19-01.mov:

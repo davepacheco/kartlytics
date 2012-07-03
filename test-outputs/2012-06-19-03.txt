@@ -1,23 +1,23 @@
 4P VS on Koopa Troopa Beach (starts at 8s in video)
     Racers: Peach, Wario, Yoshi, Toad
-    16s: Peach is in 1st
-    16s: Wario is in 4th
-    16s: Yoshi is in 2nd
-    16s: Toad is in 3rd
-    21s: Yoshi passes Peach
-    28s: Wario passes Peach
-    28s: Wario passes Yoshi
-    28s: Wario passes Toad
-    57s: Peach passes Yoshi
-    1:23s: Peach passes Wario
-    1:23s: Yoshi passes Wario
-    1:40s: Toad passes Wario
-    1:50s: Yoshi passes Peach
-    1:50s: Wario passes Toad
-    1:54s: Toad passes Wario
-    2:02s: Toad passes Peach
-    2:02s: Yoshi finishes
-    2:03s: Peach passes Toad
-    2:03s: Peach finishes
-    2:10s: The race is over.
+    24s: Peach is in 1st
+    24s: Wario is in 4th
+    24s: Yoshi is in 2nd
+    24s: Toad is in 3rd
+    30s: Yoshi passes Peach
+    36s: Wario passes Peach
+    36s: Wario passes Yoshi
+    36s: Wario passes Toad
+    1:05s: Peach passes Yoshi
+    1:32s: Peach passes Wario
+    1:32s: Yoshi passes Wario
+    1:49s: Toad passes Wario
+    1:58s: Yoshi passes Peach
+    1:58s: Wario passes Toad
+    2:02s: Toad passes Wario
+    2:11s: Toad passes Peach
+    2:11s: Yoshi finishes
+    2:12s: Peach passes Toad
+    2:12s: Peach finishes
+    2:18s: The race is over.
     Result: Yoshi, Peach, Toad, Wario

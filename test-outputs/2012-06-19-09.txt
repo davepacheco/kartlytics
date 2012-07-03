@@ -1,34 +1,34 @@
 4P VS on Bowser's Castle (starts at 7s in video)
     Racers: Peach, Wario, Yoshi, Toad
-    2s: Peach is in 3rd
-    2s: Wario is in 2nd
-    2s: Yoshi is in 4th
-    2s: Toad is in 1st
-    8s: Peach passes Wario
-    8s: Yoshi passes Peach
-    8s: Yoshi passes Wario
-    9s: Yoshi passes Toad
-    9s: Wario passes Peach
-    11s: Toad passes Yoshi
-    13s: Yoshi passes Toad
-    14s: Wario passes Toad
-    16s: Wario passes Yoshi
-    18s: Toad passes Yoshi
-    18s: Yoshi passes Toad
-    19s: Peach passes Toad
-    21s: Peach passes Yoshi
-    21s: Yoshi passes Peach
-    27s: Yoshi passes Wario
-    31s: Peach passes Wario
-    32s: Wario passes Peach
-    38s: Toad passes Peach
-    1:06s: Peach passes Toad
-    1:15s: Toad passes Peach
-    1:40s: Toad passes Wario
-    1:45s: Peach passes Wario
-    2:17s: Peach passes Toad
-    2:24s: Wario passes Toad
-    2:24s: Yoshi finishes
-    2:41s: Peach finishes
-    2:44s: The race is over.
+    10s: Peach is in 3rd
+    10s: Wario is in 2nd
+    10s: Yoshi is in 4th
+    10s: Toad is in 1st
+    15s: Peach passes Wario
+    15s: Yoshi passes Peach
+    15s: Yoshi passes Wario
+    17s: Yoshi passes Toad
+    17s: Wario passes Peach
+    19s: Toad passes Yoshi
+    21s: Yoshi passes Toad
+    22s: Wario passes Toad
+    23s: Wario passes Yoshi
+    25s: Toad passes Yoshi
+    26s: Yoshi passes Toad
+    26s: Peach passes Toad
+    28s: Peach passes Yoshi
+    29s: Yoshi passes Peach
+    34s: Yoshi passes Wario
+    39s: Peach passes Wario
+    39s: Wario passes Peach
+    45s: Toad passes Peach
+    1:14s: Peach passes Toad
+    1:23s: Toad passes Peach
+    1:48s: Toad passes Wario
+    1:53s: Peach passes Wario
+    2:25s: Peach passes Toad
+    2:31s: Wario passes Toad
+    2:32s: Yoshi finishes
+    2:48s: Peach finishes
+    2:52s: The race is over.
     Result: Yoshi, Peach, Wario, Toad

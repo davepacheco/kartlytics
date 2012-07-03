@@ -1,20 +1,20 @@
 4P VS on Sherbet Land (starts at 12s in video)
     Racers: Yoshi, Peach, Toad, Wario
-    2s: Yoshi is in 1st
-    2s: Peach is in 4th
-    2s: Toad is in 3rd
-    2s: Wario is in 2nd
-    2s: Peach passes Toad
-    3s: Wario passes Yoshi
-    3s: Peach passes Yoshi
-    15s: Yoshi passes Peach
-    18s: Toad passes Peach
-    20s: Yoshi passes Wario
-    20s: Peach passes Toad
-    35s: Peach passes Wario
-    46s: Peach passes Yoshi
-    1:32s: Wario passes Yoshi
-    2:00s: Peach finishes
-    2:07s: Wario finishes
-    2:17s: The race is over.
+    14s: Yoshi is in 1st
+    14s: Peach is in 4th
+    14s: Toad is in 3rd
+    14s: Wario is in 2nd
+    14s: Peach passes Toad
+    15s: Wario passes Yoshi
+    16s: Peach passes Yoshi
+    27s: Yoshi passes Peach
+    31s: Toad passes Peach
+    32s: Yoshi passes Wario
+    32s: Peach passes Toad
+    47s: Peach passes Wario
+    58s: Peach passes Yoshi
+    1:44s: Wario passes Yoshi
+    2:12s: Peach finishes
+    2:19s: Wario finishes
+    2:29s: The race is over.
     Result: Peach, Wario, Yoshi, Toad

@@ -1,36 +1,36 @@
-4P VS on Mario Raceway (starts at 8s in video)
+4P VS on Luigi Raceway (starts at 8s in video)
     Racers: Peach, Wario, Yoshi, Toad
-    14s: Peach is in 4th
-    14s: Wario is in 3rd
-    14s: Yoshi is in 1st
-    14s: Toad is in 2nd
-    22s: Peach passes Wario
-    22s: Peach passes Yoshi
-    22s: Peach passes Toad
-    23s: Toad passes Yoshi
-    25s: Wario passes Yoshi
-    30s: Yoshi passes Wario
-    31s: Yoshi passes Toad
-    31s: Wario passes Toad
-    40s: Wario passes Yoshi
-    43s: Yoshi passes Wario
-    43s: Toad passes Wario
-    47s: Toad passes Yoshi
-    59s: Wario passes Yoshi
-    1:06s: Wario passes Toad
-    1:08s: Yoshi passes Toad
-    1:14s: Wario passes Peach
-    1:17s: Yoshi passes Peach
-    1:28s: Peach passes Yoshi
-    1:29s: Yoshi passes Peach
-    1:39s: Peach passes Wario
-    1:39s: Peach passes Yoshi
-    1:39s: Toad passes Yoshi
-    2:08s: Yoshi passes Toad
-    2:12s: Yoshi passes Wario
-    2:12s: Toad passes Wario
-    2:12s: Toad passes Yoshi
-    2:12s: Peach finishes
-    2:20s: Yoshi passes Toad
-    2:22s: The race is over.
+    23s: Peach is in 4th
+    23s: Wario is in 3rd
+    23s: Yoshi is in 1st
+    23s: Toad is in 2nd
+    30s: Peach passes Wario
+    30s: Peach passes Yoshi
+    30s: Peach passes Toad
+    31s: Toad passes Yoshi
+    33s: Wario passes Yoshi
+    38s: Yoshi passes Wario
+    39s: Yoshi passes Toad
+    39s: Wario passes Toad
+    49s: Wario passes Yoshi
+    51s: Yoshi passes Wario
+    51s: Toad passes Wario
+    55s: Toad passes Yoshi
+    1:07s: Wario passes Yoshi
+    1:15s: Wario passes Toad
+    1:16s: Yoshi passes Toad
+    1:22s: Wario passes Peach
+    1:25s: Yoshi passes Peach
+    1:37s: Peach passes Yoshi
+    1:37s: Yoshi passes Peach
+    1:47s: Peach passes Wario
+    1:47s: Peach passes Yoshi
+    1:47s: Toad passes Yoshi
+    2:16s: Yoshi passes Toad
+    2:20s: Yoshi passes Wario
+    2:20s: Toad passes Wario
+    2:20s: Toad passes Yoshi
+    2:20s: Peach finishes
+    2:29s: Yoshi passes Toad
+    2:30s: The race is over.
     Result: Peach, Yoshi, Toad, Wario

@@ -1,22 +1,22 @@
 4P VS on Wario Raceway (starts at 16s in video)
     Racers: Yoshi, Peach, Toad, Wario
-    2s: Yoshi is in 3rd
-    2s: Peach is in 1st
-    2s: Toad is in 2nd
-    2s: Wario is in 4th
-    13s: Yoshi passes Toad
-    14s: Toad passes Yoshi
-    15s: Yoshi passes Toad
-    23s: Wario passes Toad
-    41s: Yoshi passes Peach
-    1:12s: Peach passes Yoshi
-    1:17s: Wario passes Yoshi
-    1:19s: Yoshi passes Wario
-    1:32s: Wario passes Yoshi
-    1:38s: Yoshi passes Wario
-    1:41s: Toad passes Wario
-    1:49s: Wario passes Toad
-    4:09s: Peach finishes
-    4:12s: Yoshi finishes
-    4:21s: The race is over.
+    18s: Yoshi is in 3rd
+    18s: Peach is in 1st
+    18s: Toad is in 2nd
+    18s: Wario is in 4th
+    30s: Yoshi passes Toad
+    31s: Toad passes Yoshi
+    32s: Yoshi passes Toad
+    40s: Wario passes Toad
+    58s: Yoshi passes Peach
+    1:28s: Peach passes Yoshi
+    1:34s: Wario passes Yoshi
+    1:35s: Yoshi passes Wario
+    1:49s: Wario passes Yoshi
+    1:55s: Yoshi passes Wario
+    1:58s: Toad passes Wario
+    2:06s: Wario passes Toad
+    4:26s: Peach finishes
+    4:29s: Yoshi finishes
+    4:38s: The race is over.
     Result: Peach, Yoshi, Wario, Toad
