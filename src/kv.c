@@ -37,6 +37,7 @@ struct kv_vidctx {
 	int		kv_last_start;
 	kv_emit_f	kv_emit;
 	double		kv_framerate;
+	char		kv_dbgdir[PATH_MAX];
 };
 
 int
@@ -494,7 +495,7 @@ kv_screen_json(const char *source, int frame, int msec, kv_screen_t *ksp,
 }
 
 kv_vidctx_t *
-kv_vidctx_init(const char *rootdir, kv_emit_f emit)
+kv_vidctx_init(const char *rootdir, kv_emit_f emit, const char *dbgdir)
 {
 	kv_vidctx_t *kvp;
 
@@ -510,6 +511,8 @@ kv_vidctx_init(const char *rootdir, kv_emit_f emit)
 
 	kvp->kv_last_start = -1;
 	kvp->kv_emit = emit;
+	if (dbgdir != NULL)
+		(void) strlcpy(kvp->kv_dbgdir, dbgdir, sizeof (kvp->kv_dbgdir));
 	return (kvp);
 }
 
@@ -545,6 +548,20 @@ kv_vidctx_chars(kv_vidctx_t *kvp, kv_screen_t *ksp, int i)
 			    sizeof (pksp->ks_players[k]));
 		}
 	}
+}
+
+void
+kv_vidctx_frame_emit(kv_vidctx_t *kvp, const char *framename, int i, int timems,
+    img_t *img, kv_screen_t *ksp, kv_screen_t *raceksp, FILE *fp)
+{
+	if (kvp->kv_dbgdir[0] != '\0') {
+		char buf[PATH_MAX];
+		(void) snprintf(buf, sizeof (buf), "%s/%s", kvp->kv_dbgdir,
+		    framename);
+		(void) img_write(img, buf);
+	}
+
+	kvp->kv_emit(framename, i, timems, ksp, raceksp, fp);
 }
 
 void
@@ -599,7 +616,8 @@ kv_vidctx_frame(const char *framename, int i, int timems,
 		kvp->kv_last_start = i;
 		*pksp = *ksp;
 		*raceksp = *ksp;
-		kvp->kv_emit(framename, i, timems, ksp, NULL, stdout);
+		kv_vidctx_frame_emit(kvp, framename, i, timems, image,
+		    ksp, NULL, stdout);
 		bzero(&kvp->kv_startbuffer[0], sizeof (kvp->kv_startbuffer));
 		return;
 	}
@@ -655,7 +673,8 @@ kv_vidctx_frame(const char *framename, int i, int timems,
 		}
 	}
 
-	kvp->kv_emit(framename, i, timems, ksp, raceksp, stdout);
+	kv_vidctx_frame_emit(kvp, framename, i, timems, image, ksp,
+	    raceksp, stdout);
 	*pksp = *ksp;
 
 	if (ksp->ks_events & KVE_RACE_DONE)

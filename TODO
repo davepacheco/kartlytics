@@ -10,9 +10,6 @@ Current status:
 Quality of life:
 - Write a tool for diffing results between two runs on the same race.
 - Add a button to the UI for rerunning kartvid?
-- Add support for writing out PNG images.
-- Add a debug flag that causes kartvid to save PNG image of each significant
-  frame.
 
 Known issues:
 - 2012-06-19-00.mov:

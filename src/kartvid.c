@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include <png.h>
 
@@ -51,7 +52,7 @@ static kv_cmd_t kv_commands[] = {
     { "frames", cmd_frames, "[-j] dir_of_image_files", 
       "emit race events for a sequence of video frames" },
     { "rgb2hsv", cmd_rgb2hsv, "r g b", "convert rgb value to hsv" },
-    { "video", cmd_video, "[-j] video_file",
+    { "video", cmd_video, "[-j] [-d debugdir] video_file",
       "emit race events for an entire video" }
 };
 
@@ -333,7 +334,7 @@ cmd_frames(int argc, char *argv[])
 		return (EXIT_USAGE);
 	}
 
-	if ((kvp = kv_vidctx_init(dirname((char *)kv_arg0), emit)) == NULL)
+	if ((kvp = kv_vidctx_init(dirname((char *)kv_arg0), emit, NULL)) == NULL)
 		return (EXIT_FAILURE);
 
 	if ((dirp = opendir(argv[0])) == NULL) {
@@ -440,14 +441,19 @@ cmd_video(int argc, char *argv[])
 	video_t *vp;
 	int rv;
 	char c;
+	const char *dbgdir = NULL;
 	kv_emit_f emit;
 
 	emit = kv_screen_print;
 
-	while ((c = getopt(argc, argv, "j")) != -1) {
+	while ((c = getopt(argc, argv, "jd:")) != -1) {
 		switch (c) {
 		case 'j':
 			emit = kv_screen_json;
+			break;
+
+		case 'd':
+			dbgdir = optarg;
 			break;
 
 		case '?':
@@ -464,6 +470,24 @@ cmd_video(int argc, char *argv[])
 		return (EXIT_USAGE);
 	}
 
+	/*
+	 * This isn't strictly necessary, but is a useful prereq so that we
+	 * don't get partway through the conversion and fail because the user
+	 * forgot to create the directory.
+	 */
+	if (dbgdir != NULL) {
+		struct stat st;
+		if (stat(dbgdir, &st) != 0) {
+			warn("stat %s", dbgdir);
+			return (EXIT_USAGE);
+		}
+
+		if ((st.st_mode & S_IFDIR) == 0) {
+			warnx("not a directory: %s", dbgdir);
+			return (EXIT_USAGE);
+		}
+	}
+
 	if ((vp = video_open(argv[0])) == NULL)
 		return (EXIT_FAILURE);
 
@@ -471,7 +495,8 @@ cmd_video(int argc, char *argv[])
 		(void) fprintf(stderr, "framerate: %lf\n",
 		    video_framerate(vp));
 
-	if ((kvp = kv_vidctx_init(dirname((char *)kv_arg0), emit)) == NULL) {
+	if ((kvp = kv_vidctx_init(dirname((char *)kv_arg0), emit,
+	    dbgdir)) == NULL) {
 		video_free(vp);
 		return (EXIT_FAILURE);
 	}
