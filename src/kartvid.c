@@ -137,7 +137,6 @@ cmd_compare(int argc, char *argv[])
 {
 	img_t *image, *mask, *dbgmask;
 	char *dbgfile = NULL;
-	FILE *fp;
 	int rv;
 	char c;
 
@@ -173,13 +172,7 @@ cmd_compare(int argc, char *argv[])
 	    img_compare(image, mask, dbgfile ? &dbgmask : NULL));
 
 	if (dbgfile != NULL && dbgmask != NULL) {
-		if ((fp = fopen(dbgfile, "w")) == NULL) {
-			warn("fopen %s", dbgfile);
-		} else {
-			(void) img_write_ppm(dbgmask, fp);
-			(void) fclose(fp);
-		}
-
+		(void) img_write(dbgmask, dbgfile);
 		img_free(dbgmask);
 	}
 
@@ -198,7 +191,6 @@ static int
 cmd_and(int argc, char *argv[])
 {
 	img_t *image, *mask;
-	FILE *outfp;
 	int rv;
 
 	if (argc < 3)
@@ -220,18 +212,11 @@ cmd_and(int argc, char *argv[])
 		return (EXIT_FAILURE);
 	}
 
-	if ((outfp = fopen(argv[2], "w")) == NULL) {
-		warn("fopen %", argv[1]);
-		img_free(image);
-		img_free(mask);
-		return (EXIT_FAILURE);
-	}
-
 	img_and(image, mask);
-	rv = img_write_ppm(image, outfp);
+	rv = img_write(image, argv[2]);
 	img_free(image);
 	img_free(mask);
-	return (rv);
+	return (rv == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
 /*
@@ -242,7 +227,6 @@ cmd_translatexy(int argc, char *argv[])
 {
 	img_t *image, *newimage;
 	char *q;
-	FILE *outfp;
 	int rv;
 	long dx, dy;
 
@@ -252,13 +236,6 @@ cmd_translatexy(int argc, char *argv[])
 	image = img_read(argv[0]);
 	if (image == NULL)
 		return (EXIT_FAILURE);
-
-	outfp = fopen(argv[1], "w");
-	if (outfp == NULL) {
-		warn("fopen %s", argv[1]);
-		img_free(image);
-		return (EXIT_FAILURE);
-	}
 
 	dx = strtol(argv[2], &q, 0);
 	if (*q != '\0')
@@ -275,7 +252,7 @@ cmd_translatexy(int argc, char *argv[])
 		return (EXIT_FAILURE);
 	}
 
-	rv = img_write_ppm(newimage, outfp);
+	rv = img_write(newimage, argv[1]);
 	img_free(newimage);
 	return (rv);
 }
@@ -444,19 +421,11 @@ static int
 write_frame(video_frame_t *vfp, void *rawarg)
 {
 	const char *dir = (char *)rawarg;
-	FILE *fp;
 	char buf[PATH_MAX];
 
-	(void) snprintf(buf, sizeof (buf), "%s/frame%d.ppm",
+	(void) snprintf(buf, sizeof (buf), "%s/frame%d.png",
 	    dir, vfp->vf_framenum);
-
-	if ((fp = fopen(buf, "w")) == NULL) {
-		warn("failed to open %s", buf);
-		return (EXIT_FAILURE);
-	}
-
-	(void) img_write_ppm(&vfp->vf_image, fp);
-	(void) fclose(fp);
+	(void) img_write(&vfp->vf_image, buf);
 
 	if (vfp->vf_framenum > 5)
 		return (EXIT_FAILURE);

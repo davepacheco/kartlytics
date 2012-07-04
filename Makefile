@@ -27,7 +27,6 @@ KART = js/kart.js
 CSCOPE_DIRS += src
 CLEAN_FILES += $(KARTVID)
 CLEAN_FILES += out/kartvid.o out/img.o out/kv.o out/video.o
-CLEAN_FILES += cscope.files cscope.out cscope.in.out cscope.po.out
 
 
 #
@@ -64,7 +63,6 @@ CLEAN_FILES += $(MASKS_GENERATED)
 #
 NPM = npm
 NODE_MODULES = node_modules
-CLEAN_FILES += $(NODE_MODULES)
 
 JSL_CONF_NODE	 = tools/jsl.node.conf
 JSL_CONF_WEB	 = tools/jsl.web.conf
@@ -101,9 +99,7 @@ $(KARTVID): out/kartvid.o out/img.o out/kv.o out/video.o | out
 #
 # mask targets
 #
-%.png: %.ppm
-	convert -define png:preserve-colormap $^ $@
-
+#
 #
 # Masks for characters in squares 2, 3, and 4 are generated from the mask for
 # square 1 using known offsets.  See assets/masks/offsets.txt.
@@ -112,28 +108,28 @@ KVCHAR1TO2 = $(KARTVID) translatexy $^ $@ 323 0
 KVCHAR1TO3 = $(KARTVID) translatexy $^ $@ 0   240
 KVCHAR1TO4 = $(KARTVID) translatexy $^ $@ 323 240
 
-assets/masks/char_%_2.ppm: assets/masks/char_%_1.png
+assets/masks/char_%_2.png: assets/masks/char_%_1.png
 	$(KVCHAR1TO2)
 
-assets/masks/char_%_2zout.ppm: assets/masks/char_%_1zout.png
+assets/masks/char_%_2zout.png: assets/masks/char_%_1zout.png
 	$(KVCHAR1TO2)
 
-assets/masks/char_%_3.ppm: assets/masks/char_%_1.png
+assets/masks/char_%_3.png: assets/masks/char_%_1.png
 	$(KVCHAR1TO3)
 
-assets/masks/char_%_3zout.ppm: assets/masks/char_%_1zout.png
+assets/masks/char_%_3zout.png: assets/masks/char_%_1zout.png
 	$(KVCHAR1TO3)
 
-assets/masks/char_%_4.ppm: assets/masks/char_%_1.png
+assets/masks/char_%_4.png: assets/masks/char_%_1.png
 	$(KVCHAR1TO4)
 
-assets/masks/char_%_4zout.ppm: assets/masks/char_%_1zout.png
+assets/masks/char_%_4zout.png: assets/masks/char_%_1zout.png
 	$(KVCHAR1TO4)
 
-assets/masks/track_%.ppm: assets/mask_sources/track_%.png
+assets/masks/track_%.png: assets/mask_sources/track_%.png
 	$(KARTVID) and $^ assets/masks/gen_track.png $@
 
-assets/masks/track_%_zout.ppm: assets/mask_sources/track_%_zoomout.png
+assets/masks/track_%_zout.png: assets/mask_sources/track_%_zoomout.png
 	$(KARTVID) and $^ assets/masks/gen_track_zout.png $@
 
 #
@@ -144,13 +140,13 @@ KVFPOS1TO2 = $(KARTVID) translatexy $^ $@ 460 0
 KVFPOS1TO3 = $(KARTVID) translatexy $^ $@ 0   220
 KVFPOS1TO4 = $(KARTVID) translatexy $^ $@ 460 220
 
-assets/masks/pos%_square2_final.ppm: assets/masks/pos%_square1_final.png
+assets/masks/pos%_square2_final.png: assets/masks/pos%_square1_final.png
 	$(KVFPOS1TO2)
 
-assets/masks/pos%_square3_final.ppm: assets/masks/pos%_square1_final.png
+assets/masks/pos%_square3_final.png: assets/masks/pos%_square1_final.png
 	$(KVFPOS1TO3)
 
-assets/masks/pos%_square4_final.ppm: assets/masks/pos%_square1_final.png
+assets/masks/pos%_square4_final.png: assets/masks/pos%_square1_final.png
 	$(KVFPOS1TO4)
 
 include ./Makefile.deps

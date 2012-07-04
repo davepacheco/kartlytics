@@ -12,6 +12,9 @@
 
 #include "img.h"
 
+static img_t *img_read_ppm(FILE *, const char *);
+static img_t *img_read_png(FILE *, const char *);
+
 extern int kv_debug;
 
 static const char *
@@ -225,12 +228,12 @@ img_read_png(FILE *fp, const char *filename)
 	}
 
 	if ((rv = img_alloc(width, height)) == NULL) {
-		warn("img_read_png %s");
+		warn("img_read_png %s", filename);
 		return (NULL);
 	}
 
 	if ((rows = malloc(sizeof (rows[0]) * height)) == NULL) {
-		warn("img_read_png %s");
+		warn("img_read_png %s", filename);
 		img_free(rv);
 		return (NULL);
 	}
@@ -245,6 +248,72 @@ img_read_png(FILE *fp, const char *filename)
 	free(rows);
 	png_destroy_read_struct(&png, &pnginfo, NULL);
 
+	return (rv);
+}
+
+int
+img_write_png(img_t *img, FILE *fp)
+{
+	png_structp png;
+	png_infop pnginfo;
+	png_bytep *rows;
+	int i;
+
+	if ((rows = malloc(sizeof (rows[0]) * img->img_height)) == NULL) {
+		warn("img_write_png");
+		return (-1);
+	}
+
+	for (i = 0; i < img->img_height; i++)
+		rows[i] = (png_bytep)&img->img_pixels[img_coord(img, 0, i)];
+
+	if ((png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL,
+	    NULL)) == NULL ||
+	    (pnginfo = png_create_info_struct(png)) == NULL) {
+		warnx("failed to initialize libpng");
+		free(rows);
+		return (-1);
+	}
+
+	if (setjmp(png_jmpbuf(png)) != 0) {
+		warnx("error writing PNG image");
+		png_destroy_write_struct(&png, &pnginfo);
+		free(rows);
+		return (-1);
+	}
+
+	png_init_io(png, fp);
+	png_set_IHDR(png, pnginfo, img->img_width, img->img_height,
+	    8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
+	    PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+	png_write_info(png, pnginfo);
+	png_write_image(png, rows);
+	png_write_end(png, NULL);
+	free(rows);
+	return (0);
+}
+
+int
+img_write(img_t *img, const char *filename)
+{
+	FILE *fp;
+	int namelen, rv;
+	int (*func)(img_t *, FILE *);
+
+	namelen = strlen(filename);
+	if (namelen >= sizeof (".ppm") &&
+	    strcmp(filename + namelen - sizeof (".ppm") + 1, ".ppm") == 0)
+		func = img_write_ppm;
+	else
+		func = img_write_png;
+
+	if ((fp = fopen(filename, "w")) == NULL) {
+		warn("img_write %s: fopen", filename);
+		return (-1);
+	}
+
+	rv = func(img, fp);
+	(void) fclose(fp);
 	return (rv);
 }
 

@@ -34,10 +34,10 @@ typedef struct img {
 } img_t;
 
 img_t *img_read(const char *);
-img_t *img_read_ppm(FILE *, const char *);
-img_t *img_read_png(FILE *, const char *);
 img_t *img_translatexy(img_t *, long, long);
+int img_write(img_t *, const char *);
 int img_write_ppm(img_t *, FILE *);
+int img_write_png(img_t *, FILE *);
 void img_free(img_t *);
 inline unsigned int img_coord(img_t *, unsigned int, unsigned int);
 double img_compare(img_t *, img_t *, img_t **);
