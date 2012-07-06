@@ -1,0 +1,26 @@
+#!/bin/bash
+
+function fail
+{
+	echo "$*" >&2
+	exit 1
+}
+
+function usage
+{
+	echo "usage: $u_arg0 filename.mov"
+	exit 2
+}
+
+u_arg0=$(basename $0)
+
+[[ -n "$1" ]] || usage
+[[ -f "$1" ]] || fail "not a file: $1"
+
+u_url=http://localhost
+u_user=dap
+
+[[ $# -gt 1 ]] && u_url=$2
+[[ $# -gt 2 ]] && u_user=$3
+
+curl -u$u_user -i -X POST -Ffile=@$1 $u_url/kart/video
