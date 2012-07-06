@@ -30,7 +30,6 @@
 
 /*
  * TODO:
- * - add "all videos" screen
  * - clean up "upload" dialog
  * - race details screen: translate segments into English
  *   (e.g., "dap passes wdp")
@@ -226,6 +225,12 @@ var kScreens = {
 	'load': kScreenVideoLoad,
 	'clear': kScreenVideoClear,
 	'refresh': kScreenVideoRefresh
+    },
+    'videos': {
+    	'name': 'videos',
+	'load': kScreenVideosLoad,
+	'clear': kScreenVideosClear,
+	'refresh': kScreenVideosRefresh
     }
 };
 
@@ -1102,6 +1107,61 @@ function kScreenVideoRefresh()
 {
 	kScreenVideoClear();
 	kScreenVideoLoad(kScreenArgs);
+}
+
+
+/*
+ * "All videos" screen
+ */
+function kScreenVideosLoad(args)
+{
+	var videos, vidid, video;
+
+	videos = [];
+
+	for (vidid in kVideos) {
+		video = kVideos[vidid];
+		videos.push([
+		    video,
+		    video.id,
+		    video.name,
+		    ucfirst(video.state),
+		    video.uploaded,
+		    video.mtime
+		]);
+	}
+
+	kMakeDynamicTable(kDomConsole, 'All videos', {
+	    'aoColumns': [ {
+		'bVisible': false
+	    }, {
+		'sTitle': 'Video ID',
+		'sClass': 'kDataVideoID'
+	    }, {
+		'sTitle': 'Filename'
+	    }, {
+		'sTitle': 'State'
+	    }, {
+		'sTitle': 'Uploaded'
+	    }, {
+		'sTitle': 'Modified'
+	    } ],
+	    'aaData': videos,
+	    'fnCreatedRow': function (tr, data) {
+	        klink($(tr).find('td.kDataVideoID'), 'video');
+	    }
+	});
+}
+
+function kScreenVideosClear()
+{
+	kRemoveDynamicContent();
+}
+
+function kScreenVideosRefresh()
+{
+	kScreenVideosClear();
+	kScreenVideosLoad(kScreenArgs);
 }
 
 
