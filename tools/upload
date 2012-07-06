@@ -18,9 +18,9 @@ u_arg0=$(basename $0)
 [[ -f "$1" ]] || fail "not a file: $1"
 
 u_url=http://localhost
-u_user=dap
+u_user=
 
 [[ $# -gt 1 ]] && u_url=$2
-[[ $# -gt 2 ]] && u_user=$3
+[[ $# -gt 2 ]] && u_user="-u$3"
 
-curl -u$u_user -i -X POST -Ffile=@$1 $u_url/kart/video
+curl $u_user -i -X POST -Ffile=@$1 $u_url/kart/video
