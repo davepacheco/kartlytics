@@ -1018,6 +1018,7 @@ function kScreenVideoLoad(args)
 	metadata.push([ 'Processing state', ucfirst(video.state) ]);
 	metadata.push([ 'Uploaded', video.uploaded ]);
 	metadata.push([ 'Modified', video.mtime ]);
+	metadata.push([ 'Reprocess', 'Reprocess Video' ]);
 
 	/* This search could be more efficient. */
 	filter = function (race) { return (race['vidid'] == vidid); };
@@ -1041,7 +1042,14 @@ function kScreenVideoLoad(args)
 	    }, {
 		'sClass': 'kDataValue'
 	    } ],
-	    'aaData': metadata
+	    'aaData': metadata,
+	    'fnCreatedRow': function (tr, data) {
+		if (data[0] == 'Reprocess') {
+			var td = $(tr).find('td.kDataValue');
+			$(td).html('<a href="javascript:kReprocessVideo(\'' +
+			    vidid + '\');">' + $(td).text() + '</a>');
+		}
+	    }
 	});
 
 	$('td#kVideoVideo').append(
@@ -1364,6 +1372,16 @@ function kImportSave(uuid, metadata, div)
 	});
 }
 
+function kReprocessVideo(vidid)
+{
+	$.ajax({
+	    'type': 'PUT',
+	    'url': '/api/videos/' + vidid + '/rerun',
+	    'processData': false,
+	    'error': kFatal,
+	    'success': function () { kLoadData(); }
+	});
+}
 
 /*
  * Utility functions.

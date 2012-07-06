@@ -163,6 +163,7 @@ function initServer()
 	klServer.get('/api/files/:id', apiFilesGet);
 	klServer.put('/api/videos/:id', auth,
 	    mod_restify.bodyParser({ 'mapParams': false }), apiVideosPut);
+	klServer.put('/api/videos/:id/rerun', auth, apiVideosRerun);
 
 	// klServer.on('after', mod_restify.auditLogger({ 'log': klLog }));
 
@@ -410,6 +411,41 @@ function apiVideosPut(request, response, next)
 }
 
 /*
+ * PUT /api/videos/:id/rerun: rerun kartvid for this video
+ */
+function apiVideosRerun(request, response, next)
+{
+	var uuid, video;
+
+	uuid = request.params['id'];
+
+	if (!klVideos.hasOwnProperty(uuid)) {
+		next(new mod_restify.ResourceNotFoundError());
+		return;
+	}
+
+	video = klVideos[uuid];
+
+	if (!video.processed) {
+		response.send(200);
+		return;
+	}
+
+	video.processed = false;
+	video.races = undefined;
+
+	saveVideo(video, undefined, function (err) {
+		if (err) {
+			next(err);
+			return;
+		}
+
+		response.send(200);
+		klVideoQueue.push(video.id);
+	});
+}
+
+/*
  * Restify handler for handling form uploads.
  */
 function upload(request, response, next)
@@ -417,7 +453,6 @@ function upload(request, response, next)
 	var form = new mod_formidable.IncomingForm();
 
 	form.uploadDir = klDatadir;
-	form.keepExtensions = true;
 
 	form.on('error', function (err) {
 		request.log.error(err);
