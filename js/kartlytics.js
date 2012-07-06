@@ -431,6 +431,7 @@ function apiVideosRerun(request, response, next)
 		return;
 	}
 
+	video.frame = 0;
 	video.processed = false;
 	video.races = undefined;
 
