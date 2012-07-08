@@ -132,6 +132,10 @@ div.kProgressBar {
 		white-space: nowrap;
 	}
 
+	.kDataTable .kDataColumnVideoName {
+		white-space: nowrap;
+	}
+
 
 /*
  * kPropertyTable: Configure a list of key-value pairs.
@@ -201,7 +205,7 @@ td.kPlayerHuman {
 /*
  * Race table
  */
-td.kDataRaceID {
+td.kDataRaceID, td.kDataVideoID {
 	font-family: monospace;
 	text-align: right;
 }
@@ -258,6 +262,10 @@ td.kDataRaceVEnd {
 
 td.kDataRaceTime {
 	text-align: right;
+}
+
+td.kDataDateTime {
+	white-space: nowrap;
 }
 
 /*

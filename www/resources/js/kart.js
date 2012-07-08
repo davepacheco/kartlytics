@@ -1126,6 +1126,7 @@ function kScreenVideosLoad(args)
 		    video.id,
 		    video.name,
 		    ucfirst(video.state),
+		    kDate(video.crtime),
 		    video.uploaded,
 		    video.mtime
 		]);
@@ -1138,13 +1139,19 @@ function kScreenVideosLoad(args)
 		'sTitle': 'Video ID',
 		'sClass': 'kDataVideoID'
 	    }, {
-		'sTitle': 'Filename'
+		'sTitle': 'Filename',
+		'sClass': 'kDataColumnVideoName'
 	    }, {
 		'sTitle': 'State'
 	    }, {
-		'sTitle': 'Uploaded'
+		'sTitle': 'Created',
+		'sClass': 'kDataDateTime'
 	    }, {
-		'sTitle': 'Modified'
+		'sTitle': 'Uploaded',
+		'sClass': 'kDataDateTime'
+	    }, {
+		'sTitle': 'Modified',
+		'sClass': 'kDataDateTime'
 	    } ],
 	    'aaData': videos,
 	    'fnCreatedRow': function (tr, data) {
