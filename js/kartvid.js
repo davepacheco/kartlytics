@@ -67,7 +67,8 @@ function parseKartvid(video)
 
 			segment = {
 				'start': entry.time,
-				'players': entry.players
+				'players': entry.players,
+				'source': entry['source']
 			};
 
 			return;

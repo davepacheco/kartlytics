@@ -792,7 +792,7 @@ function kScreenPlayerRefresh()
  */
 function kScreenRaceLoad(args)
 {
-	var vidid, raceid, filter;
+	var vidid, raceid, filter, video;
 	var metadata = [], players = [], segments = [];
 
 	if (args.length < 2) {
@@ -801,6 +801,7 @@ function kScreenRaceLoad(args)
 	}
 
 	vidid = args[0];
+	video = kVideos[vidid];
 	raceid = vidid + '/' + args[1];
 	$(kDomConsole).append('<div class="kHeader kDynamic">Race ' +
 	    'details: ' + raceid + '</div>');
@@ -831,13 +832,18 @@ function kScreenRaceLoad(args)
 		});
 
 		kRaceSegments(race, true, function (_, seg) {
-			console.log(seg);
-			segments.push([
+			var entry = [
+				seg,
 				kDuration(seg['vstart']),
-				kDuration(seg['duration'])
+				kDuration(seg['vstart'] - race['vstart'], true)
 			].concat(seg['players'].map(function (p) {
 				return (ordinal(p['rank']) || '?');
-			})));
+			}));
+
+			if (video.frameImages)
+				entry.push(seg['source']);
+
+			segments.push(entry);
 		});
 	});
 
@@ -880,17 +886,36 @@ function kScreenRaceLoad(args)
 	});
 
 	var segCols = [ {
+	    'bVisible': false
+	}, {
 	    'sTitle': 'Video time'
 	}, {
-	    'sTitle': 'Duration'
+	    'sTitle': 'Race time'
 	} ].concat(players.map(function (p, i) {
 		return ({ 'sTitle': 'P' + (i + 1) + ' (' + p[1] + ')' });
 	}));
 
+	if (video.frameImages)
+		segCols.push({
+		    'sTitle': 'Screen capture',
+		    'sClass': 'kDataFrame'
+		});
+
 	kMakeDynamicTable(kDomConsole, 'Segments', {
 	    'bSort': false,
 	    'aoColumns': segCols,
-	    'aaData': segments
+	    'aaData': segments,
+	    'fnCreatedRow': function (tr) {
+	        var td = $(tr).find('td.kDataFrame');
+		var text = td.text();
+
+		if (text.length === 0)
+			return;
+
+		td.html('<a href="' + text + '">' +
+		    '<img src="' + text + '" width="160" height="120"/>' +
+		    '</a>');
+	    }
 	});
 }
 
@@ -1632,6 +1657,8 @@ function kPercentage(frac)
  *
  *     vend		Time within the video when this segment ended
  *
+ *     source		Link to an image showing the start of this segment
+ *
  * and a function to iterate them, kEachSegment(filter, iter), with "filter" and
  * "iter" invoked as iter(race, segment) for each segment.
  *
@@ -1780,7 +1807,7 @@ function kEachSegment(filter, iter)
 
 function makeSegmentObject(race, segment, i, raceobj)
 {
-	return ({
+	var rv = {
 	    'raceid': raceobj['raceid'],
 	    'segnum': i,
 	    'players': segment.players.map(function (p) {
@@ -1789,5 +1816,11 @@ function makeSegmentObject(race, segment, i, raceobj)
 	    'duration': segment.end - segment.start,
 	    'vstart': segment.start,
 	    'vend': segment.end
-	});
+	};
+
+	if (segment.source)
+		rv['source'] = '/api/files/' + raceobj['vidid'] + '/pngs/' +
+		    segment['source'] + '.png';
+
+	return (rv);
 }

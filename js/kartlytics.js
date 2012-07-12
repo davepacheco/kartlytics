@@ -160,7 +160,8 @@ function initServer()
 	    mod_path.join(filespath, 'resources')));
 	klServer.post('/kart/video', auth, upload);
 	klServer.get('/api/videos', apiVideosGet);
-	klServer.get('/api/files/:id', apiFilesGet);
+	klServer.get('/api/files/:id', apiFilesGetVideo);
+	klServer.get('/api/files/:id/pngs/.*', apiFilesGetFrame);
 	klServer.put('/api/videos/:id', auth,
 	    mod_restify.bodyParser({ 'mapParams': false }), apiVideosPut);
 	klServer.put('/api/videos/:id/rerun', auth, apiVideosRerun);
@@ -220,7 +221,8 @@ function dirServer(baseuri, basedir, request, response, next)
 	mod_assert.equal(baseuri, request.path.substr(0, baseuri.length));
 
 	var filename = mod_path.normalize(
-	    mod_path.join(basedir, request.path.substr(baseuri.length)));
+	    mod_path.join(basedir, decodeURIComponent(
+	    request.path.substr(baseuri.length))));
 
 	if (filename.substr(0, basedir.length) != basedir) {
 		request.log.warn('denying request for file outside of %s',
@@ -342,7 +344,7 @@ var klMetadataSchema = {
 /*
  * GET /api/files/:id: retrieve an actual video file
  */
-function apiFilesGet(request, response, next)
+function apiFilesGetVideo(request, response, next)
 {
 	var uuid, video;
 
@@ -355,6 +357,33 @@ function apiFilesGet(request, response, next)
 
 	video = klVideos[uuid];
 	fileServer(video.filename, request, response, next);
+}
+
+/*
+ * GET /api/files/:id/pngs/:frame: retrieve a video frame
+ */
+function apiFilesGetFrame(request, response, next)
+{
+	var uuid, video;
+
+	uuid = request.params['id'];
+
+	request.log.info('video uuid', uuid);
+
+	if (!klVideos.hasOwnProperty(uuid)) {
+		next(new mod_restify.ResourceNotFoundError());
+		return;
+	}
+
+	video = klVideos[uuid];
+
+	if (!video.pngDir) {
+		next(new mod_restify.ResourceNotFoundError());
+		return;
+	}
+
+	dirServer('/api/files/' + uuid + '/pngs', video.pngDir,
+	    request, response, next);
 }
 
 /*
