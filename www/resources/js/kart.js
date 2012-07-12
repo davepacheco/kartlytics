@@ -54,6 +54,7 @@ var kId = 0;			/* used to generate unique ids */
 var kDomConsole;		/* DOM element for main console */
 var kDomUpdated;		/* DOM element for "last updated" text */
 var kTables = [];		/* list of dynamic tables */
+var kLoaded = false;
 
 /*
  * Initialization and data load.  Data is reloaded on page load, after making a
@@ -138,9 +139,12 @@ function kOnData(data, text)
 		delete (kVideos[key]);
 	}
 
-	kDomUpdated.text(new Date());
+	if (!kLoaded || kScreenName == 'summary') {
+		kDomUpdated.text(new Date());
+		kScreenUpdate();
+	}
 
-	kScreenUpdate();
+	kLoaded = true;
 
 	if (nreading > 0)
 		setTimeout(kLoadData, 1000);
