@@ -1,0 +1,29 @@
+#!/usr/bin/env node
+
+function main()
+{
+	var options = process.argv.slice(2);
+	shuffle(options);
+	console.log(options);
+}
+
+/*
+ * Fisher-Yates shuffle
+ * http://sedition.com/perl/javascript-fy.html
+ */
+function shuffle(arr) {
+        if (arr.length === 0)
+                return (arr);
+
+        var i = arr.length;
+        while (--i > 0) {
+                var j = Math.floor(Math.random() * (i + 1));
+                var tmp = arr[i];
+                arr[i] = arr[j];
+                arr[j] = tmp;
+        }
+
+        return (arr);
+}
+
+main();

@@ -8,7 +8,7 @@ function fail
 
 function usage
 {
-	echo "usage: $u_arg0 filename.mov"
+	echo "usage: $u_arg0 filename.mov [url [username]]"
 	exit 2
 }
 
@@ -17,10 +17,12 @@ u_arg0=$(basename $0)
 [[ -n "$1" ]] || usage
 [[ -f "$1" ]] || fail "not a file: $1"
 
+u_file=$1
 u_url=http://localhost
 u_user=
 
 [[ $# -gt 1 ]] && u_url=$2
 [[ $# -gt 2 ]] && u_user="-u$3"
 
-curl $u_user -i -X POST -Ffile=@$1 $u_url/kart/video
+shift 3
+curl $@ $u_user -i -X POST -Ffile=@$u_file $u_url/kart/video
