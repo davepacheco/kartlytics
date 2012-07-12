@@ -68,7 +68,7 @@ function main()
 	});
 
 	klVideoQueue = mod_vasync.queuev({
-	    'concurrency': mod_os.cpus().length - 1,
+	    'concurrency': Math.min(mod_os.cpus().length - 1, 4),
 	    'worker': vidProcessFrames
 	});
 
