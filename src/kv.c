@@ -556,7 +556,7 @@ kv_vidctx_frame_emit(kv_vidctx_t *kvp, const char *framename, int i, int timems,
 {
 	if (kvp->kv_dbgdir[0] != '\0') {
 		char buf[PATH_MAX];
-		(void) snprintf(buf, sizeof (buf), "%s/%s", kvp->kv_dbgdir,
+		(void) snprintf(buf, sizeof (buf), "%s/%s.png", kvp->kv_dbgdir,
 		    framename);
 		(void) img_write(img, buf);
 	}

@@ -284,7 +284,8 @@ function apiVideosGet(request, response, next)
 			'races': video.races,
 			'metadata': video.metadata,
 			'error': video.error,
-			'stderr': video.stderr
+			'stderr': video.stderr,
+			'frameImages': video.pngDir ? true : false
 		};
 
 		if (video.error) {
@@ -491,6 +492,7 @@ function processVideo(file)
 	    'lastUpdated': mod_jsprim.iso8601(new Date()),
 	    'metadataFile': filename + '.md.json',
 	    'eventsFile': filename + '.events.json',
+	    'pngDir': filename + '.pngs',
 	    'log': klLog.child({ 'video': vidname }),
 	    'saved': false,
 	    'processed': false,
@@ -522,7 +524,7 @@ function saveVideo(video, metadata, callback)
 	var tmpfile = video.metadataFile + 'tmp';
 	var keys = [ 'id', 'name', 'filename', 'uploaded', 'metadataFile',
 	    'eventsFile', 'saved', 'processed', 'metadata', 'races', 'error',
-	    'stdout', 'stderr', 'crtime' ];
+	    'stdout', 'stderr', 'crtime', 'pngDir' ];
 	var obj = {};
 	var when = mod_jsprim.iso8601(new Date());
 
@@ -562,10 +564,31 @@ function saveVideo(video, metadata, callback)
 	    });
 }
 
+function vidProcessFrames(vidid, callback)
+{
+	var video;
+
+	video = klVideos[vidid];
+
+	if (!video.pngDir)
+		video.pngDir = video.filename + '.pngs';
+
+	mod_fs.mkdir(video['pngDir'], function (err) {
+		if (err && err['code'] != 'EEXIST') {
+			video.error = err.message;
+			video.log.error(video.error);
+			callback();
+			return;
+		}
+
+		vidRunKartvid(vidid, callback);
+	});
+}
+
 /*
  * Invoke "kartvid" to process all frames in the video.
  */
-function vidProcessFrames(vidid, callback)
+function vidRunKartvid(vidid, callback)
 {
 	var video, child, stdout, stderr;
 
@@ -575,8 +598,9 @@ function vidProcessFrames(vidid, callback)
 	video.stdout = stdout = '';
 	video.stderr = stderr = '';
 	video.child = child = mod_child.spawn('out/kartvid',
-	    [ 'video', '-j', video.filename ]);
-	video.log.info('invoking "out/kartvid video -j %s"', video.filename);
+	    [ 'video', '-d', video.pngDir, '-j', video.filename ]);
+	video.log.info('invoking "out/kartvid video -d %s -j %s"',
+	    video.pngDir, video.filename);
 
 	child.stdout.on('data', function (chunk) { stdout += chunk; });
 
