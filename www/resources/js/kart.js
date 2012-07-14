@@ -51,8 +51,9 @@ var kScreenArgs;		/* current screen args */
 var kId = 0;			/* used to generate unique ids */
 var kDomConsole;		/* DOM element for main console */
 var kDomUpdated;		/* DOM element for "last updated" text */
+var kDomTitle;			/* DOM element for page title */
 var kTables = [];		/* list of dynamic tables */
-var kLoaded = false;
+var kForceRefresh = false;	/* force refresh on data update */
 
 /*
  * Initialization and data load.  Data is reloaded on page load, after making a
@@ -65,14 +66,18 @@ function kInit()
 {
 	kDomConsole = $('.kConsole');
 	kDomUpdated = $('.kLastUpdateTime');
+	kDomTitle = $('#kTitle');
 
 	$(window).bind('hashchange', kScreenUpdate);
 
-	kLoadData();
+	kLoadData(true);
 }
 
-function kLoadData()
+function kLoadData(force)
 {
+	if (force)
+		kForceRefresh = true;
+
 	$.ajax({
 	    'url': '/api/videos',
 	    'dataType': 'json',
@@ -137,12 +142,12 @@ function kOnData(data, text)
 		delete (kVideos[key]);
 	}
 
-	if (!kLoaded || kScreenName == 'summary') {
+	if (kForceRefresh || kScreenName == 'summary') {
 		kDomUpdated.text(new Date());
 		kScreenUpdate();
 	}
 
-	kLoaded = true;
+	kForceRefresh = false;
 
 	if (nreading > 0)
 		setTimeout(kLoadData, 1000);
@@ -275,6 +280,12 @@ function kScreenDefault()
 	kScreenUpdate();
 }
 
+function kScreenTitle(title)
+{
+	kDomTitle.text(title);
+	document.title = 'kartlytics: ' + title;
+}
+
 /*
  * Summary screen: shows videos needing attention, basic player stats, and a
  * paginated view of all races.
@@ -283,6 +294,8 @@ function kScreenSummaryLoad()
 {
 	var id, video, elt, races, players, pnames, pdata;
 	var unimported = [];
+
+	kScreenTitle('Summary');
 
 	for (id in kVideos) {
 		video = kVideos[id];
@@ -295,7 +308,7 @@ function kScreenSummaryLoad()
 
 		if (video.state == 'error')
 			elt.push(video.error);
-		else if (video.state == 'unconfirmed')
+		else if (video.state == 'unimported')
 			elt.push('Import');
 		else
 			elt.push('');
@@ -335,7 +348,7 @@ function kScreenSummaryLoad()
 
 		klink($(tr).find('td.kDataVideoID'), 'video');
 
-		if (vidobj.state == 'unconfirmed') {
+		if (vidobj.state == 'unimported') {
 			td = $(tr).find('td.kDataColumnDetails');
 			td.html('<a href="javascript:kImportDialog(\'' + uuid +
 			    '\')">Import</a>');
@@ -559,8 +572,7 @@ function kScreenPlayerLoad(args)
 	}
 
 	pname = args[0];
-	$(kDomConsole).append('<div class="kHeader kDynamic">Player ' +
-	    'details: ' + pname + '</div>');
+	kScreenTitle('Player: ' + pname);
 
 	filter = function (race) {
 		for (var i = 0; i < race.players.length; i++) {
@@ -584,7 +596,7 @@ function kScreenPlayerLoad(args)
 		}
 
 		p = race.players[i];
-		time = p['time'] ? kDuration(p['time'], true) : 'Unfinished';
+		time = p['time'] ? kDuration(p['time'], true) : '-';
 
 		allraces.push([
 		    race,
@@ -728,7 +740,7 @@ function kScreenPlayerLoad(args)
 
 	bytrackdata = Object.keys(bytrack).map(function (trk) {
 	    var best = bytrack[trk]['best'] == Number.MAX_VALUE ?
-	        'Never finished' : kDuration(bytrack[trk]['best'], true);
+	        '-' : kDuration(bytrack[trk]['best'], true);
 	    return ([
 		trk,
 		best,
@@ -794,7 +806,7 @@ function kScreenPlayerRefresh()
  */
 function kScreenRaceLoad(args)
 {
-	var vidid, raceid, filter, video;
+	var vidid, raceid, racename, filter, video;
 	var metadata = [], players = [], events = [];
 
 	if (args.length < 2) {
@@ -805,8 +817,8 @@ function kScreenRaceLoad(args)
 	vidid = args[0];
 	video = kVideos[vidid];
 	raceid = vidid + '/' + args[1];
-	$(kDomConsole).append('<div class="kHeader kDynamic">Race ' +
-	    'details: ' + raceid + '</div>');
+	racename = kDate(video.crtime) + '/' + args[1];
+	kScreenTitle('Race: ' + racename);
 
 	/* This search could be more efficient. */
 	filter = function (race) { return (race['raceid'] == raceid); };
@@ -829,7 +841,7 @@ function kScreenRaceLoad(args)
 			    p['person'],
 			    ucfirst(p['char']),
 			    ordinal(p['rank']),
-			    p['time'] ? kDuration(p['time']) : 'Not finished'
+			    p['time'] ? kDuration(p['time']) : '-'
 			]);
 		});
 
@@ -970,8 +982,7 @@ function kScreenTrackLoad(args)
 	}
 
 	track = args[0];
-	$(kDomConsole).append('<div class="kHeader kDynamic">Track ' +
-	    'details: ' + track + '</div>');
+	kScreenTitle('Race: ' + track);
 
 	/* This search could be more efficient. */
 	filter = function (race) { return (race['track'] == track); };
@@ -1059,8 +1070,7 @@ function kScreenVideoLoad(args)
 	vidid = args[0];
 	video = kVideos[vidid];
 
-	$(kDomConsole).append('<div class="kHeader kDynamic">Video ' +
-	    'details: ' + video.name + '</div>');
+	kScreenTitle('Video: ' + video.name);
 
 	$('<table class="kDynamic" style="width: 100%">' +
 	    '<tr>' +
@@ -1069,11 +1079,18 @@ function kScreenVideoLoad(args)
 	    '</tr>' +
 	    '</table>').appendTo(kDomConsole);
 
+	if (video.crtime)
+		metadata.push([ 'Created', kDateTime(video.crtime) ]);
 	metadata.push([ 'Original filename', video.name ]);
 	metadata.push([ 'Processing state', ucfirst(video.state) ]);
 	metadata.push([ 'Uploaded', video.uploaded ]);
 	metadata.push([ 'Modified', video.mtime ]);
+
+	if (video.state == 'unimported')
+		metadata.push([ 'Import', 'Import Video' ]);
+
 	metadata.push([ 'Reprocess', 'Reprocess Video' ]);
+	metadata.push([ 'Download', 'Download Video' ]);
 
 	/* This search could be more efficient. */
 	filter = function (race) { return (race['vidid'] == vidid); };
@@ -1099,10 +1116,27 @@ function kScreenVideoLoad(args)
 	    } ],
 	    'aaData': metadata,
 	    'fnCreatedRow': function (tr, data) {
+		var td;
+
+		if (data[0] == 'Import') {
+			td = $(tr).find('td.kDataValue');
+			td.html('<a href="javascript:kImportDialog(\'' + vidid +
+			    '\')">Import</a>');
+			return;
+		}
+
 		if (data[0] == 'Reprocess') {
-			var td = $(tr).find('td.kDataValue');
+			td = $(tr).find('td.kDataValue');
 			$(td).html('<a href="javascript:kReprocessVideo(\'' +
 			    vidid + '\');">' + $(td).text() + '</a>');
+			return;
+		}
+
+		if (data[0] == 'Download') {
+			td = $(tr).find('td.kDataValue');
+			$(td).html('<a href="/api/files/' +
+			    vidid + '/video.mov">' + $(td).text() + '</a>');
+			return;
 		}
 	    }
 	});
@@ -1259,7 +1293,7 @@ function kUploadOk(div)
 		'success': function () {
 			$(div).dialog('destroy');
 			$(div).remove();
-			kLoadData();
+			kLoadData(true);
 		},
 		'error': function () {
 			alert('Upload failed!');
@@ -1484,7 +1518,7 @@ function kImportSave(uuid, metadata, div)
 	    'success': function () {
 		$(div).dialog('destroy');
 		$(div).remove();
-		kLoadData();
+		kLoadData(true);
 	    }
 	});
 }
@@ -1496,7 +1530,7 @@ function kReprocessVideo(vidid)
 	    'url': '/api/videos/' + vidid + '/rerun',
 	    'processData': false,
 	    'error': kFatal,
-	    'success': function () { kLoadData(); }
+	    'success': function () { kLoadData(true); }
 	});
 }
 

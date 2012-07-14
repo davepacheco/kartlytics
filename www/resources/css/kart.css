@@ -12,6 +12,10 @@ html, body {
 	color: #1F1F66;
 	margin: 0;
 	padding: 0;
+	background-image: url('../img/StartScreen-light.jpg');
+	background-repeat: no-repeat;
+	background-size: cover;
+	background-attachment: fixed;
 }
 
 tr {
@@ -21,10 +25,7 @@ tr {
 div.kBody {
 	position: absolute;
 	width: 100%;
-	min-height: 100%;
-	background-image: url('../img/StartScreen-light.jpg');
-	background-repeat: no-repeat;
-	background-size: 100% 100%;
+	min-height: 95%;
 }
 
 
@@ -42,13 +43,21 @@ div.kBody {
 
 .kHeader {
 	color: #000044;
-	font-size: x-large;
+	font-size: xx-large;
 	font-weight: bold;
 	margin-right: 30px;
 	text-shadow: 1px 1px 1px #cccccc;
 }
 
-.kHeader a {
+.kKartlyticsTitle {
+	color: #000044;
+	font-size: large;
+	font-weight: bold;
+	margin-right: 30px;
+	text-shadow: 1px 1px 1px #cccccc;
+}
+
+.kKartlyticsTitle a {
 	color: #000044;
 	text-decoration: none;
 }
@@ -78,7 +87,7 @@ div.kProgressBar {
  */
 .kConsole {
 	background: #eeeeee;
-	border: 1px #000044 solid;
+	border: 2px #9999aa solid;
 	border-radius: 10px;
 	opacity: 0.8;
 
@@ -96,10 +105,21 @@ div.kProgressBar {
 	padding-right: 20px;
 	padding-bottom: 20px;
 
-	box-shadow: 3px 3px 4px #000;
+	box-shadow: 3px 3px 4px #777;
 }
 
-	.kConsoleHeader > * {
+	.kConsoleHeader {
+		height: 40px;
+	}
+
+	.kConsoleHeaderBox {
+		text-align: left;
+		line-height: 1.6em;
+		width: 350px;
+		float: right;
+	}
+
+	.kConsoleHeaderBox > * {
 		margin-right: 10px;
 	}
 

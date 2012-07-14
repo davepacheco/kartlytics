@@ -160,7 +160,7 @@ function initServer()
 	    mod_path.join(filespath, 'resources')));
 	klServer.post('/kart/video', auth, upload);
 	klServer.get('/api/videos', apiVideosGet);
-	klServer.get('/api/files/:id', apiFilesGetVideo);
+	klServer.get('/api/files/:id/.*\.mov', apiFilesGetVideo);
 	klServer.get('/api/files/:id/pngs/.*', apiFilesGetFrame);
 	klServer.put('/api/videos/:id', auth,
 	    mod_restify.bodyParser({ 'mapParams': false }), apiVideosPut);
@@ -242,7 +242,7 @@ function fileServer(filename, request, response, next)
 	var file = mod_fs.createReadStream(filename);
 	var headers = {};
 
-	if (mod_jsprim.endsWith(filename, '.mov'))
+	if (mod_jsprim.endsWith(request.url, '.mov'))
 		headers['Content-Type'] = 'video/quicktime';
 
 	file.on('error', function (err) {
@@ -301,7 +301,7 @@ function apiVideosGet(request, response, next)
 			obj['frame'] = video.frame || 0;
 			obj['nframes'] = video.maxframes || video.frame || 100;
 		} else if (!video.metadata) {
-			obj.state = 'unconfirmed';
+			obj.state = 'unimported';
 		} else {
 			obj.state = 'done';
 		}
