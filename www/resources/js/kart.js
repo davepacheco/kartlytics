@@ -855,8 +855,7 @@ function kScreenRaceLoad(args)
 			entry.push(evt['messages'].join('\n'));
 
 			if (video.frameImages)
-				entry.push(
-				    evt['seg'] ? evt['seg']['source'] : '');
+				entry.push(evt['source']);
 
 			events.push(entry);
 		});
@@ -903,13 +902,15 @@ function kScreenRaceLoad(args)
 	var eventCols = [ {
 	    'bVisible': false
 	}, {
-	    'sTitle': 'Video time'
+	    'sTitle': 'Vtime',
+	    'sClass': 'kDataRaceTime'
 	}, {
-	    'sTitle': 'Race time'
+	    'sTitle': 'Rtime',
+	    'sClass': 'kDataRaceTime'
 	} ].concat(players.map(function (p, i) {
-		return ({ 'sTitle': p[2] });
+		return ({ 'sTitle': p[2], 'sClass': 'kDataRaceRank' });
 	})).concat([ {
-	    'sTitle': '',
+	    'sTitle': 'Events',
 	    'sClass': 'kDataMessages'
 	} ]);
 
@@ -1610,6 +1611,15 @@ function kPercentage(frac)
 	return ((100 * frac).toFixed(1));
 }
 
+function frameImgHref(vidid, frame)
+{
+	if (!frame)
+		return ('');
+
+	return ('/api/files/' + vidid + '/pngs/' +
+	    encodeURIComponent(frame) + '.png');
+}
+
 /*
  * Stat computation.  The rest of this file is essentially a library for doing
  * stat queries on the race data.
@@ -1693,6 +1703,8 @@ function kPercentage(frac)
  *     rtime		Time of this event within this race
  *
  *     seg		Segment at the beginning of this event, if any
+ *
+ *     source		Link to an image showing this event
  *
  *     messages		Array of strings describing events occuring at this
  *     			time.
@@ -1819,7 +1831,9 @@ function makeRaceObject(video, race, num)
 	    'mode': race.mode,
 	    'level': racemeta.level,
 	    'track': race.track,
-	    'players': players
+	    'players': players,
+	    'start_source': frameImgHref(video.id, race.start_source),
+	    'end_source': frameImgHref(video.id, race.end_source)
 	};
 
 	return (rv);
@@ -1857,8 +1871,8 @@ function makeSegmentObject(race, segment, i, raceobj)
 	};
 
 	if (segment.source)
-		rv['source'] = '/api/files/' + raceobj['vidid'] + '/pngs/' +
-		    segment['source'] + '.png';
+		rv['source'] = frameImgHref(raceobj['vidid'],
+		    segment['source']);
 
 	return (rv);
 }
@@ -1872,6 +1886,7 @@ function kRaceEvents(race, iter)
 	    'vtime': time,
 	    'rtime': 0,
 	    'seg': undefined,
+	    'source': race['start_source'],
 	    'messages': [ 'Race begins.' ]
 	});
 
@@ -1881,6 +1896,7 @@ function kRaceEvents(race, iter)
 			    'vtime': seg['vstart'],
 			    'rtime': seg['vstart'] - time,
 			    'seg': seg,
+			    'source': seg['source'],
 			    'messages': [ 'Initial position reading.' ]
 			});
 
@@ -1897,6 +1913,7 @@ function kRaceEvents(race, iter)
 		    'vtime': seg['vstart'],
 		    'rtime': seg['vstart'] - time,
 		    'seg': seg,
+		    'source': seg['source'],
 		    'messages': msgs
 		});
 
@@ -1906,6 +1923,7 @@ function kRaceEvents(race, iter)
 	iter(race, {
 	    'vtime': race['vend'],
 	    'rtime': race['vend'] - time,
+	    'source': race['end_source'],
 	    'messages': [ 'Race ends.' ]
 	});
 }

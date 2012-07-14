@@ -49,6 +49,7 @@ function parseKartvid(video)
 				'mode': trackMode(entry.track),
 				'track': trackName(entry.track),
 				'players': entry.players,
+				'start_source': entry.source,
 				'segments': []
 			};
 			return;
@@ -81,6 +82,7 @@ function parseKartvid(video)
 		}
 
 		race.end = entry.time;
+		race.end_source = entry.source;
 		race.results = entry.players;
 		races.push(race);
 		race = undefined;
@@ -180,6 +182,7 @@ function summarize(race)
 	return (entries);
 }
 
+/* XXX this is closely duplicated in the web code */
 function compareSegments(race, last, next, emit)
 {
 	var cn, lp, np;

@@ -262,6 +262,7 @@ td.kDataRaceVEnd {
 
 td.kDataRaceTime {
 	text-align: right;
+	width: 20px;
 }
 
 td.kDataDateTime {
