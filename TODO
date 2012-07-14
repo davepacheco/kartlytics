@@ -2,7 +2,6 @@ Current status:
 - Manually check the full output on all videos -- see "Known Issues" below.
   Previous problem videos include recording-0003.
 - Add video capture time and processing time to UI
-- Add segment translation to English to UI
 
 Quality of life:
 - Write a tool for diffing results between two runs on the same race.

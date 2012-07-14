@@ -31,8 +31,6 @@
 /*
  * TODO:
  * - clean up "upload" dialog
- * - race details screen: translate segments into English
- *   (e.g., "dap passes wdp")
  * - race details screen: add ability to modify human player names
  * - video details screen: add download link
  */
@@ -797,7 +795,7 @@ function kScreenPlayerRefresh()
 function kScreenRaceLoad(args)
 {
 	var vidid, raceid, filter, video;
-	var metadata = [], players = [], segments = [];
+	var metadata = [], players = [], events = [];
 
 	if (args.length < 2) {
 		kScreenDefault();
@@ -835,19 +833,32 @@ function kScreenRaceLoad(args)
 			]);
 		});
 
-		kRaceSegments(race, true, function (_, seg) {
+		kRaceEvents(race, function (_, evt) {
 			var entry = [
-				seg,
-				kDuration(seg['vstart']),
-				kDuration(seg['vstart'] - race['vstart'], true)
-			].concat(seg['players'].map(function (p) {
-				return (ordinal(p['rank']) || '?');
-			}));
+				evt,
+				kDuration(evt['vtime'], true),
+				kDuration(evt['rtime'], true)
+			];
+
+			if (evt['seg']) {
+				entry = entry.concat(
+				    evt['seg']['players'].map(function (p) {
+				        return (ordinal(p['rank']) || '?');
+				    }));
+			} else {
+				entry = entry.concat(
+				    race['players'].map(function () {
+				        return ('-');
+				    }));
+			}
+
+			entry.push(evt['messages'].join('\n'));
 
 			if (video.frameImages)
-				entry.push(seg['source']);
+				entry.push(
+				    evt['seg'] ? evt['seg']['source'] : '');
 
-			segments.push(entry);
+			events.push(entry);
 		});
 	});
 
@@ -889,29 +900,38 @@ function kScreenRaceLoad(args)
 	    }
 	});
 
-	var segCols = [ {
+	var eventCols = [ {
 	    'bVisible': false
 	}, {
 	    'sTitle': 'Video time'
 	}, {
 	    'sTitle': 'Race time'
 	} ].concat(players.map(function (p, i) {
-		return ({ 'sTitle': 'P' + (i + 1) + ' (' + p[1] + ')' });
-	}));
+		return ({ 'sTitle': p[2] });
+	})).concat([ {
+	    'sTitle': '',
+	    'sClass': 'kDataMessages'
+	} ]);
 
 	if (video.frameImages)
-		segCols.push({
+		eventCols.push({
 		    'sTitle': 'Screen capture',
 		    'sClass': 'kDataFrame'
 		});
 
-	kMakeDynamicTable(kDomConsole, 'Segments', {
+	kMakeDynamicTable(kDomConsole, 'Events', {
 	    'bSort': false,
-	    'aoColumns': segCols,
-	    'aaData': segments,
+	    'aoColumns': eventCols,
+	    'aaData': events,
 	    'fnCreatedRow': function (tr) {
-	        var td = $(tr).find('td.kDataFrame');
-		var text = td.text();
+		var td, text;
+
+		td = $(tr).find('td.kDataMessages');
+		text = td.text();
+		$(td).html(text.replace('\n', '<br />'));
+
+	        td = $(tr).find('td.kDataFrame');
+		text = td.text();
 
 		if (text.length === 0)
 			return;
@@ -1666,6 +1686,20 @@ function kPercentage(frac)
  * and a function to iterate them, kEachSegment(filter, iter), with "filter" and
  * "iter" invoked as iter(race, segment) for each segment.
  *
+ * Finally, we have an "event" object:
+ *
+ *     vtime		Time of this event within this video
+ *
+ *     rtime		Time of this event within this race
+ *
+ *     seg		Segment at the beginning of this event, if any
+ *
+ *     messages		Array of strings describing events occuring at this
+ *     			time.
+ *
+ * and kRaceEvents(iter) with "iter" invoked as iter(race, event) for each
+ * event.
+ *
  * Future revisions may have other events within a race: e.g., slips on a banana
  * peel, rescues, power slide boosts, and so on.
  */
@@ -1827,4 +1861,88 @@ function makeSegmentObject(race, segment, i, raceobj)
 		    segment['source'] + '.png';
 
 	return (rv);
+}
+
+function kRaceEvents(race, iter)
+{
+	var time = race['vstart'];
+	var last, msgs;
+
+	iter(race, {
+	    'vtime': time,
+	    'rtime': 0,
+	    'seg': undefined,
+	    'messages': [ 'Race begins.' ]
+	});
+
+	kRaceSegments(race, true, function (_, seg) {
+		if (last === undefined) {
+			iter(race, {
+			    'vtime': seg['vstart'],
+			    'rtime': seg['vstart'] - time,
+			    'seg': seg,
+			    'messages': [ 'Initial position reading.' ]
+			});
+
+			last = seg;
+			return;
+		}
+
+		msgs = [];
+		compareSegments(race, last, seg, function (text) {
+			msgs.push(text);
+		});
+
+		iter(race, {
+		    'vtime': seg['vstart'],
+		    'rtime': seg['vstart'] - time,
+		    'seg': seg,
+		    'messages': msgs
+		});
+
+		last = seg;
+	});
+
+	iter(race, {
+	    'vtime': race['vend'],
+	    'rtime': race['vend'] - time,
+	    'messages': [ 'Race ends.' ]
+	});
+}
+
+function compareSegments(race, last, next, emit)
+{
+	var cn, lp, np;
+	var i, j, inr, ilr, jnr, jlr;
+
+	cn = race['players'].map(function (p) { return (ucfirst(p['char'])); });
+	lp = last['players'];
+	np = next['players'];
+
+	for (i = 0; i < np.length; i++) {
+		inr = np[i]['rank'];
+		ilr = lp[i]['rank'];
+
+		if (!inr || !ilr)
+			continue;
+
+		for (j = i + 1; j < np.length; j++) {
+			jnr = np[j]['rank'];
+			jlr = lp[j]['rank'];
+
+			if (!jnr || !jlr)
+				continue;
+
+			if (inr < jnr && ilr > jlr) {
+				emit(cn[i] + ' passes ' + cn[j] + '.');
+			} else if (inr > jnr && ilr < jlr) {
+				emit(cn[j] + ' passes ' + cn[i] + '.');
+			}
+		}
+	}
+
+	for (i = 0; i < np.length; i++) {
+		if (np[i]['lap'] == 4 && np[i]['lap'] != lp[i]['lap'])
+			emit(cn[i] + ' finishes.');
+	}
 }
