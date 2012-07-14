@@ -32,7 +32,6 @@
  * TODO:
  * - clean up "upload" dialog
  * - race details screen: add ability to modify human player names
- * - video details screen: add download link
  */
 
 /*

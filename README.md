@@ -162,11 +162,10 @@ each player during the race, and the end of the race.  It emits both plaintext
 and JSON, and reads PNGs, PPMs, and raw videos.  There's also a primitive Node
 server that processes video uploads.  Remaining items include:
 
-- finish web client (see TODO in www/resources/js/kart.js)
-- try on more types of inputs
 - handle aborted races better. (kartvid detects this, but doesn't emit events
   very nicely.)
 - detect pause screen.
+- Detect lap completion for lap times.
 - Detect weapons.  The most reliable way to detect weapons gotten is probably to
   look at the *last* weapon in the weapon box before the box itself disappears.
   (All the other ideas I've come up with can't really handle the case where a
@@ -175,7 +174,6 @@ server that processes video uploads.  Remaining items include:
   going away), and people stealing weapons with ghosts.
 - Position along the track for detecting "hot spots" where people tend to get
   slowed down.
-- Detect lap completion for lap times.
 - Billing: spending most of the race in 1st place, but losing due to weapon
   usage late in the race.
 - Keithing: going from 1st to 4th within a few seconds.

@@ -1,7 +1,23 @@
 Current status:
+- Add transcode-to-MP4 (using ffmpeg -i ...  -b:v 400k -b:a 96k ....mp4) and
+  have the HTML5 video element refer to that file.
+- Add processing time to UI
+- Rework screens:
+  - Put "Import" and "Details" columns onto "All videos" screen,
+    then remove "Unimported videos" table.
+  - Figure out what else to put onto front page.
+  - Add more tables to various screens
+  - Add an "all races" screen
+  - Make most tables paginated with controls for # to show at once
+  - Add a "miscellaneous stats" screen with random interesting stats
+    Or (and?) add "all characters" and "all races" screens that show information
+    about all of them, which is probably more interesting than looking at only
+    one at a time.
+  - Add summary by day?
+  - Add race and character images where appropriate?
+  - Add a master "select these races and show me this information" screen?
 - Manually check the full output on all videos -- see "Known Issues" below.
   Previous problem videos include recording-0003.
-- Add processing time to UI
 
 Quality of life:
 - Write a tool for diffing results between two runs on the same race.
