@@ -3,19 +3,12 @@ Current status:
   have the HTML5 video element refer to that file.
 - Add processing time to UI
 - Rework screens:
-  - Put "Import" and "Details" columns onto "All videos" screen,
-    then remove "Unimported videos" table.
   - Figure out what else to put onto front page.
-  - Add more tables to various screens
-  - Add an "all races" screen
-  - Make most tables paginated with controls for # to show at once
-  - Add a "miscellaneous stats" screen with random interesting stats
-    Or (and?) add "all characters" and "all races" screens that show information
-    about all of them, which is probably more interesting than looking at only
-    one at a time.
-  - Add summary by day?
+    Idea: "frivolities": slugfest races, billings, keithings
+    Idea: table of most recent day's results
+  - Add more to the "track details" screen and/or deep link to corresponding
+    track on "all tracks" screen
   - Add race and character images where appropriate?
-  - Add a master "select these races and show me this information" screen?
 - Manually check the full output on all videos -- see "Known Issues" below.
   Previous problem videos include recording-0003.
 

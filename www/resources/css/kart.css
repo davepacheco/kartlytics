@@ -49,6 +49,12 @@ div.kBody {
 	text-shadow: 1px 1px 1px #cccccc;
 }
 
+.kBodyText {
+	font-size: large;
+	margin-left: auto;
+	margin-right: auto;
+}
+
 .kKartlyticsTitle {
 	color: #000044;
 	font-size: large;
@@ -81,6 +87,11 @@ div.kProgressBar {
 	height: 10px;
 }
 
+div.kSummaryBody > div {
+	float: left;
+	width: 40%;
+	padding: 20px;
+}
 
 /*
  * The "Console" is the actual body of the page where the real content lives.
@@ -110,13 +121,16 @@ div.kProgressBar {
 
 	.kConsoleHeader {
 		height: 40px;
+		white-space: nowrap;
 	}
 
 	.kConsoleHeaderBox {
 		text-align: left;
 		line-height: 1.6em;
-		width: 350px;
-		float: right;
+		width: 450px;
+		position: absolute;
+		right: 15px;
+		top: 20px;
 	}
 
 	.kConsoleHeaderBox > * {
@@ -301,6 +315,9 @@ table td.kDataPlayerNum, table th.kDataPlayerNum {
 td.kDataPlayerNum, td.kDataPlayerTime, td.kDataPlayerPercentage,
 th.kDataPlayerNum, th.kDataPlayerTime, th.kDataPlayerPercentage {
 	text-align: right;
+	padding-left: 5px;
+	padding-right: 5px;
+	width: 15px;
 }
 
 table.kDynamic {
