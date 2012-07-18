@@ -297,10 +297,16 @@ function kScreenSummaryLoad()
 	var nraces = 0;
 	var players = {};
 	var trackcounts = {};
+	var dateraces = {};
 	var topraces = [];
+	var latest;
+
+	var toptbl = $('<table class="kDynamic kSummaryBody"></table>');
+	var tblrow = $('<tr></tr>');
+	var tbldiv = $('<td class="kDynamic"></td>');
 
 	var text = $([
-	    '<div class="kDynamic">',
+	    '<td class="kDynamic">',
 	    '<p class="kBodyText">Kartlytics.com records results and stats ',
 	    'for Mario Kart 64 races.  The records here are automatically ',
 	    'computed from screen captures of actual races.  If you\'re ',
@@ -309,14 +315,13 @@ function kScreenSummaryLoad()
 	    '<p class="kBodyText">The ',
 	    '<a href="https://github.com/davepacheco/kartlytics">software ',
 	    'behind kartlytics</a> is open source.</p>',
-	    '</div>'
+	    '</td>'
 	].join(''));
 
-	var div = $('<div class="kDynamic kSummaryBody"></div>');
-	var tbldiv = $('<div class="kDynamic"></div>');
-	kDomConsole.append(div);
-	div.append(tbldiv);
-	div.append(text);
+	kDomConsole.append(toptbl);
+	toptbl.append(tblrow);
+	tblrow.append(tbldiv);
+	tblrow.append(text);
 
 	kEachRace(true, function (race) {
 		nraces++;
@@ -328,6 +333,12 @@ function kScreenSummaryLoad()
 			trackcounts[race['track']] = 0;
 
 		trackcounts[race['track']]++;
+
+		var key = Math.floor(
+		    race['start_time'] / (1000 * 60 * 60 * 24));
+		if (!dateraces[key])
+			dateraces[key] = [];
+		dateraces[key].push(race);
 	});
 
 	metadata.push([ 'Total races', nraces ]);
@@ -368,6 +379,66 @@ function kScreenSummaryLoad()
 	    'aaData': topraces,
 	    'fnCreatedRow': function (tr, data) {
 		klink($(tr).find('.kDataRaceTrack'), 'track');
+	    }
+	});
+
+	latest = Math.max.apply(null, Object.keys(dateraces));
+	topraces = dateraces[latest].map(function (race) {
+		var i, winner;
+
+		for (i = 0; i < race['players'].length; i++) {
+			if (race['players'][i]['rank'] == 1)
+				break;
+		}
+
+		winner = race['players'][i];
+
+		return ([
+		    race,
+		    kDateTime(race['start_time']),
+		    race['players'].length + 'P',
+		    race['mode'],
+		    race['level'] || '',
+		    race['track'],
+		    kDuration(race['duration'], true),
+		    ucfirst(winner['char']),
+		    winner['person']
+		]);
+	});
+
+	kMakeDynamicTable(kDomConsole, 'Latest session', {
+	    'aoColumns': [ {
+		'bVisible': false
+	    }, {
+		'sTitle': 'Date',
+		'sClass': 'kDataRaceDate'
+	    }, {
+		'sTitle': 'NPl',
+		'sClass': 'kDataRaceNPl'
+	    }, {
+		'sTitle': 'Mode',
+		'sClass': 'kDataRaceMode'
+	    }, {
+		'sTitle': 'Lvl',
+		'sClass': 'kDataRaceLvl'
+	    }, {
+		'sTitle': 'Track',
+		'sClass': 'kDataRaceTrack'
+	    }, {
+		'sTitle': 'Time',
+		'sClass': 'kDataRaceTime'
+	    }, {
+		'sTitle': 'WinC',
+		'sClass': 'kDataPlayerCharacter'
+	    }, {
+		'sTitle': 'WinH',
+		'sClass': 'kDataPlayerName'
+	    } ],
+	    'aaData': topraces,
+	    'fnCreatedRow': function (tr, data) {
+		klink($(tr).find('td.kDataRaceDate'), 'race',
+		    data[0]['raceid']);
+		klink($(tr).find('td.kDataRaceTrack'), 'track');
 	    }
 	});
 }

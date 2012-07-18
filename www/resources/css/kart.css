@@ -87,12 +87,6 @@ div.kProgressBar {
 	height: 10px;
 }
 
-div.kSummaryBody > div {
-	float: left;
-	width: 40%;
-	padding: 20px;
-}
-
 /*
  * The "Console" is the actual body of the page where the real content lives.
  */
