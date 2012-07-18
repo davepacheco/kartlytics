@@ -55,6 +55,11 @@ var kTables = [];		/* list of dynamic tables */
 var kForceRefresh = false;	/* force refresh on data update */
 
 /*
+ * Configuration.
+ */
+var kKeithingThreshold = 10000;
+
+/*
  * Initialization and data load.  Data is reloaded on page load, after making a
  * server-side change, and periodically when we know there are videos being
  * processed (and updated) on the server.
@@ -299,6 +304,7 @@ function kScreenSummaryLoad()
 	var trackcounts = {};
 	var dateraces = {};
 	var topraces = [];
+	var keithings = [];
 	var latest;
 
 	var toptbl = $('<table class="kDynamic kSummaryBody"></table>');
@@ -324,21 +330,62 @@ function kScreenSummaryLoad()
 	tblrow.append(text);
 
 	kEachRace(true, function (race) {
+		/* Compute total number of races. */
 		nraces++;
+
+		/* Compute total number of distinct players. */
 		race['players'].forEach(function (p) {
 			players[p['person']] = true;
 		});
 
+		/* Compute popular tracks. */
 		if (!trackcounts.hasOwnProperty(race['track']))
 			trackcounts[race['track']] = 0;
 
 		trackcounts[race['track']]++;
 
+		/* Identify most recent session. */
 		var key = Math.floor(
 		    race['start_time'] / (1000 * 60 * 60 * 24));
 		if (!dateraces[key])
 			dateraces[key] = [];
 		dateraces[key].push(race);
+
+		/* Compute keithings. */
+		var kbyp = new Array(race['players'].length + 1);
+
+		kRaceSegments(race, true, function (_, seg) {
+			var r1, rlast;
+
+			/*
+			 * A "Keithing" is scored when a player moves from 1st
+			 * to last place within kKeithingThreshold ms.  We store
+			 * the last segment in which a player was in 1st place
+			 * in "kbyp", then when we find them in last we check
+			 * whether they've been Keithed.
+			 */
+			for (var i = 0; i < seg['players'].length; i++) {
+				if (seg['players'][i]['rank'] == 1)
+					r1 = i;
+				else if (seg['players'][i]['rank'] ==
+				    race['players'].length)
+					rlast = i;
+			}
+
+			if (kbyp[rlast] &&
+			    seg['vstart'] - kbyp[rlast] < kKeithingThreshold) {
+				keithings.push({
+				    'race': race,
+				    'prev': kbyp[rlast],
+				    'segment': seg,
+				    'player': rlast
+				});
+
+				kbyp[rlast] = 0;
+			}
+
+			kbyp[r1] = seg['vend'];
+		});
 	});
 
 	metadata.push([ 'Total races', nraces ]);
@@ -439,6 +486,64 @@ function kScreenSummaryLoad()
 		klink($(tr).find('td.kDataRaceDate'), 'race',
 		    data[0]['raceid']);
 		klink($(tr).find('td.kDataRaceTrack'), 'track');
+		klink($(tr).find('td.kDataPlayerName'), 'player');
+	    }
+	});
+
+	keithings = keithings.map(function (k) {
+		var race = k['race'];
+
+		return ([
+		    race,
+		    kDateTime(race['start_time']),
+		    race['players'].length + 'P',
+		    race['mode'],
+		    race['level'] || '',
+		    race['track'],
+		    race['players'][k['player']]['person'],
+		    kDuration(k['prev'] - race['vstart'], true),
+		    kDuration(k['segment']['vstart'] - race['vstart'], true),
+		    kDuration(k['segment']['vstart'] - k['prev'], true)
+		]);
+	});
+
+	kMakeDynamicTable(kDomConsole, 'Keithings (all time)', {
+	    'aoColumns': [ {
+		'bVisible': false
+	    }, {
+		'sTitle': 'Date',
+		'sClass': 'kDataRaceDate'
+	    }, {
+		'sTitle': 'NPl',
+		'sClass': 'kDataRaceNPl'
+	    }, {
+		'sTitle': 'Mode',
+		'sClass': 'kDataRaceMode'
+	    }, {
+		'sTitle': 'Lvl',
+		'sClass': 'kDataRaceLvl'
+	    }, {
+		'sTitle': 'Track',
+		'sClass': 'kDataRaceTrack'
+	    }, {
+		'sTitle': 'Who',
+		'sClass': 'kDataPlayerName'
+	    }, {
+		'sTitle': 'From',
+		'sClass': 'kDataRaceTime'
+	    }, {
+		'sTitle': 'To',
+		'sClass': 'kDataRaceTime'
+	    }, {
+		'sTitle': 'Over',
+		'sClass': 'kDataRaceTime'
+	    } ],
+	    'aaData': keithings,
+	    'fnCreatedRow': function (tr, data) {
+		klink($(tr).find('td.kDataRaceDate'), 'race',
+		    data[0]['raceid']);
+		klink($(tr).find('td.kDataRaceTrack'), 'track');
+		klink($(tr).find('td.kDataPlayerName'), 'player');
 	    }
 	});
 }

@@ -4,8 +4,7 @@ Current status:
 - Add processing time to UI
 - Rework screens:
   - Figure out what else to put onto front page.
-    Idea: "frivolities": slugfest races, billings, keithings
-    Idea: table of most recent day's results
+    Idea: "frivolities": slugfest races, billings
   - Add more to the "track details" screen and/or deep link to corresponding
     track on "all tracks" screen
   - Add race and character images where appropriate?
