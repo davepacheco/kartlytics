@@ -305,6 +305,7 @@ function kScreenSummaryLoad()
 	var dateraces = {};
 	var topraces = [];
 	var keithings = [];
+	var slugfests = [];
 	var latest;
 
 	var toptbl = $('<table class="kDynamic kSummaryBody"></table>');
@@ -351,11 +352,15 @@ function kScreenSummaryLoad()
 			dateraces[key] = [];
 		dateraces[key].push(race);
 
-		/* Compute keithings. */
+		/* Compute keithings and slugfests. */
 		var kbyp = new Array(race['players'].length + 1);
+		var count = 0;
+		var duration = race['vend'] - race['vstart'];
 
 		kRaceSegments(race, true, function (_, seg) {
 			var r1, rlast;
+
+			count++;
 
 			/*
 			 * A "Keithing" is scored when a player moves from 1st
@@ -386,6 +391,8 @@ function kScreenSummaryLoad()
 
 			kbyp[r1] = seg['vend'];
 		});
+
+		slugfests.push([ race, count / duration ]);
 	});
 
 	metadata.push([ 'Total races', nraces ]);
@@ -544,6 +551,50 @@ function kScreenSummaryLoad()
 		    data[0]['raceid']);
 		klink($(tr).find('td.kDataRaceTrack'), 'track');
 		klink($(tr).find('td.kDataPlayerName'), 'player');
+	    }
+	});
+
+	slugfests.sort(function (a, b) { return (b[1] - a[1]); });
+	slugfests.slice(0, 5);
+	slugfests = slugfests.map(function (sf) {
+		var race = sf[0];
+		return ([
+		    race,
+		    kDateTime(race['start_time']),
+		    race['players'].length + 'P',
+		    race['mode'],
+		    race['level'] || '',
+		    race['track'],
+		    (sf[1] * 1000 * 60).toFixed(2)
+		]);
+	});
+
+	kMakeDynamicTable(kDomConsole, 'Wildest races', {
+	    'aoColumns': [ {
+		'bVisible': false
+	    }, {
+		'sTitle': 'Date',
+		'sClass': 'kDataRaceDate'
+	    }, {
+		'sTitle': 'NPl',
+		'sClass': 'kDataRaceNPl'
+	    }, {
+		'sTitle': 'Mode',
+		'sClass': 'kDataRaceMode'
+	    }, {
+		'sTitle': 'Lvl',
+		'sClass': 'kDataRaceLvl'
+	    }, {
+		'sTitle': 'Track',
+		'sClass': 'kDataRaceTrack'
+	    }, {
+		'sTitle': 'Changes/min'
+	    } ],
+	    'aaData': slugfests,
+	    'fnCreatedRow': function (tr, data) {
+		klink($(tr).find('td.kDataRaceDate'), 'race',
+		    data[0]['raceid']);
+		klink($(tr).find('td.kDataRaceTrack'), 'track');
 	    }
 	});
 }
