@@ -555,8 +555,7 @@ function kScreenSummaryLoad()
 	});
 
 	slugfests.sort(function (a, b) { return (b[1] - a[1]); });
-	slugfests.slice(0, 5);
-	slugfests = slugfests.map(function (sf) {
+	slugfests = slugfests.slice(0, 5).map(function (sf) {
 		var race = sf[0];
 		return ([
 		    race,
