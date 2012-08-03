@@ -318,10 +318,10 @@ function kScreenSummaryLoad()
 	    'for Mario Kart 64 races.  The records here are automatically ',
 	    'computed from screen captures of actual races.  If you\'re ',
 	    'wondering where to start, check out <a href="#races">the ' +
-	    'races.</a></p>',
-	    '<p class="kBodyText">The ',
-	    '<a href="https://github.com/davepacheco/kartlytics">software ',
-	    'behind kartlytics</a> is open source.</p>',
+	    'races</a> or the stats below.</p>',
+	    '<p class="kBodyText">See the ',
+	    '<a href="https://github.com/davepacheco/kartlytics">kartlytics ',
+	    'github project</a> for details.</p>',
 	    '</td>'
 	].join(''));
 
