@@ -1418,7 +1418,8 @@ function kScreenVideoLoad(args)
 
 	$('td#kVideoVideo').append(
 	    '<video width="320" height="240" controls="controls">' +
-	    '<source src="/api/files/' + vidid + '" type="video/quicktime" />' +
+	    '<source src="/api/files/' + vidid +
+	    '/video.webm" type="video/webm" />' +
 	    '</video>');
 
 	kMakeDynamicTable(kDomConsole, 'Races', {

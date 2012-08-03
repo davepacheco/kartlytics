@@ -118,10 +118,16 @@ function initData()
 	});
 
 	mod_jsprim.forEachKey(klVideos, function (_, video) {
-		if (video.processed)
-			return;
-
-		klVideoQueue.push(video.id);
+		if (!video.processed)
+			klVideoQueue.push({
+			    'vidid': video.id,
+			    'action': 'kartvid'
+			});
+		else if (!video.webm)
+			klVideoQueue.push({
+			    'vidid': video.id,
+			    'action': 'webm'
+			});
 	});
 }
 
@@ -161,6 +167,7 @@ function initServer()
 	klServer.post('/kart/video', auth, upload);
 	klServer.get('/api/videos', apiVideosGet);
 	klServer.get('/api/files/:id/.*\.mov', apiFilesGetVideo);
+	klServer.get('/api/files/:id/.*\.webm', apiFilesGetVideo);
 	klServer.get('/api/files/:id/pngs/.*', apiFilesGetFrame);
 	klServer.put('/api/videos/:id', auth,
 	    mod_restify.bodyParser({ 'mapParams': false }), apiVideosPut);
@@ -294,12 +301,14 @@ function apiVideosGet(request, response, next)
 			obj.state = 'error';
 		} else if (!video.saved) {
 			obj.state = 'uploading';
-		} else if (!video.processed && !video.child) {
+		} else if ((!video.processed || !video.webm) && !video.child) {
 			obj.state = 'waiting';
 		} else if (!video.processed) {
 			obj.state = 'reading';
 			obj['frame'] = video.frame || 0;
 			obj['nframes'] = video.maxframes || video.frame || 100;
+		} else if (!video.webm) {
+			obj.state = 'transcoding';
 		} else if (!video.metadata) {
 			obj.state = 'unimported';
 		} else {
@@ -346,7 +355,7 @@ var klMetadataSchema = {
  */
 function apiFilesGetVideo(request, response, next)
 {
-	var uuid, video;
+	var uuid, video, which;
 
 	uuid = request.params['id'];
 
@@ -356,7 +365,9 @@ function apiFilesGetVideo(request, response, next)
 	}
 
 	video = klVideos[uuid];
-	fileServer(video.filename, request, response, next);
+	which = mod_jsprim.endsWith(request.url, '.webm') ?
+	    video.webm : video.filename;
+	fileServer(which, request, response, next);
 }
 
 /*
@@ -367,8 +378,6 @@ function apiFilesGetFrame(request, response, next)
 	var uuid, video;
 
 	uuid = request.params['id'];
-
-	request.log.info('video uuid', uuid);
 
 	if (!klVideos.hasOwnProperty(uuid)) {
 		next(new mod_restify.ResourceNotFoundError());
@@ -472,7 +481,7 @@ function apiVideosRerun(request, response, next)
 		}
 
 		response.send(200);
-		klVideoQueue.push(video.id);
+		klVideoQueue.push({ 'vidid': video.id, 'action': 'kartvid' });
 	});
 }
 
@@ -540,7 +549,7 @@ function processVideo(file)
 			return;
 
 		video.saved = true;
-		klVideoQueue.push(video.id);
+		klVideoQueue.push({ 'vidid': video.id, 'action': 'kartvid' });
 	});
 }
 
@@ -553,7 +562,7 @@ function saveVideo(video, metadata, callback)
 	var tmpfile = video.metadataFile + 'tmp';
 	var keys = [ 'id', 'name', 'filename', 'uploaded', 'metadataFile',
 	    'eventsFile', 'saved', 'processed', 'metadata', 'races', 'error',
-	    'stdout', 'stderr', 'crtime', 'pngDir' ];
+	    'stdout', 'stderr', 'crtime', 'pngDir', 'webm' ];
 	var obj = {};
 	var when = mod_jsprim.iso8601(new Date());
 
@@ -593,11 +602,16 @@ function saveVideo(video, metadata, callback)
 	    });
 }
 
-function vidProcessFrames(vidid, callback)
+function vidProcessFrames(arg, callback)
 {
 	var video;
 
-	video = klVideos[vidid];
+	if (arg.action == 'webm') {
+		vidRunWebm(arg.vidid, callback);
+		return;
+	}
+
+	video = klVideos[arg.vidid];
 
 	if (!video.pngDir)
 		video.pngDir = video.filename + '.pngs';
@@ -610,7 +624,43 @@ function vidProcessFrames(vidid, callback)
 			return;
 		}
 
-		vidRunKartvid(vidid, callback);
+		vidRunKartvid(arg.vidid, callback);
+	});
+}
+
+function vidRunWebm(vidid, callback)
+{
+	var video, child, stdout, stderr;
+
+	video = klVideos[vidid];
+	mod_assert.ok(video.child === undefined);
+
+	video.webm_stdout = stdout = '';
+	video.webm_stderr = stderr = '';
+	video.child = child = mod_child.spawn('ffmpeg',
+	    [ '-y', '-i', video.filename, video.filename + '.webm' ]);
+	video.log.info('invoking "ffmpeg -y -i %s %s',
+	    video.filename, video.filename + '.webm');
+
+	child.stdout.on('data', function (chunk) { stdout += chunk; });
+	child.stderr.on('data', function (chunk) { stderr += chunk; });
+
+	child.on('exit', function (code) {
+		video.child = undefined;
+
+		if (code !== 0) {
+			video.error = mod_extsprintf.sprintf(
+			    'ffmpeg exited with code %d; stderr = %s',
+			    code, stderr);
+			video.log.error(video.error);
+			callback();
+			return;
+		}
+
+		video.log.info('ffmpeg successfully ' +
+		    'processed %s', video.filename);
+		video.webm = video.filename + '.webm';
+		saveVideo(video, undefined, callback);
 	});
 }
 
@@ -664,6 +714,7 @@ function vidRunKartvid(vidid, callback)
 			    'processed %s', video.filename);
 			video.processed = true;
 			saveVideo(video, undefined, callback);
+			klVideoQueue.push({ 'vidid': vidid, 'action': 'webm' });
 		});
 	});
 }
