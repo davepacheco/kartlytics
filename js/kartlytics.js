@@ -31,6 +31,9 @@ var klAuth, klLog, klServer;
 var klVideos = {};
 var klVideoQueue;
 
+process.env['PATH'] += ':/usr/local/bin';
+process.env['LD_LIBRARY_PATH'] += ':/usr/local/lib';
+
 function main()
 {
 	var parser, option;
@@ -638,7 +641,8 @@ function vidRunWebm(vidid, callback)
 	video.webm_stdout = stdout = '';
 	video.webm_stderr = stderr = '';
 	video.child = child = mod_child.spawn('ffmpeg',
-	    [ '-y', '-i', video.filename, video.filename + '.webm' ]);
+	    [ '-y', '-i', video.filename, '-strict', '-2',
+	    video.filename + '.webm' ]);
 	video.log.info('invoking "ffmpeg -y -i %s %s',
 	    video.filename, video.filename + '.webm');
 
