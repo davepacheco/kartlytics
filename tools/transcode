@@ -1,0 +1,15 @@
+#!/bin/bash
+
+#
+# Re-encodes the given video files with settings appropriate for kartlytics.
+#
+
+for file in "$@"; do
+	echo "$(date) $file"
+	base=$(basename $file)
+	root=${base%.*}
+	ext=${base##*.}
+	newname=$(dirname $file)/$root-small.$ext
+	ffmpeg -i $file -b:v 3584k -g 15 $newname > /dev/null 2>&1 || \
+	    echo "FAIL"
+done
