@@ -3,7 +3,7 @@
 #
 BUILDOS=$(shell uname -s)
 CC = gcc
-CFLAGS = -Wall -O -fno-omit-frame-pointer
+CFLAGS = -Wall -O2 -fno-omit-frame-pointer
 
 ifeq ($(BUILDOS),Darwin)
 	LIBPNG_CPPFLAGS = -I/usr/X11/include 
@@ -78,7 +78,7 @@ CSCOPE_DIRS 	+= js www
 all: $(KARTVID) $(MASKS_GENERATED) $(NODE_MODULES)
 
 clean-kartvid:
-	-rm -f $(KARTVID)
+	-rm -f $(KARTVID) out/*.o
 
 clean-masks:
 	-rm -f $(MASKS_GENERATED)
