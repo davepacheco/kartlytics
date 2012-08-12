@@ -45,7 +45,8 @@ function parseKartvid(video)
 			}
 
 			race = {
-				'start_time': entry.time,
+				'vstart': entry.time,
+				'vend': undefined,
 				'mode': trackMode(entry.track),
 				'track': trackName(entry.track),
 				'players': entry.players,
@@ -67,8 +68,13 @@ function parseKartvid(video)
 			}
 
 			segment = {
-				'start': entry.time,
-				'players': entry.players,
+				'vstart': entry.time,
+				'players': entry.players.map(function (p) {
+					return ({
+				            'rank': p.position,
+					    'lap': p.lap
+					});
+				}),
 				'source': entry['source']
 			};
 
@@ -76,14 +82,16 @@ function parseKartvid(video)
 		}
 
 		if (segment !== undefined) {
-			segment.end = entry.time;
+			segment.vend = entry.time;
 			race['segments'].push(segment);
 			segment = undefined;
 		}
 
-		race.end = entry.time;
+		race.vend = entry.time;
 		race.end_source = entry.source;
-		race.results = entry.players;
+		race.players.forEach(function (p, j) {
+			p['rank'] = entry.players[j]['position'];
+		});
 		races.push(race);
 		race = undefined;
 	});

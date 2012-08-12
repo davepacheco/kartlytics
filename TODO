@@ -1,6 +1,4 @@
 Current status:
-- Add transcode-to-MP4 (using ffmpeg -i ...  -b:v 400k -b:a 96k ....mp4) and
-  have the HTML5 video element refer to that file.
 - Add processing time to UI
 - Rework screens:
   - Figure out what else to put onto front page.
