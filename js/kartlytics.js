@@ -138,17 +138,23 @@ function initData()
 		var video = JSON.parse(contents);
 
 		video.log = klLog.child({ 'video': video.name });
+		video.ntasks = 0;
 		klVideos[video.id] = video;
 	});
 
 	mod_jsprim.forEachKey(klVideos, function (_, video) {
-		if (!video.processed)
+		if (!video.processed) {
 			klVideoQueue.push({
 			    'vidid': video.id,
 			    'action': 'kartvid'
 			});
-		else
-			vidDispatchWebm(video);
+
+			video.ntasks++;
+
+			return;
+		}
+
+		vidDispatchWebm(video);
 	});
 }
 
@@ -353,14 +359,14 @@ function apiVideosGet(request, response, next)
 			obj.state = 'uploading';
 			obj['frame'] = video.uploadForm.bytesReceived;
 			obj['nframes'] = video.uploadForm.bytesExpected;
-		} else if (!video.processed && !video.child) {
-			obj.state = 'waiting';
-		} else if (!video.processed) {
+		} else if (!video.processed && video.child) {
 			obj.state = 'reading';
 			obj['frame'] = video.frame || 0;
 			obj['nframes'] = video.maxframes || video.frame || 100;
 		} else if (video.child) {
 			obj.state = 'transcoding';
+		} else if (video.ntasks > 0) {
+			obj.state = 'waiting';
 		} else if (!video.metadata) {
 			obj.state = 'unimported';
 		} else {
@@ -560,6 +566,7 @@ function apiVideosRerun(request, response, next)
 
 		response.send(200);
 		klVideoQueue.push({ 'vidid': video.id, 'action': 'kartvid' });
+		video.ntasks++;
 	});
 }
 
@@ -597,6 +604,8 @@ function apiRerunAll(request, response, next)
 			    'vidid': vidid,
 			    'action': 'kartvid'
 			});
+
+			klVideos[vidid].ntasks++;
 
 			callback();
 		});
@@ -673,6 +682,7 @@ function upload(request, response, next)
 		    'stdout': undefined,
 		    'stderr': undefined,
 
+		    'ntasks': 0,
 		    'log': klLog.child({ 'video': uuid })
 		};
 	}
@@ -699,10 +709,13 @@ function upload(request, response, next)
 				return;
 
 			video.saved = true;
+
 			klVideoQueue.push({
 			    'vidid': video.id,
 			    'action': 'kartvid'
 			});
+
+			video.ntasks++;
 		});
 	});
 }
@@ -762,12 +775,13 @@ function vidTaskRun(arg, callback)
 {
 	var video;
 
+	video = klVideos[arg.vidid];
+	video.ntasks--;
+
 	if (arg.action == 'webm') {
 		vidTaskRaceWebm(arg, callback);
 		return;
 	}
-
-	video = klVideos[arg.vidid];
 
 	if (!video.pngDir)
 		video.pngDir = video.filename + '.pngs';
@@ -816,6 +830,7 @@ function vidTaskRaceWebm(arg, callback)
 			race['webm'] = video.id + '.webm/race' +
 			    arg.racenum + '.webm';
 			saveVideo(video, undefined, callback);
+			vidDispatchWebm(video);
 		});
 	});
 
@@ -947,12 +962,18 @@ function vidParseRaces(video)
 
 function vidDispatchWebm(video)
 {
+	var i, race;
+
 	if (!video.races || video.races.length === 0)
 		return;
 
-	video.races.forEach(function (race) {
+	/* jsl:ignore */
+	for (i = 0; i < video.races.length; i++) {
+	/* jsl:end */
+		race = video.races[i];
+
 		if (race['webm'] || !race['vend'] || !race['vstart'])
-			return;
+			continue;
 
 		if (!video.webmDir)
 			video.webmDir = video.filename + '.webm';
@@ -967,11 +988,17 @@ function vidDispatchWebm(video)
 
 		klVideoQueue.push({
 		    'action': 'webm',
+		    'vidid': video['id'],
 		    'video': video,
-		    'racenum': race['num'],
+		    'racenum': i,
 		    'args': args
 		});
-	});
+
+		video.ntasks++;
+
+		/* We can only dispatch one at a time. */
+		break;
+	}
 }
 
 /*
