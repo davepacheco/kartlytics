@@ -40,8 +40,16 @@ typedef struct {
 	kv_player_t	ks_players[KV_MAXPLAYERS];	/* player details */
 } kv_screen_t;
 
+typedef enum {
+	KV_IDENT_START   = 0x1,
+	KV_IDENT_TRACK   = 0x2,
+	KV_IDENT_CHARS   = 0x4,
+	KV_IDENT_ALL     = KV_IDENT_START | KV_IDENT_TRACK | KV_IDENT_CHARS,
+	KV_IDENT_NOTRACK = KV_IDENT_ALL & (~KV_IDENT_TRACK),
+} kv_ident_t;
+
 int kv_init(const char *);
-int kv_ident(img_t *, kv_screen_t *, boolean_t);
+void kv_ident(img_t *, kv_screen_t *, kv_ident_t);
 void kv_ident_matches(kv_screen_t *, const char *, double);
 int kv_screen_compare(kv_screen_t *, kv_screen_t *, kv_screen_t *);
 int kv_screen_invalid(kv_screen_t *, kv_screen_t *, kv_screen_t *);

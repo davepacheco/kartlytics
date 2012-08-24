@@ -27,6 +27,8 @@ static int cmd_decode(int, char *[]);
 static int write_frame(video_frame_t *, void *);
 static int cmd_video(int, char *[]);
 static int ident_frame(video_frame_t *, void *);
+static int cmd_starts(int, char *[]);
+static int check_start_frame(video_frame_t *, void *);
 static int cmd_rgb2hsv(int, char *[]);
 
 #define	MAX_FRAMES	16384
@@ -53,7 +55,9 @@ static kv_cmd_t kv_commands[] = {
       "emit race events for a sequence of video frames" },
     { "rgb2hsv", cmd_rgb2hsv, "r g b", "convert rgb value to hsv" },
     { "video", cmd_video, "[-j] [-d debugdir] video_file",
-      "emit race events for an entire video" }
+      "emit race events for an entire video" },
+    { "starts", cmd_starts, "video_file",
+      "only scan for \"race start\" events and emit them on stdout" },
 };
 
 static int kv_ncommands = sizeof (kv_commands) / sizeof (kv_commands[0]);
@@ -281,11 +285,8 @@ cmd_ident(int argc, char *argv[])
 		return (EXIT_FAILURE);
 	}
 
-	if (kv_ident(image, &info, B_TRUE) != 0) {
-		warnx("failed to process image");
-	} else {
-		kv_screen_json(argv[0], 0, 0, &info, NULL, stdout);
-	}
+	kv_ident(image, &info, B_TRUE);
+	kv_screen_json(argv[0], 0, 0, &info, NULL, stdout);
 
 	return (EXIT_SUCCESS);
 }
@@ -543,4 +544,47 @@ cmd_rgb2hsv(int argc, char *argv[])
 	(void) printf("h s v = (%d, %d, %d)\n", hsv.h, hsv.s, hsv.v);
 
 	return (EXIT_SUCCESS);
+}
+
+static int
+cmd_starts(int argc, char *argv[])
+{
+	video_t *vp;
+	int rv, last;
+
+	if (kv_init(dirname((char *)kv_arg0)) != 0) {
+		warnx("failed to initialize masks");
+		return (EXIT_FAILURE);
+	}
+
+	if (argc < 1) {
+		warnx("missing input file");
+		return (EXIT_USAGE);
+	}
+
+	if ((vp = video_open(argv[0])) == NULL)
+		return (EXIT_FAILURE);
+
+	last = 0;
+	rv = video_iter_frames(vp, check_start_frame, &last);
+	video_free(vp);
+	return (rv);
+}
+
+static int
+check_start_frame(video_frame_t *vp, void *rawarg)
+{
+	kv_screen_t ks;
+	int *lastp = rawarg;
+
+	if (*lastp > 0 && vp->vf_frametime - *lastp < 3000)
+		return (0);
+
+	kv_ident(&vp->vf_image, &ks, KV_IDENT_START);
+	if (ks.ks_events & KVE_RACE_START) {
+		*lastp = vp->vf_frametime;
+		(void) printf("%d\n", (int) (*lastp / 1000));
+	}
+
+	return (0);
 }

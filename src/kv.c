@@ -113,8 +113,8 @@ kv_init(const char *dirname)
 	return (0);
 }
 
-int
-kv_ident(img_t *image, kv_screen_t *ksp, boolean_t do_all)
+void
+kv_ident(img_t *image, kv_screen_t *ksp, kv_ident_t which)
 {
 	int i, ndone;
 	double score, checkthresh;
@@ -125,7 +125,13 @@ kv_ident(img_t *image, kv_screen_t *ksp, boolean_t do_all)
 	for (i = 0; i < kv_nmasks; i++) {
 		kmp = &kv_masks[i];
 
-		if (!do_all && KV_MASK_TRACK(kmp->km_name))
+		if (!(which & KV_IDENT_CHARS) && KV_MASK_CHAR(kmp->km_name))
+			continue;
+
+		if (!(which & KV_IDENT_START) && KV_MASK_LAKITU(kmp->km_name))
+			continue;
+
+		if (!(which & KV_IDENT_TRACK) && KV_MASK_TRACK(kmp->km_name))
 			continue;
 
 		score = img_compare(image, kmp->km_image, NULL);
@@ -154,8 +160,6 @@ kv_ident(img_t *image, kv_screen_t *ksp, boolean_t do_all)
 
 	if (ndone >= ksp->ks_nplayers - 1)
 		ksp->ks_events |= KVE_RACE_DONE;
-
-	return (0);
 }
 
 /*
@@ -599,7 +603,7 @@ kv_vidctx_frame(const char *framename, int i, int timems,
 		/* Skip the first frames after a start. See above. */
 		return;
 
-	kv_ident(image, ksp, B_FALSE);
+	kv_ident(image, ksp, KV_IDENT_NOTRACK);
 
 	if (ksp->ks_events & KVE_RACE_START) {
 		if (kvp->kv_last_start != -1) {
@@ -609,7 +613,7 @@ kv_vidctx_frame(const char *framename, int i, int timems,
 			    timems % 60);
 		}
 
-		kv_ident(image, ksp, B_TRUE);
+		kv_ident(image, ksp, KV_IDENT_ALL);
 		bcopy(ksp, &kvp->kv_startbuffer[i % KV_STARTFRAMES],
 		    sizeof (ksp));
 		kv_vidctx_chars(kvp, ksp, i);
