@@ -10,6 +10,10 @@ for file in "$@"; do
 	root=${base%.*}
 	ext=${base##*.}
 	newname=$(dirname $file)/$root-small.$ext
-	ffmpeg -i $file -b:v 3584k -g 15 $newname > /dev/null 2>&1 || \
-	    echo "FAIL"
+	if ! ffmpeg -i $file -b:v 3584k -g 15 $newname > /dev/null 2>&1 ; then
+		echo "FAIL"
+	else
+		mv $file $(dirname $file)/$root-big.$ext
+		mv $newname $file
+	fi
 done
