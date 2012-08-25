@@ -25,4 +25,4 @@ u_user=
 [[ $# -gt 2 ]] && u_user="-u$3"
 
 shift 3
-curl $@ $u_user -i -X POST -Ffile=@$u_file $u_url/kart/video
+curl $@ $u_user -i -X POST -Ffile=@$u_file $u_url/kart/video | tee /dev/null
