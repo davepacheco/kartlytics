@@ -57,7 +57,7 @@ var kForceRefresh = false;	/* force refresh on data update */
 /*
  * Configuration.
  */
-var kKeithingThreshold = 10000;
+var kKeithingThreshold = 5000;
 
 /*
  * Initialization and data load.  Data is reloaded on page load, after making a
@@ -415,6 +415,9 @@ function kScreenSummaryLoad()
 			klinkraw($(tr).find('td.kDataValue'), 'players');
 	    }
 	});
+
+	if (nraces === 0)
+		return;
 
 	topraces = Object.keys(trackcounts);
 	topraces.sort(function (t1, t2) {
@@ -853,6 +856,7 @@ function kScreenPlayersLoad(args)
 			if (!players[p.person])
 				players[p.person] = {
 					'ntot': 0,
+					'pts': 0,
 					'n1': 0,
 					'n2': 0,
 					'n3': 0,
@@ -868,6 +872,7 @@ function kScreenPlayersLoad(args)
 			pinfo = players[p.person];
 			pinfo['ntot']++;
 			pinfo['n' + p.rank]++;
+			pinfo['pts'] += [ 0, 9, 6, 3, 1 ][p.rank];
 
 			kRaceSegments(race, true, function (_, seg) {
 				var rank = seg.players[i].rank || '?';
@@ -885,6 +890,8 @@ function kScreenPlayersLoad(args)
 	    return ([
 		p,
 		pinfo['ntot'],
+		pinfo['pts'],
+		(pinfo['pts'] / pinfo['ntot']).toFixed(3),
 		pinfo['n1'],
 		pinfo['n2'],
 		pinfo['n3'],
@@ -910,6 +917,14 @@ function kScreenPlayersLoad(args)
 		'sClass': 'kDataPlayerName'
 	    }, {
 		'sTitle': 'NR',
+		'sClass': 'kDataPlayerNum',
+		'sWidth': '15px'
+	    }, {
+		'sTitle': 'Pts',
+		'sClass': 'kDataPlayerNum',
+		'sWidth': '15px'
+	    }, {
+		'sTitle': 'PPR',
 		'sClass': 'kDataPlayerNum',
 		'sWidth': '15px'
 	    }, {
@@ -1516,6 +1531,7 @@ function kScreenVideosLoad(args)
 		'sTitle': 'Modified',
 		'sClass': 'kDataDateTime'
 	    } ],
+	    'aaSorting': [[ 4, 'desc' ]],
 	    'aaData': videos,
 	    'fnCreatedRow': function (tr, data) {
 		var td;
@@ -2095,7 +2111,7 @@ function kEachRace(filter, iter)
 	for (key in kVideos) {
 		video = kVideos[key];
 
-		if (video.state != 'done')
+		if (!video.metadata)
 			continue;
 
 		video.races.forEach(function (race, i) {

@@ -9,7 +9,7 @@
 html, body {
 	font-family: sans-serif;
 	font-size: small;
-	color: #1F1F66;
+	color: #303285;
 	margin: 0;
 	padding: 0;
 	background-image: url('../img/StartScreen-light.jpg');
@@ -26,6 +26,16 @@ div.kBody {
 	position: absolute;
 	width: 100%;
 	min-height: 95%;
+}
+
+h1,h2,h3 {
+	color: #A68300;
+}
+
+a {
+	color: #4045c8;
+	font-weight: bold;
+	text-decoration: none;
 }
 
 
@@ -91,17 +101,16 @@ div.kProgressBar {
  * The "Console" is the actual body of the page where the real content lives.
  */
 .kConsole {
-	background: #eeeeee;
+	background-color: rgba(235, 235, 238, 0.9);
 	border: 2px #9999aa solid;
 	border-radius: 10px;
-	opacity: 0.8;
 
 	position: absolute;
 	margin-left: 5%;
 	margin-right: 5%;
 	min-width: 85%;
 
-	margin-top: 4%;
+	margin-top: 2%;
 	margin-bottom: 5%;
 	min-height: 85%;
 
