@@ -33,6 +33,7 @@ function vidIdentSplits(filename, callback)
 
 	console.log('file: %s', filename);
 	child = mod_child.spawn('out/kartvid', [ 'starts', filename ]);
+	stderr = '';
 	child.stderr.on('data',
 	    function (chunk) { stderr += chunk.toString('utf8'); });
 
