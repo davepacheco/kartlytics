@@ -53,7 +53,6 @@ var klVideos = {};
 var klVideoQueue;
 
 process.env['PATH'] += ':/usr/local/bin';
-process.env['LD_LIBRARY_PATH'] += ':/usr/local/lib';
 
 function main()
 {
@@ -978,12 +977,17 @@ function vidDispatchWebm(video)
 		if (!video.webmDir)
 			video.webmDir = video.filename + '.webm';
 
+		/*
+		 * We disable audio recording with ffmpeg because the vorbis
+		 * audio encoder is "experimental" in our SmartOS build and
+		 * doesn't seem to work that well.
+		 */
 		var extract_start =
 		    Math.max(0, Math.floor(race['vstart'] / 1000) - 10);
 		var extract_duration =
 		    Math.ceil((race['vend'] - race['vstart']) / 1000) + 20;
 		var args = [ '-y', '-ss', extract_start, '-t', extract_duration,
-		    '-i', video.filename, video.webmDir + '/' +
+		    '-i', video.filename, '-an', video.webmDir + '/' +
 		    race['num'] + '.webm' ];
 
 		klVideoQueue.push({
