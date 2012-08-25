@@ -584,6 +584,7 @@ check_start_frame(video_frame_t *vp, void *rawarg)
 	if (ks.ks_events & KVE_RACE_START) {
 		*lastp = vp->vf_frametime;
 		(void) printf("%d\n", (int) (*lastp / 1000));
+		(void) fflush(stdout);
 	}
 
 	return (0);

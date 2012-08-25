@@ -1,0 +1,109 @@
+#!/usr/bin/env node
+
+/*
+ * vsplit vid1.mov ...: split each input video into separate videos based on the
+ * races contained in it.  The new videos are transcoded to a lower quality.
+ */
+
+var mod_child = require('child_process');
+var mod_carrier = require('carrier');
+var mod_vasync = require('vasync');
+
+var queue;
+
+function main()
+{
+	queue = mod_vasync.queuev({
+	    'concurrency': 1,
+	    'worker': function (task, callback) {
+		task(callback);
+	    }
+	});
+
+	process.argv.slice(2).forEach(function (filename) {
+		queue.push(function (callback) {
+			vidIdentSplits(filename, callback);
+		});
+	});
+}
+
+function vidIdentSplits(filename, callback)
+{
+	var child, stderr, last, count;
+
+	console.log('file: %s', filename);
+	child = mod_child.spawn('out/kartvid', [ 'starts', filename ]);
+	child.stderr.on('data',
+	    function (chunk) { stderr += chunk.toString('utf8'); });
+
+	child.on('exit', function (code) {
+		if (code !== 0)
+			console.error('kartvid failed: %s', stderr);
+
+		if (last)
+			vidAddSplit(filename, last, null, count);
+
+		callback();
+	});
+
+
+	count = 0;
+	mod_carrier.carry(child.stdout, function (line) {
+		var num = parseInt(line, 10);
+
+		if (isNaN(num)) {
+			console.error('error parsing line: %s\n', line);
+			return;
+		}
+
+		if (last)
+			vidAddSplit(filename, last, num, count++);
+
+		last = num;
+	});
+}
+
+function vidAddSplit(filename, from, to, count)
+{
+	var dot = filename.lastIndexOf('.');
+	var base, ext, newfile, start, args;
+
+	if (dot == -1) {
+		base = filename;
+		ext = '.mov';
+	} else {
+		base = filename.substr(0, dot);
+		ext = filename.substr(dot);
+	}
+
+	if (count < 10)
+		newfile = base + '-0' + count + ext;
+	else
+		newfile = base + '-' + count + ext;
+
+	start = Math.max(0, from - 5);
+	args = [ '-ss', start ];
+
+	if (to) {
+		args.push('-t');
+		args.push(Math.max(0, to - start - 4));
+	}
+
+	args = args.concat([ '-i', filename, '-b:v', '3584k',
+	    '-g', '5', newfile ]);
+	queue.push(function (callback) {
+		console.log('ffmpeg ' + args.join(' '));
+
+		var child = mod_child.spawn('ffmpeg', args);
+		child.on('exit', function (code) {
+			if (code !== 0) {
+				console.error('ffmpeg failed on ' +
+				    args.join(' '));
+			}
+
+			callback();
+		});
+	});
+}
+
+main();
