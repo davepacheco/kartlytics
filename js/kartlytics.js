@@ -154,11 +154,18 @@ function initData()
 		}
 
 		if (video.eventsFile) {
-			var contents = mod_fs.readFileSync(video.eventsFile);
+			var webms = video.races.map(
+			    function (r) { return (r['webm']); });
+			contents = mod_fs.readFileSync(video.eventsFile);
 			var lines = contents.toString('utf8').split('\n');
 			var func = mod_kartvid.parseKartvid(video);
 			lines.forEach(func);
 			vidParseRaces(video);
+
+			if (video.races.length === webms.length)
+				video.races.forEach(function (r, i) {
+					r['webm'] = webms[i];
+				});
 		}
 
 		vidDispatchWebm(video);
@@ -737,7 +744,7 @@ function saveVideo(video, metadata, callback)
 	 */
 	var tmpfile = video.metadataFile + 'tmp';
 	var keys = [ 'id', 'name', 'filename', 'uploaded', 'saved', 'processed',
-	    'crtime', 'metadataFile', 'eventsFile', 'pngDir', 'webmDir', 'webm',
+	    'crtime', 'metadataFile', 'eventsFile', 'pngDir', 'webmDir',
 	    'error', 'metadata', 'races', 'error' ];
 	var obj = {};
 	var when = mod_jsprim.iso8601(new Date());
