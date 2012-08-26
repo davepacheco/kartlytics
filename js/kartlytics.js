@@ -153,6 +153,14 @@ function initData()
 			return;
 		}
 
+		if (video.eventsFile) {
+			var contents = mod_fs.readFileSync(video.eventsFile);
+			var lines = contents.toString('utf8').split('\n');
+			var func = mod_kartvid.parseKartvid(video);
+			lines.forEach(func);
+			vidParseRaces(video);
+		}
+
 		vidDispatchWebm(video);
 	});
 }

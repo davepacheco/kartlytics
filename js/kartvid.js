@@ -63,7 +63,7 @@ function parseKartvid(video)
 
 		if (!entry.done) {
 			if (segment !== undefined) {
-				segment.end = entry.time;
+				segment.vend = entry.time;
 				race['segments'].push(segment);
 			}
 
