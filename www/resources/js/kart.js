@@ -173,7 +173,7 @@ var kTableDefaults = {
     'bSearchable': false
 };
 
-function kMakeDynamicTable(parent, header, opts)
+function kMakeDynamicTable(parent, header, opts, label)
 {
 	var id = kId++;
 	var tblid = 'kTable' + id;
@@ -188,6 +188,8 @@ function kMakeDynamicTable(parent, header, opts)
 
 	rv = $('<div class="kDynamic kSubHeader" id="' + divid + '">' +
 	    header + '</div>\n' +
+	    (label ? '<div class="kDynamic kSubHeaderLabel">\n' +
+	        label + '</div>\n' : '') +
 	    '<table id="' + tblid + '" class="kDynamic kDataTable">\n' +
 	    '</table></div>');
 	rv.appendTo(parent);
@@ -519,7 +521,7 @@ function kScreenSummaryLoad()
 		]);
 	});
 
-	kMakeDynamicTable(kDomConsole, 'Keithings (all time)', {
+	kMakeDynamicTable(kDomConsole, 'Keithings', {
 	    'aoColumns': [ {
 		'bVisible': false
 	    }, {
@@ -557,7 +559,8 @@ function kScreenSummaryLoad()
 		klink($(tr).find('td.kDataRaceTrack'), 'track');
 		klink($(tr).find('td.kDataPlayerName'), 'player');
 	    }
-	});
+	}, 'Moving from 1st to 4th in less than ' +
+	    kKeithingThreshold / 1000 + ' seconds');
 
 	slugfests.sort(function (a, b) { return (b[1] - a[1]); });
 	slugfests = slugfests.slice(0, 5).map(function (sf) {
@@ -600,7 +603,7 @@ function kScreenSummaryLoad()
 		    data[0]['raceid']);
 		klink($(tr).find('td.kDataRaceTrack'), 'track');
 	    }
-	});
+	}, 'Races with the most number of rank changes per minute');
 }
 
 function kRemoveDynamicContent()

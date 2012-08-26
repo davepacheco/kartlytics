@@ -85,6 +85,10 @@ a {
 	margin-right: 30px;
 }
 
+.kSubHeaderLabel {
+	margin-top: -8px;
+}
+
 th {
 	color: #000044;
 }
