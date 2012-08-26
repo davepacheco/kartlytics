@@ -737,7 +737,7 @@ function saveVideo(video, metadata, callback)
 	 */
 	var tmpfile = video.metadataFile + 'tmp';
 	var keys = [ 'id', 'name', 'filename', 'uploaded', 'saved', 'processed',
-	    'crtime', 'metadataFile', 'eventsFile', 'pngDir', 'webmDir',
+	    'crtime', 'metadataFile', 'eventsFile', 'pngDir', 'webmDir', 'webm',
 	    'error', 'metadata', 'races', 'error' ];
 	var obj = {};
 	var when = mod_jsprim.iso8601(new Date());
