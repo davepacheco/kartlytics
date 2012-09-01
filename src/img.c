@@ -501,11 +501,3 @@ img_translatexy(img_t *image, long dx, long dy)
 
 	return (newimg);
 }
-
-inline unsigned int
-img_coord(img_t *image, unsigned int x, unsigned int y)
-{
-	assert(x < image->img_width);
-	assert(y < image->img_height);
-	return (x + image->img_width * y);
-}

@@ -39,7 +39,7 @@ int img_write(img_t *, const char *);
 int img_write_ppm(img_t *, FILE *);
 int img_write_png(img_t *, FILE *);
 void img_free(img_t *);
-inline unsigned int img_coord(img_t *, unsigned int, unsigned int);
+#define	img_coord(image, x, y)	((x) + (image)->img_width * (y))
 double img_compare(img_t *, img_t *, img_t **);
 void img_and(img_t *, img_t *);
 
