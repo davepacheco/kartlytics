@@ -140,9 +140,7 @@ video_iter_frames(video_t *vp, frame_iter_t func, void *arg)
 {
 	AVPacket avp;
 	AVFrame *fp;
-	int p, x, y;
 	int width, height, rv, done;
-	img_pixel_t *pxp;
 	video_frame_t frame;
 	struct SwsContext *swsctx;
 
@@ -167,13 +165,7 @@ video_iter_frames(video_t *vp, frame_iter_t func, void *arg)
 	frame.vf_image.img_maxx = width;
 	frame.vf_image.img_miny = 0;
 	frame.vf_image.img_maxy = height;
-	frame.vf_image.img_pixels = calloc(
-	    sizeof (frame.vf_image.img_pixels[0]), width * height);
-
-	if (frame.vf_image.img_pixels == NULL) {
-		warnx("failed to allocate image buffer");
-		return (-1);
-	}
+	frame.vf_image.img_pixels = NULL;
 
 	while (av_read_frame(vp->vf_formatctx, &avp) >= 0) {
 		if (avp.stream_index != vp->vf_stream) {
@@ -193,15 +185,14 @@ video_iter_frames(video_t *vp, frame_iter_t func, void *arg)
 		    vp->vf_frame->linesize, 0, height, vp->vf_framergb->data,
 		    vp->vf_framergb->linesize);
 
-		for (y = 0; y < height; y++) {
-			for (x = 0; x < width; x++) {
-				p = img_coord(&frame.vf_image, x, y);
-				pxp = &frame.vf_image.img_pixels[p];
-				bcopy(fp->data[0] + y * fp->linesize[0] + x *3,
-				    pxp, sizeof (*pxp));
-			}
-		}
-
+		/*
+		 * It turns out that the layout of the data in the video frame
+		 * (fp->data[0]) matches the layout we used in the "img" class,
+		 * so we can just point img_pixels at it.  While a
+		 * pixel-by-pixel copy would keep the abstractions separate, we
+		 * save about 30% of total execution time by skipping the copy.
+		 */
+		frame.vf_image.img_pixels = fp->data[0];
 		frame.vf_framenum++;
 		frame.vf_frametime = vp->vf_framerate * avp.pts * MILLISEC;
 		rv = func(&frame, arg);
