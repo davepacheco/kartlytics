@@ -285,7 +285,7 @@ cmd_ident(int argc, char *argv[])
 		return (EXIT_FAILURE);
 	}
 
-	kv_ident(image, &info, B_TRUE);
+	kv_ident(image, &info, KV_IDENT_ALL);
 	kv_screen_json(argv[0], 0, 0, &info, NULL, stdout);
 
 	return (EXIT_SUCCESS);
