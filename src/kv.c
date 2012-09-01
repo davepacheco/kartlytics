@@ -19,7 +19,7 @@ typedef struct {
 	img_t		*km_image;
 } kv_mask_t;
 
-#define	KV_MAX_MASKS	128
+#define	KV_MAX_MASKS	256
 static kv_mask_t kv_masks[KV_MAX_MASKS];
 static int kv_nmasks = 0;
 
