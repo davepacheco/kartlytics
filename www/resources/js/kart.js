@@ -305,9 +305,7 @@ function kScreenSummaryLoad()
 	var metadata = [];
 	var nraces = 0;
 	var players = {};
-	var trackcounts = {};
 	var dateraces = {};
-	var topraces = [];
 	var keithings = [];
 	var slugfests = [];
 	var latest;
@@ -343,12 +341,6 @@ function kScreenSummaryLoad()
 		race['players'].forEach(function (p) {
 			players[p['person']] = true;
 		});
-
-		/* Compute popular tracks. */
-		if (!trackcounts.hasOwnProperty(race['track']))
-			trackcounts[race['track']] = 0;
-
-		trackcounts[race['track']]++;
 
 		/* Identify most recent session. */
 		var key = Math.floor(
@@ -424,25 +416,17 @@ function kScreenSummaryLoad()
 	if (nraces === 0)
 		return;
 
-	topraces = Object.keys(trackcounts);
-	topraces.sort(function (t1, t2) {
-		return (trackcounts[t2] - trackcounts[t1]);
-	});
-	topraces = topraces.slice(0, 8).map(function (t) {
-		return ([ t, trackcounts[t] ]);
-	});
-
-	kMakeDynamicTable(tbldiv, 'Popular tracks', {
-	    'bSort': false,
-	    'aoColumns': [ {
-		'sTitle': 'Track',
-		'sClass': 'kDataRaceTrack'
-	    }, {
-		'sTitle': 'NRaces'
-	    } ],
-	    'aaData': topraces,
-	    'fnCreatedRow': function (tr, data) {
-		klink($(tr).find('.kDataRaceTrack'), 'track');
+	/* popular track table */
+	races = kRaces(true);
+	cols = kColumnsByName([ 'Track', 'NR' ]);
+	rows = races.map(kExtractValues.bind(null, cols));
+	rows = kRowsAggregate(rows, cols, [ 'Track' ]);
+	rows.sort(function (a, b) { return (b[1] - a[1]); });
+	rows = rows.slice(0, 6);
+	kTable(tbldiv, rows, cols, {
+	    'title': 'Popular tracks',
+	    'dtOptions': {
+		'aaSorting': [ [1, 'desc'] ]
 	    }
 	});
 
@@ -2505,15 +2489,13 @@ function kTable(parent, rows, columns, options)
 	for (key in kTableDefaults)
 		fullopts[key] = kTableDefaults[key];
 
-	if (options) {
-		if (options.dtOptions) {
-			for (key in options)
-				fullopts[key] = options[key];
-		}
-
-		header = options.title || '';
-		label = options.label || '';
+	if (options.dtOptions) {
+		for (key in options.dtOptions)
+			fullopts[key] = options.dtOptions[key];
 	}
+
+	header = options.title || '';
+	label = options.label || '';
 
 	fullopts.aoColumns = columns.map(function (col) {
 		if (col['conf'])
@@ -2536,4 +2518,39 @@ function kTable(parent, rows, columns, options)
 	table = $('table#' + tblid);
 	kTables.push(table.dataTable(fullopts));
 	return (table);
+}
+
+function kRowsAggregate(oldrows, allcols, aggcols)
+{
+	var groups = {};
+	var rows = [];
+	var keyindices = [], addindices = [];
+	var i;
+
+	for (i = 0; i < allcols.length; i++) {
+		/* XXX should be name, but has to be applied to custom cols */
+		if (aggcols.indexOf(allcols[i]['sTitle']) == -1)
+			addindices.push(i);
+		else
+			keyindices.push(i);
+	}
+
+	oldrows.forEach(function (row) {
+		var keyparts = keyindices.map(
+		    function (j) { return (row[j]); });
+		var key = keyparts.join(',');
+
+		if (!groups[key]) {
+			groups[key] = row;
+			rows.push(row);
+			return;
+		}
+
+		addindices.forEach(function (j) {
+			/* XXX support other types of aggregation */
+			groups[key][j] += row[j];
+		});
+	});
+
+	return (rows);
 }
