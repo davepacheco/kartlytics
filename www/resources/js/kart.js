@@ -498,8 +498,7 @@ function kRemoveDynamicContent()
 function kScreenPlayerLoad(args)
 {
 	var pname, filter;
-	var allraces, bychar, bytrack;
-	var bychardata, bytrackdata;
+	var races, rows, cols;
 
 	if (args.length < 1) {
 		kScreenDefault();
@@ -518,208 +517,55 @@ function kScreenPlayerLoad(args)
 		return (false);
 	};
 
-	allraces = [];
-	bychar = {};
-	bytrack = {};
+	races = kRaces(filter);
 
-	kEachRace(filter, function (race) {
-		var i, p, time;
-
-		for (i = 0; i < race.players.length; i++) {
-			if (race.players[i]['person'] == pname)
-				break;
-		}
-
-		p = race.players[i];
-		time = p['time'] ? kDuration(p['time'], true) : '-';
-
-		allraces.push([
-		    race,
-		    kDateTime(race['start_time']),
-		    race['level'] || '',
-		    race['players'].length + 'P',
-		    ordinal(p['rank']),
-		    time,
-		    race['mode'],
-		    'P' + (i + 1),
-		    ucfirst(p['char']),
-		    ucfirst(kCharToClass(p['char'])),
-		    race['track'],
-		    kTrackToCup(race['track'])
-		]);
-
-		if (!bychar[p['char']])
-			bychar[p['char']] = {
-			    'tot': 0,
-			    'p1': 0,
-			    'p2': 0,
-			    'p3': 0,
-			    'p4': 0
-			};
-
-		bychar[p['char']]['tot']++;
-		bychar[p['char']]['p' + p['rank']]++;
-
-		if (!bytrack[race['track']])
-			bytrack[race['track']] = {
-			    'tot': 0,
-			    'p1': 0,
-			    'p2': 0,
-			    'p3': 0,
-			    'p4': 0,
-			    'best': Number.MAX_VALUE
-			};
-
-		bytrack[race['track']]['tot']++;
-		bytrack[race['track']]['p' + p['rank']]++;
-
-		if (p['time'] < bytrack[race['track']]['best'])
-			bytrack[race['track']]['best'] = p['time'];
+	/* races by char */
+	cols = kColumnsByName([ 'Char', 'NR', '%',
+	    'N1st', 'N2nd', 'N3rd', 'N4th' ]);
+	rows = races.map(function (race) {
+		return (kExtractValues(cols, race, pname, races.length));
+	});
+	rows = kRowsAggregate(rows, cols, [ 'Char' ]);
+	kTable(kDomConsole, rows, cols, {
+	    'title': 'Races by character'
 	});
 
-	kMakeDynamicTable(kDomConsole, 'Races', {
-	    'bFilter': true,
-	    'oLanguage': {
-		'sEmptyTable': 'No races for ' + pname + '.'
-	    },
-	    'aoColumns': [ {
-		'bVisible': false
-	    }, {
-		'sTitle': 'Date',
-		'sClass': 'kDataRaceDate'
-	    }, {
-		'sTitle': 'Lvl',
-		'sClass': 'kDataRaceLvl'
-	    }, {
-		'sTitle': 'NPl',
-		'sClass': 'kDataRaceNPl'
-	    }, {
-	        'sTitle': 'Rank',
-		'sClass': 'kDataRaceRank'
-	    }, {
-		'sTitle': 'Time',
-		'sClass': 'kDataRaceTime'
-	    }, {
-		'sTitle': 'Mode',
-		'sClass': 'kDataRaceMode'
-	    }, {
-		'sTitle': 'Pl',
-		'sClass': 'kDataRacePl'
-	    }, {
-		'sTitle': 'Char',
-		'sClass': 'kDataRaceChar'
-	    }, {
-		'sTitle': 'CharClass',
-		'sClass': 'kDataRaceCharClass'
-	    }, {
-		'sTitle': 'Track',
-		'sClass': 'kDataRaceTrack'
-	    }, {
-		'sTitle': 'Cup',
-		'sClass': 'kDataRaceCup'
-	    } ],
-	    'aaData': allraces,
-	    'fnCreatedRow': function (tr, data) {
-	        klink($(tr).find('td.kDataRaceDate'), 'race',
-		    data[0]['raceid']);
-		klink($(tr).find('td.kDataRaceTrack'), 'track');
+	/* races by character class */
+	cols = kColumnsByName([ 'CharClass', 'NR', '%',
+	    'N1st', 'N2nd', 'N3rd', 'N4th' ]);
+	rows = races.map(function (race) {
+		return (kExtractValues(cols, race, pname, races.length));
+	});
+	rows = kRowsAggregate(rows, cols, [ 'CharClass' ]);
+	kTable(kDomConsole, rows, cols, {
+	    'title': 'Races by character class'
+	});
+
+	/* races by track */
+	cols = kColumnsByName([ 'Track', 'Time', 'NR',
+	    'N1st', 'N2nd', 'N3rd', 'N4th' ]);
+	rows = races.map(function (race) {
+		return (kExtractValues(cols, race, pname));
+	});
+	rows = kRowsAggregate(rows, cols, [ 'Track' ], {
+	    'Time': function (t1, t2) {
+		return (t1 < t2 ? t1 : t2);
 	    }
 	});
-
-	bychardata = Object.keys(bychar).map(function (chr) {
-		return ([
-		    ucfirst(chr),
-		    bychar[chr]['tot'],
-		    kPercentage(bychar[chr]['tot'] / allraces.length),
-		    bychar[chr]['p1'],
-		    bychar[chr]['p2'],
-		    bychar[chr]['p3'],
-		    bychar[chr]['p4']
-		]);
+	kTable(kDomConsole, rows, cols, {
+	    'title': 'Races by track'
 	});
 
-	kMakeDynamicTable(kDomConsole, 'Races by character', {
-	    'oLanguage': {
-		'sEmptyTable': 'No races for ' + pname + '.'
-	    },
-	    'aoColumns': [ {
-		'sTitle': 'Character',
-		'sClass': 'kDataPlayerCharacter'
-	    }, {
-		'sTitle': 'NR',
-		'sClass': 'kDataPlayerNum',
-		'sWidth': '15px'
-	    }, {
-		'sTitle': '%',
-		'sClass': 'kDataPlayerNum',
-		'sWidth': '15px'
-	    }, {
-		'sTitle': 'N1',
-		'sClass': 'kDataPlayerNum',
-		'sWidth': '15px'
-	    }, {
-		'sTitle': 'N2',
-		'sClass': 'kDataPlayerNum',
-		'sWidth': '15px'
-	    }, {
-		'sTitle': 'N3',
-		'sClass': 'kDataPlayerNum',
-		'sWidth': '15px'
-	    }, {
-		'sTitle': 'N4',
-		'sClass': 'kDataPlayerNum',
-		'sWidth': '15px'
-	    } ],
-	    'aaData': bychardata
+	/* all races */
+	cols = kColumnsByName([ 'Date', 'Lvl', 'NPl', 'Rank', 'Time', 'Mode',
+	    'Pl', 'Char', 'CharClass', 'Track', 'Cup' ]);
+	rows = races.map(function (race) {
+		return (kExtractValues(cols, race, pname));
 	});
-
-	bytrackdata = Object.keys(bytrack).map(function (trk) {
-	    var best = bytrack[trk]['best'] == Number.MAX_VALUE ?
-	        '-' : kDuration(bytrack[trk]['best'], true);
-	    return ([
-		trk,
-		best,
-		bytrack[trk]['tot'],
-		bytrack[trk]['p1'],
-		bytrack[trk]['p2'],
-		bytrack[trk]['p3'],
-		bytrack[trk]['p4']
-	    ]);
-	});
-	kMakeDynamicTable(kDomConsole, 'Races by track', {
-	    'oLanguage': {
-		'sEmptyTable': 'No races for ' + pname + '.'
-	    },
-	    'aoColumns': [ {
-		'sTitle': 'Track',
-		'sClass': 'kDataRaceTrack'
-	    }, {
-		'sTitle': 'Best',
-		'sClass': 'kDataRaceTime'
-	    }, {
-		'sTitle': 'NR',
-		'sClass': 'kDataPlayerNum',
-		'sWidth': '15px'
-	    }, {
-		'sTitle': 'N1',
-		'sClass': 'kDataPlayerNum',
-		'sWidth': '15px'
-	    }, {
-		'sTitle': 'N2',
-		'sClass': 'kDataPlayerNum',
-		'sWidth': '15px'
-	    }, {
-		'sTitle': 'N3',
-		'sClass': 'kDataPlayerNum',
-		'sWidth': '15px'
-	    }, {
-		'sTitle': 'N4',
-		'sClass': 'kDataPlayerNum',
-		'sWidth': '15px'
-	    } ],
-	    'aaData': bytrackdata,
-	    'fnCreatedRow': function (tr) {
-		klink($(tr).find('td.kDataRaceTrack'), 'track');
+	kTable(kDomConsole, rows, cols, {
+	    'title': 'Races',
+	    'dtOptions': {
+		'bFilter': true
 	    }
 	});
 }
@@ -2293,6 +2139,17 @@ function kRaceTable(args)
  * XXX add types, documentation, and how to extract them
  */
 var kColumns = {
+	/* Generic fields */
+	'%': {
+		'sClass': 'kDataPlayerPercentage',
+		'extract': function (_1, _2, nrows) {
+			return (100 / nrows);
+		},
+		'format': function (value) {
+			return (value.toFixed(1));
+		}
+	},
+
 	/* Per-race fields */
 	'Cup': {
 		'sClass': 'kDataRaceCup',
@@ -2322,7 +2179,7 @@ var kColumns = {
 		}
 	},
 	'NR': {
-		'sClass': 'kDataNumber',
+		'sClass': 'kDataPlayerNum',
 		'extract': function () { return (1); }
 	},
 	'Track': {
@@ -2423,7 +2280,7 @@ var kColumns = {
 		'sClass': 'kDataRaceRank',
 		'extract': function (race, name) {
 			var which = kPlayer(race, name);
-			return (race['players'][which]['rank']);
+			return (ordinal(race['players'][which]['rank']));
 		}
 	},
 	'Time': {
@@ -2431,7 +2288,10 @@ var kColumns = {
 		'extract': function (race, name) {
 			var which = kPlayer(race, name);
 			var time = race['players'][which]['time'];
-			return (time ? kDuration(time, true) : '-');
+			return (time || Infinity);
+		},
+		'format': function (time) {
+			return (time != Infinity ? kDuration(time, true) : '-');
 		}
 	}
 };
@@ -2496,7 +2356,13 @@ function kTable(parent, rows, columns, options)
 		return (col);
 	});
 
-	fullopts.aaData = rows;
+	fullopts.aaData = rows.map(function (row) {
+		return (columns.map(function (col, i) {
+			if (!col['_conf']['format'])
+				return (row[i]);
+			return (col['_conf']['format'](row[i]));
+		}));
+	});
 
 	html = '<div class="kDynamic kSubHeader" id="' + divid + '">' +
 	    header + '</div>\n';
@@ -2513,7 +2379,7 @@ function kTable(parent, rows, columns, options)
 	return (table);
 }
 
-function kRowsAggregate(oldrows, allcols, aggcols)
+function kRowsAggregate(oldrows, allcols, aggcols, aggregators)
 {
 	var groups = {};
 	var rows = [];
@@ -2540,8 +2406,13 @@ function kRowsAggregate(oldrows, allcols, aggcols)
 		}
 
 		addindices.forEach(function (j) {
-			/* XXX support other types of aggregation */
-			groups[key][j] += row[j];
+			/* XXX see above */
+			var colname = allcols[j]['sTitle'];
+			if (!aggregators || !aggregators[colname])
+				groups[key][j] += row[j];
+			else
+				groups[key][j] = aggregators[colname](
+				    groups[key][j], row[j]);
 		});
 	});
 
