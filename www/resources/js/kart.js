@@ -309,7 +309,7 @@ function kScreenSummaryLoad()
 	var keithings = [];
 	var slugfests = [];
 	var latest;
-	var races, rows, cols;
+	var rows, cols;
 
 	var toptbl = $('<table class="kDynamic kSummaryBody"></table>');
 	var tblrow = $('<tr></tr>');
@@ -405,27 +405,29 @@ function kScreenSummaryLoad()
 		return;
 
 	/* popular track table */
-	races = kRaces(true);
-	cols = kColumnsByName([ 'Track', 'NR' ]);
-	rows = races.map(kExtractValues.bind(null, cols));
-	rows = kRowsAggregate(rows, cols, [ 'Track' ]);
-	rows.sort(function (a, b) { return (b[1] - a[1]); });
-	rows = rows.slice(0, 6);
-	kTable(tbldiv, rows, cols, {
-	    'title': 'Popular tracks',
-	    'dtOptions': {
-		'aaSorting': [ [1, 'desc'] ]
+	kDataTable({
+	    'parent': tbldiv,
+	    'entries': kRaces(true),
+	    'columns': [ 'Track', 'NR' ],
+	    'group_by': [ 'Track' ],
+	    'sort': function (a, b) { return (b[1] - a[1]); },
+	    'limit': 7,
+	    'options': {
+		'title': 'Popular tracks',
+	        'dtOptions': {
+	            'aaSorting': [ [1, 'desc'] ]
+	        }
 	    }
 	});
 
 	/* latest session table */
 	latest = Math.max.apply(null, Object.keys(dateraces));
-	races = dateraces[latest];
-	cols = kColumnsByName([ 'Date', 'NPl', 'Mode', 'Lvl', 'Track',
-	    'WinC', 'WinH' ]);
-	rows = races.map(kExtractValues.bind(null, cols));
-	kTable(kDomConsole, rows, cols, {
-	    'title': 'Latest session'
+	kDataTable({
+	    'parent': kDomConsole,
+	    'entries': dateraces[latest],
+	    'columns': [ 'Date', 'NPl', 'Mode', 'Lvl', 'Track', 'WinC',
+	        'WinH' ],
+	    'options': { 'title': 'Latest session'}
 	});
 
 	/* keithings table */
@@ -497,75 +499,78 @@ function kRemoveDynamicContent()
  */
 function kScreenPlayerLoad(args)
 {
-	var pname, filter;
-	var races, rows, cols;
-
 	if (args.length < 1) {
 		kScreenDefault();
 		return;
 	}
 
-	pname = args[0];
-	kScreenTitle('Player: ' + pname);
-
-	filter = function (race) {
+	var pname = args[0];
+	var races = kRaces(function (race) {
 		for (var i = 0; i < race.players.length; i++) {
 			if (race.players[i]['person'] == pname)
 				return (true);
 		}
 
 		return (false);
-	};
+	});
 
-	races = kRaces(filter);
+	kScreenTitle('Player: ' + pname);
 
 	/* races by char */
-	cols = kColumnsByName([ 'Char', 'NR', '%',
-	    'N1st', 'N2nd', 'N3rd', 'N4th' ]);
-	rows = races.map(function (race) {
-		return (kExtractValues(cols, race, pname, races.length));
-	});
-	rows = kRowsAggregate(rows, cols, [ 'Char' ]);
-	kTable(kDomConsole, rows, cols, {
-	    'title': 'Races by character'
+	kDataTable({
+	    'parent': kDomConsole,
+	    'columns': [ 'Char', 'NR', '%', 'N1st', 'N2nd', 'N3rd', 'N4th' ],
+	    'group_by': [ 'Char' ],
+	    'entries': races,
+	    'extract_args': [ pname, races.length ],
+	    'options': {
+	        'title': 'Races by character'
+	    }
 	});
 
 	/* races by character class */
-	cols = kColumnsByName([ 'CharClass', 'NR', '%',
-	    'N1st', 'N2nd', 'N3rd', 'N4th' ]);
-	rows = races.map(function (race) {
-		return (kExtractValues(cols, race, pname, races.length));
-	});
-	rows = kRowsAggregate(rows, cols, [ 'CharClass' ]);
-	kTable(kDomConsole, rows, cols, {
-	    'title': 'Races by character class'
+	kDataTable({
+	    'parent': kDomConsole,
+	    'columns': [ 'CharClass', 'NR', '%', 'N1st', 'N2nd', 'N3rd',
+	        'N4th' ],
+	    'group_by': [ 'CharClass' ],
+	    'entries': races,
+	    'extract_args': [ pname, races.length ],
+	    'options': {
+	        'title': 'Races by character class'
+	    }
 	});
 
 	/* races by track */
-	cols = kColumnsByName([ 'Track', 'Time', 'NR',
-	    'N1st', 'N2nd', 'N3rd', 'N4th' ]);
-	rows = races.map(function (race) {
-		return (kExtractValues(cols, race, pname));
-	});
-	rows = kRowsAggregate(rows, cols, [ 'Track' ], {
-	    'Time': function (t1, t2) {
-		return (t1 < t2 ? t1 : t2);
+	kDataTable({
+	    'parent': kDomConsole,
+	    'columns': [ 'Track', 'Time', 'NR', 'N1st', 'N2nd', 'N3rd',
+	        'N4th' ],
+	    'group_by': [ 'Track' ],
+	    'entries': races,
+	    'extract_args': [ pname ],
+	    'aggregate': {
+	        'Time': function (t1, t2) {
+			return (t1 < t2 ? t1 : t2);
+		}
+	    },
+	    'options': {
+		'title': 'Races by track'
 	    }
-	});
-	kTable(kDomConsole, rows, cols, {
-	    'title': 'Races by track'
 	});
 
 	/* all races */
-	cols = kColumnsByName([ 'Date', 'Lvl', 'NPl', 'Rank', 'Time', 'Mode',
-	    'Pl', 'Char', 'CharClass', 'Track', 'Cup' ]);
-	rows = races.map(function (race) {
-		return (kExtractValues(cols, race, pname));
-	});
-	kTable(kDomConsole, rows, cols, {
-	    'title': 'Races',
-	    'dtOptions': {
-		'bFilter': true
+	kDataTable({
+	    'parent': kDomConsole,
+	    'columns': [ 'Date', 'Lvl', 'NPl', 'Rank', 'Time', 'Mode',
+	        'Pl', 'Char', 'CharClass', 'Track', 'Cup' ],
+	    'entries': races,
+	    'extract_args': [ pname ],
+	    'options': {
+	        'title': 'Races',
+	        'dtOptions': {
+	            'bFilter': true
+	        }
 	    }
 	});
 }
@@ -2358,7 +2363,7 @@ function kTable(parent, rows, columns, options)
 
 	fullopts.aaData = rows.map(function (row) {
 		return (columns.map(function (col, i) {
-			if (!col['_conf']['format'])
+			if (!col['_conf'] || !col['_conf']['format'])
 				return (row[i]);
 			return (col['_conf']['format'](row[i]));
 		}));
@@ -2417,4 +2422,33 @@ function kRowsAggregate(oldrows, allcols, aggcols, aggregators)
 	});
 
 	return (rows);
+}
+
+function kDataTable(args)
+{
+	var parent = args['parent'];
+	var entries = args['entries'];
+	var columns = kColumnsByName(args['columns']);
+	var extract_args = args['extract_args'] || [];
+	var table_options = args['options'];
+	var group_by = args['group_by'];
+	var aggregate = args['aggregate'];
+	var sort = args['sort'];
+	var limit = args['limit'];
+
+	var rows = entries.map(function (entry) {
+		var eargs = [ columns, entry ].concat(extract_args);
+		return (kExtractValues.apply(null, eargs));
+	});
+
+	if (group_by)
+		rows = kRowsAggregate(rows, columns, group_by, aggregate);
+
+	if (sort)
+		rows.sort(sort);
+
+	if (limit)
+		rows = rows.slice(0, limit);
+
+	kTable(parent, rows, columns, table_options);
 }
