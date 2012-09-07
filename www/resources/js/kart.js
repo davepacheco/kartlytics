@@ -394,24 +394,12 @@ function kScreenSummaryLoad()
 		slugfests.push(sf);
 	});
 
-	metadata.push([ 'Total races', nraces ]);
-	metadata.push([ 'Total players', Object.keys(players).length ]);
-
-	kMakeDynamicTable(tbldiv, 'Summary', {
-	    'bSort': false,
-	    'aoColumns': [ {
-		'sClass': 'kDataLabel'
-	    }, {
-		'sClass': 'kDataValue'
-	    } ],
-	    'aaData': metadata,
-	    'fnCreatedRow': function (tr, data) {
-		if (data[0] == 'Total races')
-			klinkraw($(tr).find('td.kDataValue'), 'races');
-		else if (data[0] == 'Total players')
-			klinkraw($(tr).find('td.kDataValue'), 'players');
-	    }
-	});
+	metadata.push([ 'Total races', kmktypelink(nraces, 'races') ]);
+	metadata.push([ 'Total players',
+	    kmktypelink(Object.keys(players).length, 'players') ]);
+	kTable(tbldiv, metadata,
+	    [ { 'sClass': 'kDataLabel' }, { 'sClass': 'kDataValue' } ],
+	    { 'title': 'Summary' });
 
 	if (nraces === 0)
 		return;
@@ -1745,6 +1733,11 @@ function klink(elt, type, ident)
 function klinkraw(elt, href)
 {
 	$(elt).html('<a href="#' + href + '">' + $(elt).text() + '</a>');
+}
+
+function kmktypelink(text, type)
+{
+	return ('<a href="#' + type + '">' + text + '</a>');
 }
 
 function kmklink(text, type, ident)
