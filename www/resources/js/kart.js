@@ -231,10 +231,6 @@ var kScreens = {
     	'name': 'races',
 	'load': kScreenRacesLoad
     },
-    'track': {
-    	'name': 'track',
-	'load': kScreenTrackLoad
-    },
     'tracks': {
     	'name': 'tracks',
 	'load': kScreenTracksLoad
@@ -696,7 +692,7 @@ function kScreenRaceLoad(args)
 		if (data[0] == 'Video')
 			klink($(tr).find('td.kDataValue'), 'video');
 		else if (data[0] == 'Track')
-			klink($(tr).find('td.kDataValue'), 'track');
+			klink($(tr).find('td.kDataValue'), 'tracks');
 	    }
 	});
 
@@ -832,85 +828,10 @@ function kScreenRacesLoad(args)
 	    'fnCreatedRow': function (tr, data) {
 		klink($(tr).find('td.kDataRaceDate'), 'race',
 		    data[0]['raceid']);
-		klink($(tr).find('td.kDataRaceTrack'), 'track');
+		klink($(tr).find('td.kDataRaceTrack'), 'tracks');
 	    }
 	});
 
-}
-
-/*
- * Track details screen
- */
-function kScreenTrackLoad(args)
-{
-	var track, filter;
-	var races = [];
-
-	if (args.length < 1) {
-		kScreenDefault();
-		return;
-	}
-
-	track = args[0];
-	kScreenTitle(track);
-
-	/* This search could be more efficient. */
-	filter = function (race) { return (race['track'] == track); };
-	kEachRace(filter, function (race) {
-		var i, p;
-
-		for (i = 0; i < race['players'].length; i++) {
-			if (race['players'][i]['rank'] == 1)
-				break;
-		}
-
-		p = race['players'][i];
-
-		races.push([
-		    race,
-		    kDateTime(race['start_time']),
-		    race['players'].length + 'P',
-		    race['mode'],
-		    race['level'] || '',
-		    kDuration(p['time']),
-		    ucfirst(p['char']),
-		    p['person']
-		]);
-	});
-
-	kMakeDynamicTable(kDomConsole, '', {
-	    'bSort': false,
-	    'aoColumns': [ {
-		'bVisible': false
-	    }, {
-		'sTitle': 'Date',
-		'sClass': 'kDataRaceDate'
-	    }, {
-		'sTitle': 'NPl',
-		'sClass': 'kDataRaceNPl'
-	    }, {
-		'sTitle': 'Mode',
-		'sClass': 'kDataRaceMode'
-	    }, {
-		'sTitle': 'Lvl',
-		'sClass': 'kDataRaceLvl'
-	    }, {
-		'sTitle': 'Best(t)',
-		'sClass': 'kDataRaceTime'
-	    }, {
-		'sTitle': 'Best(C)',
-		'sClass': 'kDataPlayerCharacter'
-	    }, {
-		'sTitle': 'Best(P)',
-		'sClass': 'kDataPlayerName'
-	    } ],
-	    'aaData': races,
-	    'fnCreatedRow': function (tr, data) {
-	        klink($(tr).find('td.kDataRaceDate'), 'race',
-		    data[0]['raceid']);
-	        klink($(tr).find('td.kDataPlayerName'), 'player');
-	    }
-	});
 }
 
 /*
@@ -947,11 +868,12 @@ function kScreenTracksLoad(args)
 		]);
 	});
 
+	var scrollto;
 	var tracks = Object.keys(racesbytrack);
 	tracks.sort();
 
 	tracks.forEach(function (track) {
-		kMakeDynamicTable(kDomConsole, track, {
+		var table = kMakeDynamicTable(kDomConsole, track, {
 		    'bSort': false,
 		    'aoColumns': [ {
 			'bVisible': false
@@ -984,7 +906,13 @@ function kScreenTracksLoad(args)
 		        klink($(tr).find('td.kDataPlayerName'), 'player');
 		    }
 		});
+
+		if (track == args[0])
+			scrollto = table;
 	});
+
+	if (scrollto)
+		setTimeout(function () { scrollto[0].scrollIntoView(); }, 0);
 }
 
 /*
@@ -1105,7 +1033,7 @@ function kScreenVideoLoad(args)
 	    'fnCreatedRow': function (tr) {
 		var td = $(tr).find('td.kDataRaceVNum');
 		klink(td, 'race', vidid + '/' + $(td).text());
-		klink($(tr).find('td.kDataRaceTrack'), 'track');
+		klink($(tr).find('td.kDataRaceTrack'), 'tracks');
 	    }
 	});
 }
@@ -2117,7 +2045,7 @@ var kColumns = {
 	'Track': {
 		'sClass': 'kDataRaceTrack',
 		'extract': function (race) {
-			return (kmklink(race['track'], 'track'));
+			return (kmklink(race['track'], 'tracks'));
 		}
 	},
 	'WinC': {
