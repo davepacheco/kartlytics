@@ -551,7 +551,7 @@ function kScreenPlayerLoad(args)
 	    'extract_args': [ pname ],
 	    'aggregate': {
 	        'Time': function (t1, t2) {
-			return (t1 < t2 ? t1 : t2);
+			return (t1 !== 0 && t1 < t2 ? t1 : t2);
 		}
 	    },
 	    'options': {
@@ -577,136 +577,30 @@ function kScreenPlayerLoad(args)
 
 function kScreenPlayersLoad(args)
 {
-	var players, pnames, pdata;
-
 	kScreenTitle('Players');
 
-	players = {};
-	kEachRace(true, function (race) {
-		race.players.forEach(function (p, i) {
-			var pinfo;
-
-			if (!players[p.person])
-				players[p.person] = {
-					'ntot': 0,
-					'pts': 0,
-					'n1': 0,
-					'n2': 0,
-					'n3': 0,
-					'n4': 0,
-					'ttot': 0,
-					't1': 0,
-					't2': 0,
-					't3': 0,
-					't4': 0,
-					't?': 0
-				};
-
-			pinfo = players[p.person];
-			pinfo['ntot']++;
-			pinfo['n' + p.rank]++;
-			pinfo['pts'] += [ 0, 9, 6, 3, 1 ][p.rank];
-
-			kRaceSegments(race, true, function (_, seg) {
-				var rank = seg.players[i].rank || '?';
-				pinfo['ttot'] += seg.duration;
-				pinfo['t' + rank] += seg.duration;
-			});
+	var rows = [];
+	kRaces(true).forEach(function (race) {
+		race['players'].forEach(function (p) {
+			var rv = Object.create(race);
+			rv['_player'] = p['person'];
+			rows.push(rv);
 		});
 	});
 
-	pnames = Object.keys(players);
-	pnames.sort();
-
-	pdata = pnames.map(function (p) {
-	    var pinfo = players[p];
-	    return ([
-		p,
-		pinfo['ntot'],
-		pinfo['pts'],
-		(pinfo['pts'] / pinfo['ntot']).toFixed(3),
-		pinfo['n1'],
-		pinfo['n2'],
-		pinfo['n3'],
-		pinfo['n4'],
-		kDuration(pinfo['ttot'], false),
-		kDuration(pinfo['t1'], false),
-		kDuration(pinfo['t2'], false),
-		kDuration(pinfo['t3'], false),
-		kDuration(pinfo['t4'], false),
-		kPercentage(pinfo['t1'] / pinfo['ttot']),
-		kPercentage(pinfo['t2'] / pinfo['ttot']),
-		kPercentage(pinfo['t3'] / pinfo['ttot']),
-		kPercentage(pinfo['t4'] / pinfo['ttot'])
-	    ]);
-	});
-
-	kMakeDynamicTable(kDomConsole, '', {
-	    'oLanguage': {
-		'sEmptyTable': 'No videos imported.'
-	    },
-	    'aoColumns': [ {
-		'sTitle': 'Player',
-		'sClass': 'kDataPlayerName'
-	    }, {
-		'sTitle': 'NR',
-		'sClass': 'kDataPlayerNum',
-		'sWidth': '15px'
-	    }, {
-		'sTitle': 'Pts',
-		'sClass': 'kDataPlayerNum',
-		'sWidth': '15px'
-	    }, {
-		'sTitle': 'PPR',
-		'sClass': 'kDataPlayerNum',
-		'sWidth': '15px'
-	    }, {
-		'sTitle': 'N1st',
-		'sClass': 'kDataPlayerNum',
-		'sWidth': '15px'
-	    }, {
-		'sTitle': 'N2nd',
-		'sClass': 'kDataPlayerNum',
-		'sWidth': '15px'
-	    }, {
-		'sTitle': 'N3rd',
-		'sClass': 'kDataPlayerNum',
-		'sWidth': '15px'
-	    }, {
-		'sTitle': 'N4th',
-		'sClass': 'kDataPlayerNum',
-		'sWidth': '15px'
-	    }, {
-		'sTitle': 'Time',
-		'sClass': 'kDataPlayerTime'
-	    }, {
-		'sTitle': 'T1st',
-		'sClass': 'kDataPlayerTime'
-	    }, {
-		'sTitle': 'T2nd',
-		'sClass': 'kDataPlayerTime'
-	    }, {
-		'sTitle': 'T3rd',
-		'sClass': 'kDataPlayerTime'
-	    }, {
-		'sTitle': 'T4th',
-		'sClass': 'kDataPlayerTime'
-	    }, {
-		'sTitle': '%1st',
-		'sClass': 'kDataPlayerPercentage'
-	    }, {
-		'sTitle': '%2nd',
-		'sClass': 'kDataPlayerPercentage'
-	    }, {
-		'sTitle': '%3rd',
-		'sClass': 'kDataPlayerPercentage'
-	    }, {
-		'sTitle': '%4th',
-		'sClass': 'kDataPlayerPercentage'
-	    } ],
-	    'aaData': pdata,
-	    'fnCreatedRow': function (tr, _1, _2) {
-	        klink($(tr).find('td.kDataPlayerName'), 'player');
+	kDataTable({
+	    'parent': kDomConsole,
+	    'entries': rows,
+	    'columns': [ 'H', 'NR', 'Pts', 'PPR', 'N1st', 'N2nd',
+	        'N3rd', 'N4th', 'RTime', '%1st', '%2nd', '%3rd', '%4th'],
+	    'group_by': [ 'H' ],
+	    'extract_args': function (race) { return ([ race['_player'] ]); },
+	    'aggregate': {
+		'%1st': kAggregateFractions,
+		'%2nd': kAggregateFractions,
+		'%3rd': kAggregateFractions,
+		'%4th': kAggregateFractions,
+		'PPR': kAggregateFractions
 	    }
 	});
 }
@@ -2143,6 +2037,39 @@ function kRaceTable(args)
  *
  * XXX add types, documentation, and how to extract them
  */
+function kFormatPercentage(val)
+{
+	return ((100 * val['num'] / val['denom']).toFixed(1));
+}
+
+function kFormatFraction(val)
+{
+	return ((val['num'] / val['denom']).toFixed(2));
+}
+
+function kAggregateFractions(v1, v2)
+{
+	return ({
+	    'num': v1['num'] + v2['num'],
+	    'denom': v1['denom'] + v2['denom']
+	});
+}
+
+function kExtractRankTime(rank, race, name)
+{
+	var which = kPlayer(race, name);
+	if (which == -1)
+		return ({ 'num': 0, 'denom': 0 });
+
+	var postime = 0, tottime = 0;
+	kRaceSegments(race, true, function (_, seg) {
+		if (seg['players'][which]['rank'] == rank)
+			postime += seg['duration'];
+		tottime += seg['duration'];
+	});
+	return ({ 'num': postime, 'denom': tottime });
+}
+
 var kColumns = {
 	/* Generic fields */
 	'%': {
@@ -2212,9 +2139,7 @@ var kColumns = {
 	/*
 	 * XXX one-off fields:
 	 * - char, human, and time for best race on a given track
-	 * - percentage of time each player plays each character
 	 * - points-per-race
-	 * - time and percentage-of-time in each rank for each player
 	 */
 
 	/* Fields based on a (race, player) tuple */
@@ -2237,12 +2162,37 @@ var kColumns = {
 		'sClass': 'kDataPlayerName',
 		'extract': function (_, name) {
 			return (name);
+		},
+		'format': function (name) {
+			return (kmklink(name, 'player'));
 		}
+	},
+	'%1st': {
+		'sClass': 'kDataPlayerPercentage',
+		'extract': kExtractRankTime.bind(null, 1),
+		'format': kFormatPercentage
+	},
+	'%2nd': {
+		'sClass': 'kDataPlayerPercentage',
+		'extract': kExtractRankTime.bind(null, 2),
+		'format': kFormatPercentage
+	},
+	'%3rd': {
+		'sClass': 'kDataPlayerPercentage',
+		'extract': kExtractRankTime.bind(null, 3),
+		'format': kFormatPercentage
+	},
+	'%4th': {
+		'sClass': 'kDataPlayerPercentage',
+		'extract': kExtractRankTime.bind(null, 4),
+		'format': kFormatPercentage
 	},
 	'N1st': {
 		'sClass': 'kDataPlayerNum',
 		'extract': function (race, name) {
 			var which = kPlayer(race, name);
+			if (which == -1)
+				return (0);
 			return (race['players'][which]['rank'] == '1' ? 1 : 0);
 		}
 	},
@@ -2250,6 +2200,8 @@ var kColumns = {
 		'sClass': 'kDataPlayerNum',
 		'extract': function (race, name) {
 			var which = kPlayer(race, name);
+			if (which == -1)
+				return (0);
 			return (race['players'][which]['rank'] == '2' ? 1 : 0);
 		}
 	},
@@ -2257,6 +2209,8 @@ var kColumns = {
 		'sClass': 'kDataPlayerNum',
 		'extract': function (race, name) {
 			var which = kPlayer(race, name);
+			if (which == -1)
+				return (0);
 			return (race['players'][which]['rank'] == '3' ? 1 : 0);
 		}
 	},
@@ -2264,6 +2218,8 @@ var kColumns = {
 		'sClass': 'kDataPlayerNum',
 		'extract': function (race, name) {
 			var which = kPlayer(race, name);
+			if (which == -1)
+				return (0);
 			return (race['players'][which]['rank'] == '4' ? 1 : 0);
 		}
 	},
@@ -2277,26 +2233,55 @@ var kColumns = {
 		'sClass': 'kDataPlayerNum',
 		'extract': function (race, name) {
 			var which = kPlayer(race, name);
+			if (which == -1)
+				return (0);
 			var rank = race['players'][which]['rank'];
 			return (rank == 4 ? 1 : 3 * (4 - rank));
 		}
+	},
+	'PPR': {
+		'sClass': 'kDataPlayerNum',
+		'extract': function (race, name) {
+			var which = kPlayer(race, name);
+			if (which == -1)
+				return ({ 'num': 0, 'denom': 0 });
+			var rank = race['players'][which]['rank'];
+			return ({
+			    'num': rank == 4 ? 1 : 3 * (4 - rank),
+			    'denom': 1
+			});
+		},
+		'format': kFormatFraction
 	},
 	'Rank': {
 		'sClass': 'kDataRaceRank',
 		'extract': function (race, name) {
 			var which = kPlayer(race, name);
+			if (which == -1)
+				return (0);
 			return (ordinal(race['players'][which]['rank']));
+		}
+	},
+	'RTime': {
+		'sClass': 'kDataPlayerTime',
+		'extract': function (race) {
+			return (race['duration']);
+		},
+		'format': function (time) {
+			return (kDuration(time));
 		}
 	},
 	'Time': {
 		'sClass': 'kDataRaceTime',
 		'extract': function (race, name) {
 			var which = kPlayer(race, name);
+			if (which == -1)
+				return (0);
 			var time = race['players'][which]['time'];
-			return (time || Infinity);
+			return (time || 0);
 		},
 		'format': function (time) {
-			return (time != Infinity ? kDuration(time, true) : '-');
+			return (time !== 0 ? kDuration(time, true) : '-');
 		}
 	}
 };
@@ -2311,6 +2296,11 @@ function kRaces(filter)
 function kColumnsByName(cols)
 {
 	return (cols.map(function (colname) {
+		if (!kColumns.hasOwnProperty(colname)) {
+			console.error('no such column: ' + colname);
+			throw (new Error('no such column: ' + colname));
+		}
+
 		var conf = kColumns[colname];
 		var rv = { '_name': colname, '_conf': conf };
 		if (!conf['sTitle'])
@@ -2430,14 +2420,20 @@ function kDataTable(args)
 	var entries = args['entries'];
 	var columns = kColumnsByName(args['columns']);
 	var extract_args = args['extract_args'] || [];
-	var table_options = args['options'];
+	var table_options = args['options'] || {};
 	var group_by = args['group_by'];
 	var aggregate = args['aggregate'];
 	var sort = args['sort'];
 	var limit = args['limit'];
 
 	var rows = entries.map(function (entry) {
-		var eargs = [ columns, entry ].concat(extract_args);
+		var eargs = [ columns, entry ];
+
+		if (typeof (extract_args) == 'function')
+			eargs = eargs.concat(extract_args(entry));
+		else
+			eargs = eargs.concat(extract_args);
+
 		return (kExtractValues.apply(null, eargs));
 	});
 
