@@ -606,7 +606,7 @@ function kScreenPlayersLoad(args)
  */
 function kScreenRaceLoad(args)
 {
-	var vidid, raceid, racename, filter, video;
+	var vidid, raceid, racename, filter, video, raceobj;
 	var metadata = [], players = [], events = [];
 
 	if (args.length < 2) {
@@ -623,6 +623,8 @@ function kScreenRaceLoad(args)
 	/* This search could be more efficient. */
 	filter = function (race) { return (race['raceid'] == raceid); };
 	kEachRace(filter, function (race) {
+		raceobj = race;
+
 		var kind = race['players'].length + 'P ' + race['mode'];
 		if (race['level'])
 			kind += ' (' + race['level'] + ')';
@@ -696,25 +698,17 @@ function kScreenRaceLoad(args)
 	    }
 	});
 
-	kMakeDynamicTable($('td#kRaceMetadata'), 'Players', {
-	    'bSort': false,
-	    'aoColumns': [ {
-		'sTitle': 'Player',
-		'sClass': 'kDataLabel'
-	    }, {
-		'sTitle': 'Person',
-		'sClass': 'kDataPlayerName'
-	    }, {
-		'sTitle': 'Character'
-	    }, {
-		'sTitle': 'Rank'
-	    }, {
-		'sTitle': 'Time',
-		'sClass': 'kDataRaceTime'
-	    } ],
-	    'aaData': players,
-	    'fnCreatedRow': function (tr) {
-		klink($(tr).find('td.kDataPlayerName'), 'player');
+	kDataTable({
+	    'parent': $('td#kRaceMetadata'),
+	    'entries': raceobj['players'].map(function (p) {
+		var rv = Object.create(raceobj);
+		rv['_player'] = p['person'];
+	        return (rv);
+	    }),
+	    'columns': [ 'Pl', 'H', 'Char', 'Rank', 'Time' ],
+	    'extract_args': function (r) { return (r['_player']); },
+	    'options': {
+	        'title': 'Players'
 	    }
 	});
 
