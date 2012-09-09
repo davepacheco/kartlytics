@@ -773,59 +773,25 @@ function kScreenRacesLoad(args)
 
 	kScreenTitle('All races');
 
-	kEachRace(true, function (race) {
-		races.push([
-		    race,
-		    kDateTime(race['start_time']),
-		    race['players'].length + 'P',
-		    race['mode'],
-		    race['level'] || '',
-		    race['track'],
-		    kDuration(race['duration'], true),
-		    kDuration(race['vstart'], true),
-		    kDuration(race['vend'], true)
-		]);
-	});
-
-	kMakeDynamicTable(kDomConsole, 'All races', {
-	    'bFilter': true,
-	    'bInfo': true,
-	    'oLanguage': {
-		'sEmptyTable': 'No races found.',
-		'sInfo': 'Showing _START_ to _END_ of _TOTAL_ races',
-		'sInfoFiltered': ' (from _MAX_ total races)',
-		'sInfoPostFix': '.',
-		'sZeroRecords': 'No matching races.'
-	    },
-	    'aoColumns': [ {
-		'bVisible': false
-	    }, {
-		'sTitle': 'Date',
-		'sClass': 'kDataRaceDate'
-	    }, {
-		'sTitle': 'NPl',
-		'sClass': 'kDataRaceNPl'
-	    }, {
-		'sTitle': 'Mode',
-		'sClass': 'kDataRaceMode'
-	    }, {
-		'sTitle': 'Lvl',
-		'sClass': 'kDataRaceLvl'
-	    }, {
-		'sTitle': 'Track',
-		'sClass': 'kDataRaceTrack'
-	    }, {
-		'sTitle': 'Time',
-		'sClass': 'kDataRaceTime'
-	    } ],
-	    'aaData': races,
-	    'fnCreatedRow': function (tr, data) {
-		klink($(tr).find('td.kDataRaceDate'), 'race',
-		    data[0]['raceid']);
-		klink($(tr).find('td.kDataRaceTrack'), 'tracks');
+	kDataTable({
+	    'parent': kDomConsole,
+	    'entries': kRaces(true),
+	    'columns': [ 'Date', 'NPl', 'Mode', 'Lvl', 'Track', 'RTime' ],
+	    'options': {
+	        'title': 'All races',
+		'dtOptions': {
+		    'bFilter': true,
+		    'bInfo': true,
+		    'oLanguage': {
+		        'sEmptyTable': 'No races found.',
+		        'sInfo': 'Showing _START_ to _END_ of _TOTAL_ races',
+		        'sInfoFiltered': ' (from _MAX_ total races)',
+		        'sInfoPostFix': '.',
+		        'sZeroRecords': 'No matching races.'
+		    }
+		}
 	    }
 	});
-
 }
 
 /*
@@ -2190,7 +2156,7 @@ var kColumns = {
 			return (race['duration']);
 		},
 		'format': function (time) {
-			return (kDuration(time));
+			return (kDuration(time, false));
 		}
 	},
 	'Time': {
