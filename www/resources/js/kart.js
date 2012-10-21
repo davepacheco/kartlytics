@@ -606,7 +606,7 @@ function kScreenPlayersLoad(args)
  */
 function kScreenRaceLoad(args)
 {
-	var vidid, raceid, racename, filter, video;
+	var vidid, raceid, racename, filter, video, raceobj;
 	var metadata = [], players = [], events = [];
 
 	if (args.length < 2) {
@@ -623,6 +623,8 @@ function kScreenRaceLoad(args)
 	/* This search could be more efficient. */
 	filter = function (race) { return (race['raceid'] == raceid); };
 	kEachRace(filter, function (race) {
+		raceobj = race;
+
 		var kind = race['players'].length + 'P ' + race['mode'];
 		if (race['level'])
 			kind += ' (' + race['level'] + ')';
@@ -696,25 +698,17 @@ function kScreenRaceLoad(args)
 	    }
 	});
 
-	kMakeDynamicTable($('td#kRaceMetadata'), 'Players', {
-	    'bSort': false,
-	    'aoColumns': [ {
-		'sTitle': 'Player',
-		'sClass': 'kDataLabel'
-	    }, {
-		'sTitle': 'Person',
-		'sClass': 'kDataPlayerName'
-	    }, {
-		'sTitle': 'Character'
-	    }, {
-		'sTitle': 'Rank'
-	    }, {
-		'sTitle': 'Time',
-		'sClass': 'kDataRaceTime'
-	    } ],
-	    'aaData': players,
-	    'fnCreatedRow': function (tr) {
-		klink($(tr).find('td.kDataPlayerName'), 'player');
+	kDataTable({
+	    'parent': $('td#kRaceMetadata'),
+	    'entries': raceobj['players'].map(function (p) {
+		var rv = Object.create(raceobj);
+		rv['_player'] = p['person'];
+	        return (rv);
+	    }),
+	    'columns': [ 'Pl', 'H', 'Char', 'Rank', 'Time' ],
+	    'extract_args': function (r) { return (r['_player']); },
+	    'options': {
+	        'title': 'Players'
 	    }
 	});
 
@@ -779,59 +773,25 @@ function kScreenRacesLoad(args)
 
 	kScreenTitle('All races');
 
-	kEachRace(true, function (race) {
-		races.push([
-		    race,
-		    kDateTime(race['start_time']),
-		    race['players'].length + 'P',
-		    race['mode'],
-		    race['level'] || '',
-		    race['track'],
-		    kDuration(race['duration'], true),
-		    kDuration(race['vstart'], true),
-		    kDuration(race['vend'], true)
-		]);
-	});
-
-	kMakeDynamicTable(kDomConsole, 'All races', {
-	    'bFilter': true,
-	    'bInfo': true,
-	    'oLanguage': {
-		'sEmptyTable': 'No races found.',
-		'sInfo': 'Showing _START_ to _END_ of _TOTAL_ races',
-		'sInfoFiltered': ' (from _MAX_ total races)',
-		'sInfoPostFix': '.',
-		'sZeroRecords': 'No matching races.'
-	    },
-	    'aoColumns': [ {
-		'bVisible': false
-	    }, {
-		'sTitle': 'Date',
-		'sClass': 'kDataRaceDate'
-	    }, {
-		'sTitle': 'NPl',
-		'sClass': 'kDataRaceNPl'
-	    }, {
-		'sTitle': 'Mode',
-		'sClass': 'kDataRaceMode'
-	    }, {
-		'sTitle': 'Lvl',
-		'sClass': 'kDataRaceLvl'
-	    }, {
-		'sTitle': 'Track',
-		'sClass': 'kDataRaceTrack'
-	    }, {
-		'sTitle': 'Time',
-		'sClass': 'kDataRaceTime'
-	    } ],
-	    'aaData': races,
-	    'fnCreatedRow': function (tr, data) {
-		klink($(tr).find('td.kDataRaceDate'), 'race',
-		    data[0]['raceid']);
-		klink($(tr).find('td.kDataRaceTrack'), 'tracks');
+	kDataTable({
+	    'parent': kDomConsole,
+	    'entries': kRaces(true),
+	    'columns': [ 'Date', 'NPl', 'Mode', 'Lvl', 'Track', 'RTime' ],
+	    'options': {
+	        'title': 'All races',
+		'dtOptions': {
+		    'bFilter': true,
+		    'bInfo': true,
+		    'oLanguage': {
+		        'sEmptyTable': 'No races found.',
+		        'sInfo': 'Showing _START_ to _END_ of _TOTAL_ races',
+		        'sInfoFiltered': ' (from _MAX_ total races)',
+		        'sInfoPostFix': '.',
+		        'sZeroRecords': 'No matching races.'
+		    }
+		}
 	    }
 	});
-
 }
 
 /*
@@ -2196,7 +2156,7 @@ var kColumns = {
 			return (race['duration']);
 		},
 		'format': function (time) {
-			return (kDuration(time));
+			return (kDuration(time, false));
 		}
 	},
 	'Time': {
