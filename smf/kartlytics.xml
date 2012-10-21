@@ -9,7 +9,7 @@
         <dependency name="dep0" grouping="require_all" restart_on="error" type="service" >
             <service_fmri value="svc:/milestone/multi-user:default" />
         </dependency>
-        <exec_method type="method" name="start" exec="/usr/local/bin/node /home/kartlytics/current/js/kartlytics.js -l 80 -d /home/kartlytics/data -a /home/kartlytics/auth.json &amp;" timeout_seconds="10" />
+        <exec_method type="method" name="start" exec="/usr/local/bin/node /home/kartlytics/current/js/kartlytics.js -l 8080 -d /home/kartlytics/data -a /home/kartlytics/auth.json &amp;" timeout_seconds="10" />
         <exec_method type="method" name="stop" exec=":kill" timeout_seconds="30" />
         <template >
             <common_name >
