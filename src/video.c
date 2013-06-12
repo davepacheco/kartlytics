@@ -39,8 +39,8 @@ video_open(const char *filename)
 
 	av_register_all();
 
-	if (av_open_input_file(&rv->vf_formatctx, filename,
-	    NULL, 0, NULL) != 0) {
+
+	if (avformat_open_input(&rv->vf_formatctx, filename, NULL, NULL) != 0) {
 		free(rv);
 		return (NULL);
 	}

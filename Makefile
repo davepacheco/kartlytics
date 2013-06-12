@@ -10,7 +10,7 @@ ifeq ($(BUILDOS),Darwin)
 	LIBPNG_LDFLAGS  = -L/usr/X11/lib -lpng
 else
 	LIBPNG_CPPFLAGS = -I/opt/local/include
-	LIBPNG_LDFLAGS  = -L/opt/local/lib -lpng15
+	LIBPNG_LDFLAGS  = -L/opt/local/lib -R/opt/local/lib -lpng16
 endif
 
 ifeq ($(BUILDOS),SunOS)
