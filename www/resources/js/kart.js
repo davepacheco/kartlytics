@@ -769,8 +769,6 @@ function kScreenRaceLoad(args)
  */
 function kScreenRacesLoad(args)
 {
-	var races = [];
-
 	kScreenTitle('All races');
 
 	kDataTable({
