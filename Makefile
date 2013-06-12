@@ -149,7 +149,6 @@ assets/masks/pos%_square3_final.png: assets/masks/pos%_square1_final.png
 assets/masks/pos%_square4_final.png: assets/masks/pos%_square1_final.png
 	$(KVFPOS1TO4)
 
-include ./Makefile.deps
 include ./Makefile.targ
 
 #
