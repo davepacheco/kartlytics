@@ -1,0 +1,27 @@
+#!/bin/bash
+
+#
+# video-webm: given a video that's already been transcribed, extract webm video
+# files for the individual races
+#
+
+arg0="$(basename $0)"
+
+function fail
+{
+	echo "$arg0: $@" >&2
+	exit 1
+}
+
+function usage
+{
+	[[ $# -gt 0 ]] && echo "$arg0: $@" >& 2
+	cat <<EOF >&2
+usage: $arg0 OUTPUT_BASE VIDEO_FILE
+
+Given a kartlytics video that's already been transcribed, extract webm videos
+for the individual races.
+EOF
+	exit 2
+}
+

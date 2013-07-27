@@ -1,0 +1,54 @@
+#!/bin/bash
+
+#
+# video-transcribe: given a kartlytics video, run kartvid to produce a race
+# transcript (showing races, characters, tracks, and race events)
+#
+
+set -o pipefail
+arg0="$(basename $0)"
+
+function fail
+{
+	echo "$arg0: $@" >&2
+	exit 1
+}
+
+function usage
+{
+	[[ $# -gt 0 ]] && echo "$arg0: $@" >& 2
+	cat <<EOF >&2
+usage: $arg0 KARTVID_BASE OUTPUT_BASE VIDEO_FILE
+
+Given a kartlytics video, run kartvid to produce a race transcript (showing
+races, characters, tracks, and race events) and save the results into the
+corresponding Manta directory in OUTPUT_BASE.
+EOF
+	exit 2
+}
+
+[[ $# -eq 3 ]] || usage
+
+t_basename="$(basename $3)"
+t_outdir="$2/$t_basename"
+t_transcript="/var/tmp/transcript"
+t_framesdir="/var/tmp/pngs"
+
+# Create the raw video transcript, saving PNG screenshots as a side effect.
+mkdir -p "$t_framesdir"
+$1/out/kartvid video -d "$t_framesdir" -j "$3" > $t_transcript || \
+    fail "kartvid failed"
+mmkdir -p "$t_outdir/pngs"
+for file in $t_framesdir/*; do
+	key="$(basename "$file" | tr ' ' '_')"
+	mput -f "$file" "$t_outdir/pngs/$key" || fail "failed to save $file"
+done
+
+#
+# Process the raw transcript into discrete races, saving both the transcript and
+# the race details file.
+#
+mput -f "$t_transcript" "$t_outdir/transcript.json" || \
+    fail "failed to save transcript"
+$1/js/kart.js -r < "$t_transcript" | \
+    mput $t_outdir/races.json || fail "failed to process transcript"

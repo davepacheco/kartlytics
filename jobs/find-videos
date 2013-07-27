@@ -1,0 +1,27 @@
+#!/bin/bash
+
+#
+# find-videos: enumerate kartlytics videos matching a given filter
+#
+
+arg0="$(basename $0)"
+
+function fail
+{
+	echo "$arg0: $@" >&2
+	exit 1
+}
+
+function usage
+{
+	[[ $# -gt 0 ]] && echo "$arg0: $@" >& 2
+	cat <<EOF >&2
+usage: $arg0 DIRECTORY
+
+Emits the names of kartlytics videos in the given directory.
+EOF
+	exit 2
+}
+
+[[ $# -eq 1 ]] || usage "directory expected"
+mfind -t o -n '\.mov$' "$1"

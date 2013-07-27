@@ -1,0 +1,47 @@
+#!/bin/bash
+
+#
+# make-tarball: run as a reduce job to create the "kartlytics.tgz" tarball used
+# by several other jobs
+#
+
+set -o pipefail
+arg0="$(basename $0)"
+
+function fail
+{
+	echo "$arg0: $@" >&2
+	exit 1
+}
+
+function usage
+{
+	[[ $# -gt 0 ]] && echo "$arg0: $@" >& 2
+	cat <<EOF >&2
+usage: $arg0 OUTPUT_FILE
+
+Create the "kartlytics.tgz" tarball used as an asset by several other jobs.
+EOF
+	exit 2
+}
+
+[[ $# -eq 1 ]] || usage
+
+set -o pipefail
+set -o errexit
+
+# Needed for GYP, workaround for Manta not setting this
+export HOME=/root
+
+cd /var/tmp
+git clone https://github.com/davepacheco/kartlytics
+cd kartlytics
+git checkout base-13.1.0
+make
+cd ..
+tar czvf kartlytics.tgz \
+    kartlytics/assets \
+    kartlytics/out/kartvid \
+    kartlytics/node_modules \
+    kartlytics/js
+mpipe -f kartlytics.tgz "$1"
