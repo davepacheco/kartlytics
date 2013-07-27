@@ -36,7 +36,7 @@ function main()
 
 	process.stdin.on('end', function () {
 		if (raw)
-			console.log('%s', JSON.stringify(video, null, 4));
+			console.log('%s', JSON.stringify(video.races, null, 4));
 		else
 			video.races.forEach(summarize);
 	});
