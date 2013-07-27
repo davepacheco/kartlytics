@@ -25,3 +25,28 @@ EOF
 	exit 2
 }
 
+[[ $# -eq 2 ]] || usage
+
+w_basename="$(basename $2)"
+w_races="$1/$w_basename/races.json"
+w_webm="$1/$w_basename/webm"
+
+set -o xtrace
+mget -q "$w_races" > /var/tmp/races.json || fail "not found: $w_races"
+json -a vstart vend < /var/tmp/races.json | cat -n | \
+    while read i vstart vend; do
+	echo "race $i: vstart=$vstart vend=$vend"
+	extract_start=$(( vstart / 1000 - 10 ))
+	[[ $extract_start -lt 0 ]] && extract_start=0
+	extract_duration=$(( (vend - vstart) / 1000 + 20 ))
+
+	#
+	# We disable audio recording with ffmpeg because the vorbis
+	# audio encoder is "experimental" in our SmartOS build and
+	# doesn't seem to work that well.
+	#
+	ffmpeg -y -ss $extract_start -t $extract_duration \
+	    -i "$2" -an /var/tmp/$i.webm || fail "ffmpeg failed"
+	mpipe -H 'content-type: video/webm' -p \
+	    -f "/var/tmp/$i.webm" "$w_webm/$i.webm"
+    done || fail "loop failed"
