@@ -26,6 +26,7 @@
 var mod_assert = require('assert');
 var mod_child = require('child_process');
 var mod_fs = require('fs');
+var mod_http = require('http');
 var mod_os = require('os');
 var mod_path = require('path');
 
@@ -34,7 +35,6 @@ var mod_carrier = require('carrier');
 var mod_extsprintf = require('extsprintf');
 var mod_getopt = require('posix-getopt');
 var mod_jsprim = require('jsprim');
-var mod_kang = require('kang');
 var mod_formidable = require('formidable');
 var mod_restify = require('restify');
 var mod_vasync = require('vasync');
@@ -45,14 +45,12 @@ var mod_kartvid = require('./kartvid');
 
 var klName = 'kartlytics';
 var klPort = 8085;
-var klDatadir = '/var/tmp/kartlytics_data';
+var klMantaHost = 'us-east.manta.joyent.com';
+var klDatadir = '/dap/public/kartlytics';
 var klAuthfile;
 var klAuth, klLog, klServer;
 
 var klVideos = {};
-var klVideoQueue;
-
-process.env['PATH'] += ':/usr/local/bin';
 
 function main()
 {
@@ -90,11 +88,6 @@ function main()
 	    'level': process.env['LOG_LEVEL'] || 'info'
 	});
 
-	klVideoQueue = mod_vasync.queuev({
-	    'concurrency': Math.min(mod_os.cpus().length - 1, 4),
-	    'worker': vidTaskRun
-	});
-
 	/*
 	 * kartvid assumes it's running out of the root of the repo in order to
 	 * find its assets.
@@ -116,60 +109,13 @@ function usage()
  */
 function initData()
 {
-	var ents, contents;
+	var contents;
 
 	if (klAuthfile) {
 		klLog.info('loading auth file %s', klAuthfile);
 		contents = mod_fs.readFileSync(klAuthfile);
 		klAuth = JSON.parse(contents);
 	}
-
-	mkdirp.sync(klDatadir);
-
-	klLog.info('loading data from %s', klDatadir);
-	ents = mod_fs.readdirSync(klDatadir);
-	ents.forEach(function (name) {
-		if (!mod_jsprim.endsWith(name, '.md.json'))
-			return;
-
-		contents = mod_fs.readFileSync(mod_path.join(
-		    klDatadir, name));
-		var video = JSON.parse(contents);
-
-		video.log = klLog.child({ 'video': video.name });
-		video.ntasks = 0;
-		klVideos[video.id] = video;
-	});
-
-	mod_jsprim.forEachKey(klVideos, function (_, video) {
-		if (!video.processed) {
-			klVideoQueue.push({
-			    'vidid': video.id,
-			    'action': 'kartvid'
-			});
-
-			video.ntasks++;
-
-			return;
-		}
-
-		if (video.eventsFile) {
-			var webms = video.races.map(
-			    function (r) { return (r['webm']); });
-			contents = mod_fs.readFileSync(video.eventsFile);
-			var lines = contents.toString('utf8').split('\n');
-			var func = mod_kartvid.parseKartvid(video);
-			lines.forEach(func);
-			vidParseRaces(video);
-
-			if (video.races.length === webms.length)
-				video.races.forEach(function (r, i) {
-					r['webm'] = webms[i];
-				});
-		}
-
-		vidDispatchWebm(video);
-	});
 }
 
 /*
@@ -183,21 +129,15 @@ function initServer()
 	    'name': klName,
 	    'log': klLog
 	});
+	klServer.on('uncaughtException', function (_1, _2, _3, err) {
+		klLog.fatal(err, 'uncaught exception from restify handler');
+		throw (err);
+	});
 
 	klServer.use(mod_restify.authorizationParser());
 	klServer.use(mod_restify.acceptParser(klServer.acceptable));
 	klServer.use(mod_restify.queryParser());
 	klServer.use(mod_restify.urlEncodedBodyParser());
-
-	klServer.get('/kang/.*', mod_kang.knRestifyHandler({
-	    'uri_base': '/kang',
-	    'service_name': 'kartlytics',
-	    'version': '0.0.1',
-	    'ident': mod_os.hostname(),
-	    'list_types': kangListTypes,
-	    'list_objects': kangListObjects,
-	    'get': kangGetObject
-	}));
 
 	filespath = mod_path.normalize(mod_path.join(__dirname, '..', 'www'));
 
@@ -215,7 +155,7 @@ function initServer()
 	klServer.put('/api/videos/:id/rerun', auth, apiVideosRerun);
 	klServer.put('/api/rerun_all', auth, apiRerunAll);
 
-	// klServer.on('after', mod_restify.auditLogger({ 'log': klLog }));
+	klServer.on('after', mod_restify.auditLogger({ 'log': klLog }));
 
 	klServer.listen(klPort, function () {
 		klLog.info('%s server listening at %s',
@@ -268,11 +208,11 @@ function dirServer(baseuri, basedir, request, response, next)
 	 * it correctly (without races) is much more complex than we really
 	 * need here.
 	 */
-	mod_assert.equal(baseuri, request.path.substr(0, baseuri.length));
+	mod_assert.equal(baseuri, request.path().substr(0, baseuri.length));
 
 	var filename = mod_path.normalize(
 	    mod_path.join(basedir, decodeURIComponent(
-	    request.path.substr(baseuri.length))));
+	    request.path().substr(baseuri.length))));
 
 	if (filename.substr(0, basedir.length) != basedir) {
 		request.log.warn('denying request for file outside of %s',
@@ -291,9 +231,6 @@ function fileServer(filename, request, response, next)
 {
 	var file = mod_fs.createReadStream(filename);
 	var headers = {};
-
-	if (mod_jsprim.endsWith(request.url, '.mov'))
-		headers['Content-Type'] = 'video/quicktime';
 
 	file.on('error', function (err) {
 		if (err['code'] == 'ENOENT') {
@@ -320,78 +257,68 @@ function fileServer(filename, request, response, next)
 }
 
 /*
+ * Restify handler for proxying a GET request to Manta.
+ */
+function serveFromManta(path, request, response, next)
+{
+	mod_assert.ok(request.method.toLowerCase() == 'get');
+
+	var headers = {};
+	for (var k in request.headers)
+		headers[k] = request.headers[k];
+
+	if (mod_jsprim.isEmpty(klVideos)) {
+		/*
+		 * The client may have this cached, but we don't.
+		 */
+		delete (headers['if-modified-since']);
+		delete (headers['if-none-match']);
+	}
+
+	var clientRequest;
+	clientRequest = mod_http.get({
+	    'path': mod_path.join(klDatadir, path),
+	    'host': klMantaHost,
+	    'headers': headers
+	});
+	clientRequest.on('error', function (err) { next(err); });
+	clientRequest.on('response', function (clientResponse) {
+		response.writeHead(clientResponse.statusCode,
+		    clientResponse.headers);
+		clientResponse.pipe(response);
+		clientResponse.on('end', next);
+
+		if (path == '/generated/summary.json') {
+			var buf = '';
+			clientResponse.on('data', function (chunk) {
+				buf += chunk.toString('utf8');
+			});
+			clientResponse.on('end', function () {
+				var arr;
+				try {
+					arr = JSON.parse(buf);
+				} catch (ex) {
+					klLog.warn(ex,
+					    'parsing /generated/summary.json ' +
+					    '(%d bytes)', buf.length);
+					return;
+				}
+				arr.forEach(function (a) {
+					klVideos[a['id']] = a;
+				});
+				klLog.debug('updated video cache');
+			});
+		}
+	});
+}
+
+/*
  * GET /api/videos: returns all known videos
  */
 function apiVideosGet(request, response, next)
 {
-	var rv = [];
-
-	mod_jsprim.forEachKey(klVideos, function (uuid, video) {
-		var races, obj;
-
-		if (!video.processed)
-			races = [];
-		else
-			races = video.races.map(function (rawrace, i) {
-				var race = mod_jsprim.deepCopy(rawrace);
-				var meta;
-
-				if (video.metadata) {
-					meta = video.metadata.races[i];
-					race['level'] = meta['level'];
-				}
-
-				race['players'].forEach(function (p, j) {
-					p['char'] = p['character'];
-					delete (p['character']);
-
-					if (meta)
-						p['person'] = meta['people'][j];
-				});
-
-				return (race);
-			});
-
-		obj = {
-			'id': uuid,
-			'name': video.name,
-			'crtime': video.crtime,
-			'uploaded': video.uploaded,
-			'mtime': video.lastUpdated,
-			'error': video.error,
-			'frameImages': video.pngDir ? true : false,
-			'metadata': video.metadata,
-			'races': races
-		};
-
-		if (obj['error'])
-			obj['stderr'] = video.stderr;
-
-		if (video.error) {
-			obj.state = 'error';
-		} else if (!video.saved) {
-			obj.state = 'uploading';
-			obj['frame'] = video.uploadForm.bytesReceived;
-			obj['nframes'] = video.uploadForm.bytesExpected;
-		} else if (!video.processed && video.child) {
-			obj.state = 'reading';
-			obj['frame'] = video.frame || 0;
-			obj['nframes'] = video.maxframes || video.frame || 100;
-		} else if (video.child) {
-			obj.state = 'transcoding';
-		} else if (video.ntasks > 0) {
-			obj.state = 'waiting';
-		} else if (!video.metadata) {
-			obj.state = 'unimported';
-		} else {
-			obj.state = 'done';
-		}
-
-		rv.push(obj);
-	});
-
-	response.send(rv);
-	next();
+	return (serveFromManta('/generated/summary.json',
+	    request, response, next));
 }
 
 var klMetadataSchema = {
@@ -437,7 +364,7 @@ function apiFilesGetVideo(request, response, next)
 	}
 
 	video = klVideos[uuid];
-	fileServer(video.filename, request, response, next);
+	serveFromManta('/videos/' + video['name'], request, response, next);
 }
 
 /*
@@ -445,27 +372,28 @@ function apiFilesGetVideo(request, response, next)
  */
 function apiFilesGetRaceVideo(request, response, next)
 {
-	var uuid, video, num;
+	var uuid, video, num, path;
 
 	uuid = request.params['id'];
 	num = mod_path.basename(request.url);
 	num = Math.floor(num.substr(0, num.length - '.webm'.length));
 
 	if (!klVideos.hasOwnProperty(uuid) || isNaN(num)) {
+		request.log.warn('no video for "%s"', uuid);
 		next(new mod_restify.ResourceNotFoundError());
 		return;
 	}
 
 	video = klVideos[uuid];
-
-	if (!video.races || num >= video.races.length ||
-	    !video.races[num]['webm']) {
+	if (!video.races || num >= video.races.length) {
+		request.log.warn('no race video for "%s/%d"', uuid, num);
 		next(new mod_restify.ResourceNotFoundError());
 		return;
 	}
 
-	fileServer(video.webmDir + '/' + num + '.webm',
-	    request, response, next);
+	path = '/generated/' + video['name'] + '/webm/' + num + '.webm';
+	request.log.info('redirecting to %s', path);
+	serveFromManta(path, request, response, next);
 }
 
 /*
@@ -473,24 +401,20 @@ function apiFilesGetRaceVideo(request, response, next)
  */
 function apiFilesGetFrame(request, response, next)
 {
-	var uuid, video;
+	var uuid, video, path;
 
 	uuid = request.params['id'];
-
 	if (!klVideos.hasOwnProperty(uuid)) {
+		request.log.debug('no video for %s', uuid);
 		next(new mod_restify.ResourceNotFoundError());
 		return;
 	}
 
 	video = klVideos[uuid];
-
-	if (!video.pngDir) {
-		next(new mod_restify.ResourceNotFoundError());
-		return;
-	}
-
-	dirServer('/api/files/' + uuid + '/pngs', video.pngDir,
-	    request, response, next);
+	path = '/generated/' + video['name'] + '/pngs/' +
+	    mod_path.basename(request.path());
+	request.log.info('redirecting to %s', path);
+	serveFromManta(path, request, response, next);
 }
 
 /*
@@ -498,53 +422,7 @@ function apiFilesGetFrame(request, response, next)
  */
 function apiVideosPut(request, response, next)
 {
-	var uuid, body, error, video, race, i;
-
-	uuid = request.params['id'];
-	body = request.body;
-
-	if (!klVideos.hasOwnProperty(uuid)) {
-		next(new mod_restify.ResourceNotFoundError());
-		return;
-	}
-
-	video = klVideos[uuid];
-	if (video.error || !video.saved || !video.processed) {
-		next(new mod_restify.ResourceNotFoundError());
-		return;
-	}
-
-	error = mod_jsprim.validateJsonObject(klMetadataSchema, body);
-	if (error) {
-		next(new mod_restify.BadRequestError(error.message));
-		return;
-	}
-
-	if (body['races'].length != video['races'].length) {
-		next(new mod_restify.BadRequestError('wrong number of races'));
-		return;
-	}
-
-	for (i = 0; i < body['races'].length; i++) {
-		race = body['races'][i];
-
-		if (race['people'].length !=
-		    video.races[i]['players'].length) {
-			next(new mod_restify.BadRequestError(
-			    'wrong number of players for race ' + i));
-			return;
-		}
-	}
-
-	saveVideo(video, body, function (err) {
-		if (err) {
-			next(err);
-			return;
-		}
-
-		response.send(200);
-		next();
-	});
+	next(new mod_restify.BadRequestError('PUTs are disabled'));
 }
 
 /*
@@ -552,36 +430,7 @@ function apiVideosPut(request, response, next)
  */
 function apiVideosRerun(request, response, next)
 {
-	var uuid, video;
-
-	uuid = request.params['id'];
-
-	if (!klVideos.hasOwnProperty(uuid)) {
-		next(new mod_restify.ResourceNotFoundError());
-		return;
-	}
-
-	video = klVideos[uuid];
-
-	if (!video.processed) {
-		response.send(200);
-		return;
-	}
-
-	video.frame = 0;
-	video.processed = false;
-	video.races = undefined;
-
-	saveVideo(video, undefined, function (err) {
-		if (err) {
-			next(err);
-			return;
-		}
-
-		response.send(200);
-		klVideoQueue.push({ 'vidid': video.id, 'action': 'kartvid' });
-		video.ntasks++;
-	});
+	next(new mod_restify.BadRequestError('PUTs are disabled'));
 }
 
 /*
@@ -589,50 +438,7 @@ function apiVideosRerun(request, response, next)
  */
 function apiRerunAll(request, response, next)
 {
-	var uuid, video;
-	var args = [];
-
-	for (uuid in klVideos) {
-		video = klVideos[uuid];
-
-		if (!video.processed)
-			continue;
-
-		video.frame = 0;
-		video.processed = false;
-		video.races = undefined;
-
-		args.push(uuid);
-	}
-
-	mod_vasync.forEachParallel({
-	    'inputs': args,
-	    'func': function (vidid, callback) {
-		saveVideo(klVideos[vidid], undefined, function (err) {
-			if (err) {
-				callback(err);
-				return;
-			}
-
-			klVideoQueue.push({
-			    'vidid': vidid,
-			    'action': 'kartvid'
-			});
-
-			klVideos[vidid].ntasks++;
-
-			callback();
-		});
-	    }
-	}, function (err) {
-		if (err) {
-			klLog.error(err, 'failed to rerun all');
-			next(err);
-			return;
-		}
-
-		response.send(200);
-	});
+	next(new mod_restify.BadRequestError('PUTs are disabled'));
 }
 
 /*
@@ -640,419 +446,7 @@ function apiRerunAll(request, response, next)
  */
 function upload(request, response, next)
 {
-	var form = new mod_formidable.IncomingForm();
-	var video;
-
-	form.uploadDir = klDatadir;
-
-	function onerr(err) {
-		request.log.error(err);
-		response.send(400, err.message);
-	}
-
-	function onbegin(name, file) {
-		var filename = file['path'];
-		var uuid = mod_path.basename(filename);
-
-		/*
-		 * formidable picks a unique id so we shouldn't see the same
-		 * name twice.
-		 */
-		mod_assert.ok(!klVideos.hasOwnProperty(uuid));
-
-		video = klVideos[uuid] = {
-		    /* immutable state */
-		    'id': uuid,
-		    'name': file['name'],
-		    'filename': filename,
-
-		    /* state information */
-		    'uploaded': undefined,
-		    'saved': false,
-		    'processed': false,
-		    'lastUpdated': mod_jsprim.iso8601(new Date()),
-		    'crtime': undefined,
-		    'metadataFile': filename + '.md.json',
-		    'eventsFile': filename + '.events.json',
-		    'pngDir': filename + '.pngs',
-		    'webmDir': filename + '.webm',
-		    'error': undefined,
-
-		    /* user data */
-		    'metadata': undefined,
-
-		    /* kartvid output */
-		    'races': undefined,
-
-		    /* form, for upload progress */
-		    'uploadForm': form,
-
-		    /* kartvid progress */
-		    'frame': undefined,
-		    'maxframes': undefined,
-
-		    /* current process */
-		    'child': undefined,
-		    'stdout': undefined,
-		    'stderr': undefined,
-
-		    'ntasks': 0,
-		    'log': klLog.child({ 'video': uuid })
-		};
-	}
-
-	form.on('error', onerr);
-	form.on('fileBegin', onbegin);
-
-	form.parse(request, function (err, fields, files) {
-		form.removeListener('error', onerr);
-		form.removeListener('fileBegin', onbegin);
-
-		if (!video) {
-			next(new mod_restify.BadRequestError(
-			    'no file specified'));
-			return;
-		}
-
-		response.send(201);
-		next();
-
-		video.uploaded = mod_jsprim.iso8601(new Date());
-		saveVideo(video, undefined, function (suberr) {
-			if (suberr)
-				return;
-
-			video.saved = true;
-
-			klVideoQueue.push({
-			    'vidid': video.id,
-			    'action': 'kartvid'
-			});
-
-			video.ntasks++;
-		});
-	});
-}
-
-function saveVideo(video, metadata, callback)
-{
-	mod_assert.equal(arguments.length, 3);
-
-	/*
-	 * Once the upload completes, we write a blank metadata file.  If we
-	 * don't find this file on startup, we assume the upload failed partway.
-	 */
-	var tmpfile = video.metadataFile + 'tmp';
-	var keys = [ 'id', 'name', 'filename', 'uploaded', 'saved', 'processed',
-	    'crtime', 'metadataFile', 'eventsFile', 'pngDir', 'webmDir',
-	    'error', 'metadata', 'races', 'error' ];
-	var obj = {};
-	var when = mod_jsprim.iso8601(new Date());
-
-	keys.forEach(function (key) {
-		obj[key] = video[key];
-	});
-
-	obj['saved'] = true;
-	obj['lastUpdated'] = when;
-
-	if (metadata)
-		obj['metadata'] = metadata;
-
-	mod_fs.writeFile(tmpfile, JSON.stringify(obj, null, 4),
-	    function (err) {
-		if (err) {
-			klLog.error(err, 'failed to write metadata file %s',
-			    tmpfile);
-			callback(err);
-			return;
-		}
-
-		mod_fs.rename(tmpfile, video.metadataFile, function (suberr) {
-			if (err) {
-				klLog.error(err, 'failed to rename %s',
-				    tmpfile);
-				callback(err);
-				return;
-			}
-
-			if (metadata)
-				video.metadata = metadata;
-			video.lastUpdated = when;
-			klLog.info('saved video record %s', video.id);
-			callback();
-		});
-	    });
-}
-
-function vidTaskRun(arg, callback)
-{
-	var video;
-
-	video = klVideos[arg.vidid];
-	video.ntasks--;
-
-	if (arg.action == 'webm') {
-		vidTaskRaceWebm(arg, callback);
-		return;
-	}
-
-	if (!video.pngDir)
-		video.pngDir = video.filename + '.pngs';
-
-	mod_fs.mkdir(video['pngDir'], function (err) {
-		if (err && err['code'] != 'EEXIST') {
-			video.error = err.message;
-			video.log.error(video.error);
-			callback();
-			return;
-		}
-
-		vidTaskKartvid(arg.vidid, callback);
-	});
-}
-
-function vidTaskRaceWebm(arg, callback)
-{
-	var video = arg.video;
-	var race = video['races'][arg.racenum];
-	var ffmpeg_args = arg.args;
-
-	mod_fs.mkdir(video['webmDir'], function (err) {
-		if (err && err['code'] != 'EEXIST') {
-			video.error = err.message;
-			video.log.error(video.error);
-			callback();
-			return;
-		}
-
-		var child = vidStartCommand(video, 'ffmpeg', ffmpeg_args);
-		child.on('exit', function (code) {
-			video.child = undefined;
-
-			if (code !== 0) {
-				video.error = mod_extsprintf.sprintf(
-				    'ffmpeg exited with code %d; ' +
-				    'stderr = %s', code, video.stderr);
-				video.log.error(video.error);
-				callback();
-				return;
-			}
-
-			video.log.info('created webm for race %d',
-			    arg.racenum);
-			race['webm'] = video.id + '.webm/race' +
-			    arg.racenum + '.webm';
-			saveVideo(video, undefined, callback);
-			vidDispatchWebm(video);
-		});
-	});
-
-}
-
-function vidStartCommand(video, cmd, args)
-{
-	var child;
-
-	mod_assert.ok(video.child === undefined);
-
-	video.stdout = '';
-	video.stderr = '';
-	video.child = child = mod_child.spawn(cmd, args);
-	video.log.info('invoking %s %j', cmd, args);
-
-	child.stdout.on('data', function (chunk) { video.stdout += chunk; });
-	child.stderr.on('data', function (chunk) { video.stderr += chunk; });
-	return (child);
-}
-
-/*
- * Invoke "kartvid" to process all frames in the video.
- */
-function vidTaskKartvid(vidid, callback)
-{
-	var video, child;
-
-	/*
-	 * We run through this process in phases: first we run "kartvid", which
-	 * emits events for "important" frames.  Except for determining when
-	 * something "important" has happened, kartvid's processing is
-	 * stateless.  We use the carrier module with parseKartvid() to group
-	 * these frame records into distinct races.  Then we take a pass over
-	 * the race records using vidParseRaces() to flesh out our records.
-	 * Finally, now that we know what races are present and when they start
-	 * and end, we submit tasks to extract webm clips for each one.
-	 */
-	video = klVideos[vidid];
-	child = vidStartCommand(video, 'out/kartvid',
-	    [ 'video', '-d', video.pngDir, '-j', video.filename ]);
-	mod_carrier.carry(child.stdout, mod_kartvid.parseKartvid(video));
-
-	child.on('exit', function (code) {
-		video.child = undefined;
-
-		if (code !== 0) {
-			video.error = mod_extsprintf.sprintf(
-			    'kartvid exited with code %d; stderr = %s',
-			    code, video.stderr);
-			video.log.error(video.error);
-			callback();
-			return;
-		}
-
-		var steps = [];
-
-		steps.push(function (_, subcallback) {
-			mod_fs.writeFile(video.eventsFile, video.stdout,
-			    subcallback);
-		});
-
-		steps.push(function (_, subcallback) {
-			video.log.info('successfully ran kartvid');
-			video.processed = true;
-			saveVideo(video, undefined, subcallback);
-		});
-
-		steps.push(function (_, subcallback) {
-			vidParseRaces(video);
-			saveVideo(video, undefined, subcallback);
-		});
-
-		steps.push(function (_, subcallback) {
-			vidDispatchWebm(video);
-			subcallback();
-		});
-
-		mod_vasync.pipeline({ 'funcs': steps }, function (err) {
-			if (err) {
-				video.error = 'failed: ' + err.message;
-				video.log.error(err, 'failed to finish');
-			}
-
-			callback();
-		});
-	});
-}
-
-function vidParseRaces(video)
-{
-	video.races.forEach(function (race, i) {
-		var players, k;
-
-		race['raceid'] = video.id + '/' + i;
-		race['vidid'] = video.id;
-		race['num'] = i;
-		race['start_time'] = video.crtime + race['vstart'];
-		race['end_time'] = video.crtime + race['vend'];
-		race['duration'] = race['vend'] - race['vstart'];
-
-		players = race['players'];
-		race['segments'].forEach(function (seg, j) {
-			for (k = 0; k < players.length; k++) {
-				if (players[k].hasOwnProperty('time'))
-					continue;
-
-				if (seg['players'][k]['lap'] == 4)
-					players[k]['time'] =
-					    seg['vstart'] - race['vstart'];
-			}
-
-			seg['raceid'] = race['raceid'];
-			seg['segnum'] = j;
-			seg['duration'] = seg['vend'] - seg['vstart'];
-		});
-
-		for (k = 0; k < players.length; k++) {
-			if (players[k].hasOwnProperty('time'))
-				continue;
-
-			if (players[k]['rank'] == players.length)
-				continue;
-
-			players[k]['time'] = race.vend - race.vstart;
-		}
-	});
-}
-
-function vidDispatchWebm(video)
-{
-	var i, race;
-
-	if (!video.races || video.races.length === 0)
-		return;
-
-	/* jsl:ignore */
-	for (i = 0; i < video.races.length; i++) {
-	/* jsl:end */
-		race = video.races[i];
-
-		if (race['webm'] || !race['vend'] || !race['vstart'])
-			continue;
-
-		if (!video.webmDir)
-			video.webmDir = video.filename + '.webm';
-
-		/*
-		 * We disable audio recording with ffmpeg because the vorbis
-		 * audio encoder is "experimental" in our SmartOS build and
-		 * doesn't seem to work that well.
-		 */
-		var extract_start =
-		    Math.max(0, Math.floor(race['vstart'] / 1000) - 10);
-		var extract_duration =
-		    Math.ceil((race['vend'] - race['vstart']) / 1000) + 20;
-		var args = [ '-y', '-ss', extract_start, '-t', extract_duration,
-		    '-i', video.filename, '-an', video.webmDir + '/' +
-		    race['num'] + '.webm' ];
-
-		klVideoQueue.push({
-		    'action': 'webm',
-		    'vidid': video['id'],
-		    'video': video,
-		    'racenum': i,
-		    'args': args
-		});
-
-		video.ntasks++;
-
-		/* We can only dispatch one at a time. */
-		break;
-	}
-}
-
-/*
- * Kang (introspection) entry points
- */
-function kangListTypes()
-{
-	return ([ 'queue', 'video' ]);
-}
-
-function kangListObjects(type)
-{
-	if (type == 'queue')
-		return ([ 0 ]);
-
-	return (Object.keys(klVideos));
-}
-
-function kangGetObject(type, ident)
-{
-	if (type == 'queue')
-		return (klVideoQueue);
-
-	var video = klVideos[ident];
-
-	return ({
-		'name': video.name,
-		'uploaded': video.uploaded,
-		'saved': video.saved,
-		'metadata': video.metadata,
-		'frame': video.frame,
-		'maxframes': video.maxframes,
-		'races': video.races,
-		'error': video.error
-	});
+	next(new mod_restify.BadRequestError('PUTs are disabled'));
 }
 
 main();
