@@ -35,6 +35,7 @@ set -o xtrace
 mget -q "$w_races" > /var/tmp/races.json || fail "not found: $w_races"
 json -a vstart vend < /var/tmp/races.json | cat -n | \
     while read i vstart vend; do
+	i=$(( i - 1 ))
 	echo "race $i: vstart=$vstart vend=$vend"
 	extract_start=$(( vstart / 1000 - 10 ))
 	[[ $extract_start -lt 0 ]] && extract_start=0
