@@ -39,11 +39,11 @@ Directory structure:
 
 videos/		Raw videos and metadata
     foo.mov	Raw video file
-    foo.json	Raw user metadata
+    foo.json	Import and raw user metadata
 generated/
     summary.json	Giant blob returned to client
     foo/
     	pngs/		Screenshots of key moments
 	webm/		Web-quality videos of races
 	races.json	Transcript of races
-	starts.json	Start times of contained races
+	transcript.json	Race transcript

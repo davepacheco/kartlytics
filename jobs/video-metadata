@@ -1,0 +1,133 @@
+#!/bin/bash
+
+#
+# video-metadata: emit summary data for this video, as consumed by the
+# kartlytics client.
+#
+
+arg0="$(basename $0)"
+
+function fail
+{
+	echo "$arg0: $@" >&2
+	exit 1
+}
+
+function usage
+{
+	[[ $# -gt 0 ]] && echo "$arg0: $@" >& 2
+	cat <<EOF >&2
+usage: $arg0 OUTPUT_BASE METADATA_FILE
+
+Emit summary data for this kartlytics video.
+EOF
+	exit 2
+}
+
+[[ $# -eq 2 ]] || usage
+
+w_basename="$(basename $2 .json)"
+w_transcript="$1/$w_basename/transcript.json"
+w_races="$1/$w_basename/races.json"
+w_webm="$1/$w_basename/webm"
+w_png="$1/$w_basename/pngs"
+w_haswebm=false
+w_haspng=false
+
+set -o pipefail
+
+cd /var/tmp
+mget -q "$w_transcript" > transcript.json
+mget -q "$w_races" > races.json
+mls $w_webm > /dev/null && w_haswebm=true
+mls $w_png > /dev/null && w_haspng=true
+
+cat > merge.js <<EOF
+var mod_fs = require('fs');
+
+var transcript = mod_fs.readFileSync('transcript.json');
+var races = mod_fs.readFileSync('races.json');
+var metadata = JSON.parse(mod_fs.readFileSync('$2'));
+var out = {};
+
+var fields_passthru = [ 'id', 'name', 'crtime', 'uploaded', 'error',
+    'metadata' ];
+fields_passthru.forEach(function (f) { out[f] = metadata[f]; });
+out['mtime'] = metadata['lastUpdated'];
+out['frameImages'] = $w_haspng
+
+if (metadata['error'])
+	out['stderr'] = metadata['stderr'];
+
+if (races.length > 0) {
+	out['races'] = JSON.parse(races).map(function (race, i) {
+		var meta, players, k;
+
+		if (out['metadata']) {
+			meta = out['metadata']['races'][i];
+			race['level'] = meta['level'];
+		}
+
+		race['players'].forEach(function (p, j) {
+			p['char'] = p['character'];
+			delete (p['character']);
+
+			if (meta)
+				p['person'] = meta['people'][j];
+		});
+
+		race['raceid'] = out['id'] + '/' + i;
+		race['vidid'] = out['id'];
+		race['num'] = i;
+		race['start_time'] = out['crtime'] + race['vstart'];
+		race['end_time'] = out['crtime'] + race['vend'];
+		race['duration'] = race['vend'] - race['vstart'];
+
+		players = race['players'];
+		race['segments'].forEach(function (seg, j) {
+			for (k = 0; k < players.length; k++) {
+				if (players[k].hasOwnProperty('time'))
+					continue;
+
+				if (seg['players'][k]['lap'] == 4)
+					players[k]['time'] =
+					    seg['vstart'] - race['vstart'];
+			}
+
+			seg['raceid'] = race['raceid'];
+			seg['segnum'] = j;
+			seg['duration'] = seg['vend'] - seg['vstart'];
+		});
+
+		for (k = 0; k < players.length; k++) {
+			if (players[k].hasOwnProperty('time'))
+				continue;
+
+			if (players[k]['rank'] == players.length)
+				continue;
+
+			players[k]['time'] = race['vend'] - race['vstart'];
+		}
+
+		if ($w_haswebm)
+			race['webm'] = out['id'] + '.webm/race' +
+			    race['num'] + '.webm';
+		return (race);
+	});
+} else {
+	out['races'] = [];
+}
+
+if (out['error'])
+	out['state'] = 'error';
+else if (transcript.length === 0)
+	out['state'] = 'waiting';
+else if (!out['metadata'])
+	out['state'] = 'unimported';
+else
+	out['state'] = 'done';
+
+console.log(JSON.stringify(out));
+EOF
+
+node merge.js || fail "merge failed"
