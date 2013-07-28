@@ -40,7 +40,7 @@ $1/out/kartvid video -d "$t_framesdir" -j "$3" > $t_transcript || \
     fail "kartvid failed"
 mmkdir -p "$t_outdir/pngs"
 for file in $t_framesdir/*; do
-	key="$(basename "$file" | tr ' ' '_')"
+	key="$(basename "$file")"
 	mput -f "$file" "$t_outdir/pngs/$key" || fail "failed to save $file"
 done
 
