@@ -93,7 +93,7 @@ function main()
 	 * find its assets.
 	 */
 	initData();
-	mod_http.globalAgent.maxClients = 128;
+	mod_http.globalAgent.maxSockets = 128;
 	process.chdir(mod_path.join(__dirname, '..'));
 	initServer();
 }
