@@ -426,6 +426,28 @@ function kScreenSummaryLoad()
 	    'options': { 'title': 'Latest session'}
 	});
 
+	/* slugfests table */
+	slugfests.sort(function (a, b) { return (b['cpm'] - a['cpm']); });
+	slugfests = slugfests.slice(0, 5);
+	cols = kColumnsByName([ 'Date', 'NPl', 'Mode', 'Lvl', 'Track' ]);
+	cols.push({
+	    'sTitle': 'CPM',
+	    'sClass': 'kDataRaceTime',
+	    '_conf': {
+	        'extract': function (race) {
+			return ((race['cpm'] * 1000 * 60).toFixed(2));
+		}
+	    }
+	});
+	rows = slugfests.map(kExtractValues.bind(null, cols));
+	kTable(kDomConsole, rows, cols, {
+	    'title': 'Wildest races',
+	    'label': 'As determined by number of rank changes per minute',
+	    'dtOptions': {
+	        'aaSorting': [ [ 5, 'desc' ] ]
+	    }
+	});
+
 	/* keithings table */
 	keithings = keithings.map(function (k) {
 		var rv = Object.create(k['race']);
@@ -461,25 +483,6 @@ function kScreenSummaryLoad()
 	    'title': 'Keithings',
 	    'label': 'Moving from 1st to 4th in less than ' +
 	        (kKeithingThreshold / 1000) + ' seconds'
-	});
-
-	/* slugfests table */
-	slugfests.sort(function (a, b) { return (b['cpm'] - a['cpm']); });
-	slugfests = slugfests.slice(0, 5);
-	cols = kColumnsByName([ 'Date', 'NPl', 'Mode', 'Lvl', 'Track' ]);
-	cols.push({
-	    'sTitle': 'CPM',
-	    'sClass': 'kDataRaceTime',
-	    '_conf': {
-	        'extract': function (race) {
-			return ((race['cpm'] * 1000 * 60).toFixed(2));
-		}
-	    }
-	});
-	rows = slugfests.map(kExtractValues.bind(null, cols));
-	kTable(kDomConsole, rows, cols, {
-	    'title': 'Wildest races',
-	    'label': 'As determined by number of rank changes per minute'
 	});
 }
 
@@ -587,17 +590,9 @@ function kScreenPlayersLoad(args)
 	kDataTable({
 	    'parent': kDomConsole,
 	    'entries': rows,
-	    'columns': [ 'H', 'NR', 'Pts', 'PPR', 'N1st', 'N2nd',
-	        'N3rd', 'N4th', 'RTime', '%1st', '%2nd', '%3rd', '%4th'],
+	    'columns': [ 'H', 'NR', 'N1st', 'N2nd', 'N3rd', 'N4th', 'RTime'],
 	    'group_by': [ 'H' ],
-	    'extract_args': function (race) { return ([ race['_player'] ]); },
-	    'aggregate': {
-		'%1st': kAggregateFractions,
-		'%2nd': kAggregateFractions,
-		'%3rd': kAggregateFractions,
-		'%4th': kAggregateFractions,
-		'PPR': kAggregateFractions
-	    }
+	    'extract_args': function (race) { return ([ race['_player'] ]); }
 	});
 }
 
