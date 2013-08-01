@@ -24,22 +24,14 @@
  */
 
 var mod_assert = require('assert');
-var mod_child = require('child_process');
 var mod_fs = require('fs');
 var mod_http = require('http');
-var mod_os = require('os');
 var mod_path = require('path');
 
 var mod_bunyan = require('bunyan');
-var mod_carrier = require('carrier');
-var mod_extsprintf = require('extsprintf');
 var mod_getopt = require('posix-getopt');
-var mod_jsprim = require('jsprim');
 var mod_formidable = require('formidable');
 var mod_restify = require('restify');
-var mod_vasync = require('vasync');
-
-var mkdirp = require('mkdirp');
 
 var mod_kartvid = require('./kartvid');
 
@@ -147,14 +139,6 @@ function initServer()
 	klServer.get('/resources/.*', dirServer.bind(null, '/resources/',
 	    mod_path.join(filespath, 'resources')));
 	klServer.post('/kart/video', auth, upload);
-	klServer.get('/api/videos', apiVideosGet);
-	klServer.get('/api/files/:id/.*\.mov', apiFilesGetVideo);
-	klServer.get('/api/files/:id/.*\.webm', apiFilesGetRaceVideo);
-	klServer.get('/api/files/:id/pngs/.*', apiFilesGetFrame);
-	klServer.put('/api/videos/:id', auth,
-	    mod_restify.bodyParser({ 'mapParams': false }), apiVideosPut);
-	klServer.put('/api/videos/:id/rerun', auth, apiVideosRerun);
-	klServer.put('/api/rerun_all', auth, apiRerunAll);
 
 	klServer.on('after', mod_restify.auditLogger({ 'log': klLog }));
 
@@ -258,197 +242,11 @@ function fileServer(filename, request, response, next)
 }
 
 /*
- * Restify handler for proxying a GET request to Manta.
- */
-function serveFromManta(path, request, response, next)
-{
-	mod_assert.ok(request.method.toLowerCase() == 'get');
-
-	var headers = {};
-	for (var k in request.headers)
-		headers[k] = request.headers[k];
-
-	if (mod_jsprim.isEmpty(klVideos)) {
-		/*
-		 * The client may have this cached, but we don't.
-		 */
-		delete (headers['if-modified-since']);
-		delete (headers['if-none-match']);
-	}
-
-	request.log.info('making subrequest');
-	var clientRequest;
-	clientRequest = mod_http.get({
-	    'path': mod_path.join(klDatadir, path),
-	    'host': klMantaHost,
-	    'headers': headers
-	});
-	clientRequest.on('error', function (err) { next(err); });
-	clientRequest.on('response', function (clientResponse) {
-		response.writeHead(clientResponse.statusCode,
-		    clientResponse.headers);
-		clientResponse.pipe(response);
-		clientResponse.on('end', next);
-
-		if (path == '/generated/summary.json') {
-			var buf = '';
-			clientResponse.on('data', function (chunk) {
-				buf += chunk.toString('utf8');
-			});
-			clientResponse.on('end', function () {
-				var arr;
-				try {
-					arr = JSON.parse(buf);
-				} catch (ex) {
-					klLog.warn(ex,
-					    'parsing /generated/summary.json ' +
-					    '(%d bytes)', buf.length);
-					return;
-				}
-				arr.forEach(function (a) {
-					klVideos[a['id']] = a;
-				});
-				klLog.debug('updated video cache');
-			});
-		}
-	});
-}
-
-/*
- * GET /api/videos: returns all known videos
- */
-function apiVideosGet(request, response, next)
-{
-	return (serveFromManta('/generated/summary.json',
-	    request, response, next));
-}
-
-var klMetadataSchema = {
-    'type': 'object',
-    'additionalProperties': false,
-    'properties': {
-	'races': {
-	    'type': 'array',
-	    'items': {
-		'type': 'object',
-		'additionalProperties': false,
-		'properties': {
-		    'level': {
-			'type': 'string',
-			'enum': [ '50cc', '100cc', '150cc', 'Extra' ]
-		    },
-		    'people': {
-			'type': 'array',
-			'uniqueItems': true,
-			'items': {
-			    'type': 'string',
-			    'minLength': 1
-			}
-		    }
-		}
-	    }
-	}
-    }
-};
-
-/*
- * GET /api/files/:id: retrieve an actual video file
- */
-function apiFilesGetVideo(request, response, next)
-{
-	var uuid, video;
-
-	uuid = request.params['id'];
-
-	if (!klVideos.hasOwnProperty(uuid)) {
-		next(new mod_restify.ResourceNotFoundError());
-		return;
-	}
-
-	video = klVideos[uuid];
-	serveFromManta('/videos/' + video['name'], request, response, next);
-}
-
-/*
- * GET /api/files/:vidid/:racenum.webm: retrieve a race video file
- */
-function apiFilesGetRaceVideo(request, response, next)
-{
-	var uuid, video, num, path;
-
-	uuid = request.params['id'];
-	num = mod_path.basename(request.url);
-	num = Math.floor(num.substr(0, num.length - '.webm'.length));
-
-	if (!klVideos.hasOwnProperty(uuid) || isNaN(num)) {
-		request.log.warn('no video for "%s"', uuid);
-		next(new mod_restify.ResourceNotFoundError());
-		return;
-	}
-
-	video = klVideos[uuid];
-	if (!video.races || num >= video.races.length) {
-		request.log.warn('no race video for "%s/%d"', uuid, num);
-		next(new mod_restify.ResourceNotFoundError());
-		return;
-	}
-
-	path = '/generated/' + video['name'] + '/webm/' + num + '.webm';
-	request.log.info('redirecting to %s', path);
-	serveFromManta(path, request, response, next);
-}
-
-/*
- * GET /api/files/:id/pngs/:frame: retrieve a video frame
- */
-function apiFilesGetFrame(request, response, next)
-{
-	var uuid, video, path;
-
-	uuid = request.params['id'];
-	if (!klVideos.hasOwnProperty(uuid)) {
-		request.log.debug('no video for %s', uuid);
-		next(new mod_restify.ResourceNotFoundError());
-		return;
-	}
-
-	video = klVideos[uuid];
-	path = '/generated/' + video['name'] + '/pngs/' +
-	    mod_path.basename(request.path());
-	request.log.info('redirecting to %s', path);
-	serveFromManta(path, request, response, next);
-}
-
-/*
- * PUT /api/videos/:id: saves video metadata
- */
-function apiVideosPut(request, response, next)
-{
-	next(new mod_restify.BadRequestError('PUTs are disabled'));
-}
-
-/*
- * PUT /api/videos/:id/rerun: rerun kartvid for this video
- */
-function apiVideosRerun(request, response, next)
-{
-	next(new mod_restify.BadRequestError('PUTs are disabled'));
-}
-
-/*
- * PUT /api/rerun_all: rerun kartvid for this video
- */
-function apiRerunAll(request, response, next)
-{
-	next(new mod_restify.BadRequestError('PUTs are disabled'));
-}
-
-/*
  * Restify handler for handling form uploads.
  */
 function upload(request, response, next)
 {
-	next(new mod_restify.BadRequestError('PUTs are disabled'));
+	next(new mod_restify.BadRequestError('Unauthorized'));
 }
 
 main();

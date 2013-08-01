@@ -27,6 +27,7 @@
  */
 
 /* jsl:declare window */
+/* jsl:import config.js */
 
 /*
  * TODO:
@@ -83,7 +84,7 @@ function kLoadData(force)
 		kForceRefresh = true;
 
 	$.ajax({
-	    'url': '/api/videos',
+	    'url': kUrlSummary,
 	    'dataType': 'json',
 	    'success': kOnData,
 	    'error': kFatal
@@ -606,7 +607,7 @@ function kScreenPlayersLoad(args)
  */
 function kScreenRaceLoad(args)
 {
-	var vidid, raceid, racename, filter, video, raceobj;
+	var vidid, raceid, racename, filter, video, webmurl, raceobj;
 	var metadata = [], players = [], events = [];
 
 	if (args.length < 2) {
@@ -712,10 +713,11 @@ function kScreenRaceLoad(args)
 	    }
 	});
 
+	webmurl = kUrlBaseData + '/' + video.name + '/webm/' + args[1] +
+	    '.webm';
 	$('td#kRaceVideo').append(
 	    '<video width="320" height="240" controls="controls">' +
-	    '<source src="/api/files/' + vidid + '/' + args[1] + '.webm" ' +
-	    'type="video/webm" />' +
+	    '<source src="' + webmurl + '" type="video/webm" />' +
 	    '</video>');
 
 	var eventCols = [ {
@@ -952,9 +954,10 @@ function kScreenVideoLoad(args)
 		}
 
 		if (data[0] == 'Download') {
+			var vidurl = kUrlBaseVideos + '/' + video.name;
 			td = $(tr).find('td.kDataValue');
-			$(td).html('<a href="/api/files/' +
-			    vidid + '/video.mov">' + $(td).text() + '</a>');
+			$(td).html('<a href="' + vidurl + '">' +
+			    $(td).text() + '</a>');
 			return;
 		}
 	    }
@@ -1323,30 +1326,14 @@ function kImportOk(uuid, div)
 
 function kImportSave(uuid, metadata, div)
 {
-	$.ajax({
-	    'type': 'PUT',
-	    'url': '/api/videos/' + uuid,
-	    'contentType': 'application/json',
-	    'processData': false,
-	    'data': JSON.stringify(metadata),
-	    'error': kFatal,
-	    'success': function () {
-		$(div).dialog('destroy');
-		$(div).remove();
-		kLoadData(true);
-	    }
-	});
+	/* Import is not yet supported on Manta */
+	alert('Unauthorized');
 }
 
 function kReprocessVideo(vidid)
 {
-	$.ajax({
-	    'type': 'PUT',
-	    'url': '/api/videos/' + vidid + '/rerun',
-	    'processData': false,
-	    'error': kFatal,
-	    'success': function () { kLoadData(true); }
-	});
+	/* Reprocess not supported on Manta */
+	alert('Unauthorized');
 }
 
 /*
@@ -1476,12 +1463,12 @@ function kPercentage(frac)
 	return ((100 * frac).toFixed(1));
 }
 
-function frameImgHref(vidid, frame)
+function frameImgHref(vidname, frame)
 {
 	if (!frame)
 		return ('');
 
-	return ('/api/files/' + vidid + '/pngs/' +
+	return (kUrlBaseData + '/' + vidname + '/pngs/' +
 	    encodeURIComponent(frame) + '.png');
 }
 
@@ -1687,8 +1674,8 @@ function makeRaceObject(video, race, num)
 	    'level': racemeta.level,
 	    'track': race.track,
 	    'players': race.players,
-	    'start_source': frameImgHref(video.id, race.start_source),
-	    'end_source': frameImgHref(video.id, race.end_source)
+	    'start_source': frameImgHref(video.name, race.start_source),
+	    'end_source': frameImgHref(video.name, race.end_source)
 	};
 
 	return (rv);
@@ -1724,7 +1711,8 @@ function makeSegmentObject(race, segment, i, raceobj)
 	};
 
 	if (segment['source'])
-		rv['source'] = frameImgHref(raceobj['vidid'],
+		rv['source'] = frameImgHref(
+		    kVideos[raceobj['vidid']].name,
 		    segment['source']);
 
 	return (rv);
