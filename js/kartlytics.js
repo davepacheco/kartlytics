@@ -276,6 +276,7 @@ function serveFromManta(path, request, response, next)
 		delete (headers['if-none-match']);
 	}
 
+	request.log.info('making subrequest');
 	var clientRequest;
 	clientRequest = mod_http.get({
 	    'path': mod_path.join(klDatadir, path),

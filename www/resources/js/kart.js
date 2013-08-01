@@ -315,12 +315,17 @@ function kScreenSummaryLoad()
 	    '<td class="kDynamic">',
 	    '<p class="kBodyText">Kartlytics.com records results and stats ',
 	    'for Mario Kart 64 races.  The records here are automatically ',
-	    'computed from screen captures of actual races.  If you\'re ',
-	    'wondering where to start, check out <a href="#races">the ' +
+	    'computed from screen captures of actual races.</p>',
+	    '<p class="kBodyText">If you\'re ',
+	    'wondering where to start, check out <a href="#races">the ',
 	    'races</a> or the stats below.</p>',
-	    '<p class="kBodyText">See the ',
+	    '<p class="kBodyText">Videos are stored on the ',
+	    '<a href="http://www.joyent.com/products/manta">Joyent ',
+	    'Manta service</a>.  Video processing and data aggregation ',
+	    'run as compute jobs in Manta without copying the videos.  For ',
+	    'details on how this works, see the ',
 	    '<a href="https://github.com/davepacheco/kartlytics">kartlytics ',
-	    'github project</a> for details.</p>',
+	    'github project</a>.</p>',
 	    '</td>'
 	].join(''));
 
