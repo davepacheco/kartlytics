@@ -26,6 +26,7 @@ static int kv_nmasks = 0;
 #define KV_MASK_CHAR(s)		(s[0] == 'c')
 #define KV_MASK_TRACK(s)	(s[0] == 't')
 #define	KV_MASK_LAKITU(s)	(s[0] == 'l')
+#define	KV_MASK_ITEM(s)		(s[0] == 'i')
 
 #define	KV_STARTFRAMES	90
 
@@ -81,6 +82,9 @@ kv_init(const char *dirname)
 
 		if (strncmp(entp->d_name, "char_", sizeof ("char_") - 1) != 0 &&
 		    strncmp(entp->d_name, "pos", sizeof ("pos") - 1) != 0 &&
+		    strncmp(entp->d_name, "item_", sizeof ("item_") - 1) != 0 &&
+		    strncmp(entp->d_name, "item_box_frame",
+		    sizeof ("item_box_frame") - 1) != 0 &&
 		    strncmp(entp->d_name, "lakitu_start",
 		    sizeof ("lakitu_start") - 1) != 0 &&
 		    strncmp(entp->d_name, "track_", sizeof ("track_") - 1) != 0)
@@ -134,6 +138,9 @@ kv_ident(img_t *image, kv_screen_t *ksp, kv_ident_t which)
 		if (!(which & KV_IDENT_TRACK) && KV_MASK_TRACK(kmp->km_name))
 			continue;
 
+		if (!(which & KV_IDENT_ITEM) && KV_MASK_ITEM(kmp->km_name))
+			continue;
+
 		score = img_compare(image, kmp->km_image, NULL);
 
 		if (kv_debug > 1)
@@ -143,6 +150,8 @@ kv_ident(img_t *image, kv_screen_t *ksp, kv_ident_t which)
 			checkthresh = KV_THRESHOLD_CHAR;
 		else if (KV_MASK_LAKITU(kmp->km_name))
 			checkthresh = KV_THRESHOLD_LAKITU;
+		else if (KV_MASK_ITEM(kmp->km_name))
+			checkthresh = KV_THRESHOLD_ITEM;
 		else
 			checkthresh = KV_THRESHOLD_TRACK;
 
@@ -236,6 +245,36 @@ kv_ident_matches(kv_screen_t *ksp, const char *mask, double score)
 
 	if (strncmp(buf, "lakitu_start", sizeof ("lakitu_start") - 1) == 0) {
 		ksp->ks_events |= KVE_RACE_START;
+		return;
+	}
+
+	if (strncmp(buf, "item_", sizeof ("item_") - 1) == 0) {
+		p = strrchr(buf, '_');
+		if (p == buf + sizeof ("item_") - 1)
+			return;
+
+		*p = '\0';
+		if (sscanf(p + 1, "%u", &square) != 1 ||
+		    square > KV_MAXPLAYERS)
+			return;
+
+		kpp = &ksp->ks_players[square - 1];
+		if (kpp->kp_item[0] != '\0' && kpp->kp_itemscore < score)
+			return;
+
+		if (square > ksp->ks_nplayers)
+			return;
+
+		(void) strlcpy(kpp->kp_item, buf + sizeof ("item_") - 1,
+		    sizeof (kpp->kp_item));
+		kpp->kp_itemscore = score;
+		return;
+	}
+
+	if (strncmp(buf, "itemon_box_frame",
+	    sizeof ("itemon_box_frame") - 1) == 0) {
+		kpp = &ksp->ks_players[0];
+		kpp->kp_itembox = KVI_BOX;
 		return;
 	}
 }
@@ -344,6 +383,13 @@ kv_screen_compare(kv_screen_t *ksp, kv_screen_t *pksp, kv_screen_t *raceksp)
 		    (raceksp->ks_track[0] != 'y' &&
 		    kpp->kp_place != pkpp->kp_place))
 			return (1);
+
+		if (kpp->kp_itembox != pkpp->kp_itembox)
+			return (1);
+
+		/* XXX should be enum? */
+		if (strcmp(kpp->kp_item, pkpp->kp_item) != 0)
+			return (1);
 	}
 
 	return (0);
@@ -382,8 +428,8 @@ kv_screen_print(const char *source, int frame, int msec, kv_screen_t *ksp,
 	if (ksp->ks_nplayers == 0)
 		return;
 
-	(void) fprintf(out, "%-8s    %-32s    %-4s    %-7s\n", "",
-	    "Character", "Posn", "Lap");
+	(void) fprintf(out, "%-8s    %-32s    %-4s    %-7s    %-4s\n", "",
+	    "Character", "Posn", "Lap", "Item");
 
 	for (i = 0; i < ksp->ks_nplayers; i++) {
 		(void) fprintf(out, "Player %d    ", i + 1);
@@ -431,7 +477,14 @@ kv_screen_print(const char *source, int frame, int msec, kv_screen_t *ksp,
 			(void) fprintf(out, "Lap %d/3", kpp->kp_lapnum);
 		}
 
-		(void) fprintf(out, "\n");
+		(void) fprintf(out, "    ");
+		
+		if (kpp->kp_item[0] != '\0')
+			(void) fprintf(out, "%s\n", kpp->kp_item);
+		else if ((kpp->kp_itembox & KVI_BOX) != 0)
+			(void) fprintf(out, "UNKNOWN\n");
+		else
+			(void) fprintf(out, "-\n");
 	}
 
 	(void) fflush(out);
@@ -526,7 +579,7 @@ kv_vidctx_init(const char *rootdir, kv_emit_f emit, const char *dbgdir)
  * see a start frame, we call this function to look back at the recent frames
  * and pick the best character match for each square among all of the recent
  * frames.  This technique is important to be able to identify characters in the
- * face of things like smoke that distorts their images
+ * face of things like smoke that distort their images.
  */
 static void
 kv_vidctx_chars(kv_vidctx_t *kvp, kv_screen_t *ksp, int i)

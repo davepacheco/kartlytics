@@ -14,17 +14,26 @@
 #define	KV_FRAMERATE		29.97
 #define	KV_THRESHOLD_CHAR	0.23
 #define	KV_THRESHOLD_TRACK	0.20
+#define	KV_THRESHOLD_ITEM	0.154
 #define	KV_THRESHOLD_LAKITU	0.154
 #define	KV_MIN_RACE_FRAMES	(2 * KV_FRAMERATE)	/* 2 seconds */
 
 #define KV_MAXPLAYERS	4
 
+typedef enum {
+	KVI_NONE,
+	KVI_BOX
+} kv_itembox_t;
+
 typedef struct {
 	char		kp_character[32];	/* name, "" = unknown */
 	double		kp_charscore;		/* score for character match */
+	char		kp_item[32];		/* item, "" = unknown */
+	double		kp_itemscore;		/* score for item match */
 	short		kp_place;		/* 1-4, 0 = unknown */
 	double		kp_placescore;		/* score for pos match */
 	short		kp_lapnum;		/* 1-3, 0 = unknown, 4 = done */
+	kv_itembox_t	kp_itembox;		/* item box state */
 } kv_player_t;
 
 typedef enum {
@@ -44,7 +53,9 @@ typedef enum {
 	KV_IDENT_START   = 0x1,
 	KV_IDENT_TRACK   = 0x2,
 	KV_IDENT_CHARS   = 0x4,
-	KV_IDENT_ALL     = KV_IDENT_START | KV_IDENT_TRACK | KV_IDENT_CHARS,
+	KV_IDENT_ITEM	 = 0x8,
+	KV_IDENT_ALL     = KV_IDENT_START | KV_IDENT_TRACK | KV_IDENT_CHARS |
+	    KV_IDENT_ITEM,
 	KV_IDENT_NOTRACK = KV_IDENT_ALL & (~KV_IDENT_TRACK),
 } kv_ident_t;
 

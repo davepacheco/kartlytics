@@ -34,3 +34,18 @@ x-offset is probably 460
 
 bottom of 2 in 3rd square is 440
 y-offset is 220
+
+
+ITEM BOXES
+
+Based on frame 73 of 2013-08-02_0000.mov.
+
+top-left corner of black box in 1st square: 47 x 34
+(that's the top-left most pixel that looks blackish -- it's not as black as
+other pixels in the center of the box, but it's clearly "in the box" and not
+part of the frame.)
+
+same pixel in 2nd square: 542 x 34
+x offset: 542 - 47 = 495
+same pixel in 3rd square: 47 x 264
+y offset: 264 - 34 = 230
