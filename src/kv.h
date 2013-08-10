@@ -14,21 +14,43 @@
 #define	KV_FRAMERATE		29.97
 #define	KV_THRESHOLD_CHAR	0.23
 #define	KV_THRESHOLD_TRACK	0.20
-#define	KV_THRESHOLD_ITEM	0.154
+#define	KV_THRESHOLD_ITEM	0.12
 #define	KV_THRESHOLD_LAKITU	0.154
 #define	KV_MIN_RACE_FRAMES	(2 * KV_FRAMERATE)	/* 2 seconds */
 
 #define KV_MAXPLAYERS	4
 
 typedef enum {
-	KVI_NONE,
-	KVI_BOX
+	KVIB_NONE,
+	KVIB_BOX
 } kv_itembox_t;
+
+typedef enum {
+	KVI_NONE,		/* no item box at all */
+	KVI_UNKNOWN,		/* unrecognized item box */
+	KVI_BLANK,		/* empty item box (e.g., when flashing) */
+
+	KVI_BANANA,		/* single banana peel */
+	KVI_BANANA_BUNCH,	/* banana bunch */
+	KVI_BLUESHELL,		/* blue shell */
+	KVI_FAKE,		/* fake question mark box */
+	KVI_GHOST,		/* ghost */
+	KVI_GREENSHELL,		/* single green shell */
+	KVI_3GREENSHELLS,	/* three green shells */
+	KVI_LIGHTNING,		/* lightning */
+	KVI_MUSHROOM,		/* single mushroom */
+	KVI_2MUSHROOMS,		/* two mushrooms (not an actual item) */
+	KVI_3MUSHROOMS,		/* three mushrooms */
+	KVI_REDSHELL,		/* single red shell */
+	KVI_3REDSHELLS,		/* three red shells */
+	KVI_STAR,		/* star */
+	KVI_SUPER_MUSHROOM,	/* super mushroom */
+} kv_item_t;
 
 typedef struct {
 	char		kp_character[32];	/* name, "" = unknown */
 	double		kp_charscore;		/* score for character match */
-	char		kp_item[32];		/* item, "" = unknown */
+	kv_item_t	kp_item;		/* item state */
 	double		kp_itemscore;		/* score for item match */
 	short		kp_place;		/* 1-4, 0 = unknown */
 	double		kp_placescore;		/* score for pos match */
@@ -64,6 +86,7 @@ void kv_ident(img_t *, kv_screen_t *, kv_ident_t);
 void kv_ident_matches(kv_screen_t *, const char *, double);
 int kv_screen_compare(kv_screen_t *, kv_screen_t *, kv_screen_t *);
 int kv_screen_invalid(kv_screen_t *, kv_screen_t *, kv_screen_t *);
+const char *kv_item_label(kv_item_t);
 
 typedef void (*kv_emit_f)(const char *, int, int, kv_screen_t *, kv_screen_t *,
     FILE *);

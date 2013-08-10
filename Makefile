@@ -113,8 +113,8 @@ KVCHAR1TO2 = $(KARTVID) translatexy $^ $@ 323 0
 KVCHAR1TO3 = $(KARTVID) translatexy $^ $@ 0   240
 KVCHAR1TO4 = $(KARTVID) translatexy $^ $@ 323 240
 KVITEM1TO2 = $(KARTVID) translatexy $^ $@ 495 0
-KVITEM1TO3 = $(KARTVID) translatexy $^ $@ 0   264
-KVITEM1TO4 = $(KARTVID) translatexy $^ $@ 495 264
+KVITEM1TO3 = $(KARTVID) translatexy $^ $@ 0   230
+KVITEM1TO4 = $(KARTVID) translatexy $^ $@ 495 230
 
 assets/masks/char_%_2.png: assets/masks/char_%_1.png
 	$(KVCHAR1TO2)

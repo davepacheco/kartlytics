@@ -11,6 +11,8 @@
 #include "kv.h"
 extern int kv_debug;
 
+kv_item_t kv_mask_item(const char *mask);
+
 /*
  * All masks are loaded by kv_init() and cached in kv_masks.
  */
@@ -169,6 +171,12 @@ kv_ident(img_t *image, kv_screen_t *ksp, kv_ident_t which)
 
 	if (ndone >= ksp->ks_nplayers - 1)
 		ksp->ks_events |= KVE_RACE_DONE;
+
+	for (i = 0; i < ksp->ks_nplayers; i++) {
+		if (ksp->ks_players[i].kp_item == KVI_NONE &&
+		    (ksp->ks_players[i].kp_itembox & KVIB_BOX) != 0)
+			ksp->ks_players[i].kp_item = KVI_UNKNOWN;
+	}
 }
 
 /*
@@ -259,22 +267,21 @@ kv_ident_matches(kv_screen_t *ksp, const char *mask, double score)
 			return;
 
 		kpp = &ksp->ks_players[square - 1];
-		if (kpp->kp_item[0] != '\0' && kpp->kp_itemscore < score)
+		if (kpp->kp_item != KVI_NONE && kpp->kp_itemscore < score)
 			return;
 
 		if (square > ksp->ks_nplayers)
 			return;
 
-		(void) strlcpy(kpp->kp_item, buf + sizeof ("item_") - 1,
-		    sizeof (kpp->kp_item));
+		kpp->kp_item = kv_mask_item(buf + sizeof ("item_") - 1);
 		kpp->kp_itemscore = score;
 		return;
 	}
 
-	if (strncmp(buf, "itemon_box_frame",
-	    sizeof ("itemon_box_frame") - 1) == 0) {
+	if (strncmp(buf, "item_box_frame",
+	    sizeof ("item_box_frame") - 1) == 0) {
 		kpp = &ksp->ks_players[0];
-		kpp->kp_itembox = KVI_BOX;
+		kpp->kp_itembox = KVIB_BOX;
 		return;
 	}
 }
@@ -356,6 +363,15 @@ kv_screen_invalid(kv_screen_t *ksp, kv_screen_t *pksp, kv_screen_t *raceksp)
 			return (1);
 	}
 
+	/*
+	 * Ignore frames where an item box was misdetected (probably in
+	 * transition).
+	 */
+	for (i = 0; i < ksp->ks_nplayers; i++) {
+		if (ksp->ks_players[i].kp_item == KVI_UNKNOWN)
+			return (1);
+	}
+
 	return (0);
 }
 
@@ -387,8 +403,7 @@ kv_screen_compare(kv_screen_t *ksp, kv_screen_t *pksp, kv_screen_t *raceksp)
 		if (kpp->kp_itembox != pkpp->kp_itembox)
 			return (1);
 
-		/* XXX should be enum? */
-		if (strcmp(kpp->kp_item, pkpp->kp_item) != 0)
+		if (kpp->kp_item != pkpp->kp_item)
 			return (1);
 	}
 
@@ -477,14 +492,7 @@ kv_screen_print(const char *source, int frame, int msec, kv_screen_t *ksp,
 			(void) fprintf(out, "Lap %d/3", kpp->kp_lapnum);
 		}
 
-		(void) fprintf(out, "    ");
-		
-		if (kpp->kp_item[0] != '\0')
-			(void) fprintf(out, "%s\n", kpp->kp_item);
-		else if ((kpp->kp_itembox & KVI_BOX) != 0)
-			(void) fprintf(out, "UNKNOWN\n");
-		else
-			(void) fprintf(out, "-\n");
+		(void) fprintf(out, "    %s\n", kv_item_label(kpp->kp_item));
 	}
 
 	(void) fflush(out);
@@ -656,6 +664,7 @@ kv_vidctx_frame(const char *framename, int i, int timems,
 		/* Skip the first frames after a start. See above. */
 		return;
 
+	/* XXX why would this include characters? */
 	kv_ident(image, ksp, KV_IDENT_NOTRACK);
 
 	if (ksp->ks_events & KVE_RACE_START) {
@@ -742,4 +751,65 @@ void
 kv_vidctx_free(kv_vidctx_t *kvp)
 {
 	free(kvp);
+}
+
+typedef struct {
+	kv_item_t kvii_item;		/* item enum value */
+	const char *kvii_mask;		/* mask file name */
+	const char *kvii_label;		/* human-readable label */
+} kv_item_info_t;
+
+static kv_item_info_t kv_items[] = {
+    { KVI_NONE,		  NULL,			"none"			},
+    { KVI_UNKNOWN,	  NULL,			"unknown"		},
+    { KVI_BLANK,	  "blank",		"blank"			},
+
+    { KVI_BANANA,	  "banana",		"banana peel"		},
+    { KVI_BANANA_BUNCH,	  "banana_bunch",	"banana bunch"		},
+    { KVI_BLUESHELL,	  "blue",		"blue shell"		},
+    { KVI_FAKE,		  "dud",		"fake item"		},
+    { KVI_GHOST,	  "ghost",		"ghost"			},
+    { KVI_GREENSHELL,	  "green",		"green shell"		},
+    { KVI_3GREENSHELLS,	  "green3",		"three green shells"	},
+    { KVI_LIGHTNING,	  "lightning",		"lightning"		},
+    { KVI_MUSHROOM,	  "mushroom",		"single mushroom"	},
+    { KVI_2MUSHROOMS,	  "mushroom2",		"two mushrooms"		},
+    { KVI_3MUSHROOMS,	  "mushroom3",		"three mushrooms"	},
+    { KVI_REDSHELL,	  "red",		"red shell"		},
+    { KVI_3REDSHELLS,	  "red3",		"three red shells"	},
+    { KVI_STAR,		  "star",		"star"			},
+    { KVI_SUPER_MUSHROOM, "super_mushroom",	"super mushroom"	},
+};
+
+static int kv_nitems = sizeof (kv_items) / sizeof (kv_items[0]);
+
+/*
+ * XXX This could be made faster by computing this once and hanging it off the
+ * mask object itself.  Ditto all of kv_ident_matches().
+ */
+kv_item_t
+kv_mask_item(const char *mask)
+{
+	int i;
+
+	for (i = 0; i < kv_nitems; i++) {
+		if (kv_items[i].kvii_mask != NULL &&
+		    strcmp(mask, kv_items[i].kvii_mask) == 0)
+			return (kv_items[i].kvii_item);
+	}
+
+	return (KVI_NONE);
+}
+
+const char *
+kv_item_label(kv_item_t item)
+{
+	int i;
+
+	for (i = 0; i < kv_nitems; i++) {
+		if (kv_items[i].kvii_item == item)
+			return (kv_items[i].kvii_label);
+	}
+
+	return (kv_item_label(KVI_UNKNOWN));
 }
