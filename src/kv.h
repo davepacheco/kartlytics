@@ -81,10 +81,15 @@ typedef enum {
 	KV_IDENT_NOTRACK = KV_IDENT_ALL & (~KV_IDENT_TRACK),
 } kv_ident_t;
 
+typedef enum {
+	KVF_NONE = 0,
+	KVF_COMPARE_ITEMS = 0x1,
+} kv_flags_t;
+
 int kv_init(const char *);
 void kv_ident(img_t *, kv_screen_t *, kv_ident_t);
 void kv_ident_matches(kv_screen_t *, const char *, double);
-int kv_screen_compare(kv_screen_t *, kv_screen_t *, kv_screen_t *);
+int kv_screen_compare(kv_screen_t *, kv_screen_t *, kv_screen_t *, kv_flags_t);
 int kv_screen_invalid(kv_screen_t *, kv_screen_t *, kv_screen_t *);
 const char *kv_item_label(kv_item_t);
 
@@ -98,9 +103,8 @@ void kv_screen_json(const char *, int, int, kv_screen_t *, kv_screen_t *,
 
 struct kv_vidctx;
 typedef struct kv_vidctx kv_vidctx_t;
-kv_vidctx_t *kv_vidctx_init(const char *, kv_emit_f, const char *);
+kv_vidctx_t *kv_vidctx_init(const char *, kv_emit_f, const char *, kv_flags_t);
 void kv_vidctx_frame(const char *, int, int, img_t *, kv_vidctx_t *);
 void kv_vidctx_free(kv_vidctx_t *);
-
 
 #endif

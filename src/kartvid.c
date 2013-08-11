@@ -53,10 +53,10 @@ static kv_cmd_t kv_commands[] = {
       "shift the given image using the given x and y offsets" },
     { "ident", cmd_ident, "image",
       "report the current game state for the given image" },
-    { "frames", cmd_frames, "[-j] dir_of_image_files", 
+    { "frames", cmd_frames, "[-ij] dir_of_image_files", 
       "emit race events for a sequence of video frames" },
     { "rgb2hsv", cmd_rgb2hsv, "r g b", "convert rgb value to hsv" },
-    { "video", cmd_video, "[-j] [-d debugdir] video_file",
+    { "video", cmd_video, "[-ij] [-d debugdir] video_file",
       "emit race events for an entire video" },
     { "starts", cmd_starts, "video_file",
       "only scan for \"race start\" events and emit them on stdout" },
@@ -338,12 +338,17 @@ cmd_frames(int argc, char *argv[])
 	char *q;
 	img_t *image;
 	kv_vidctx_t *kvp;
+	kv_flags_t flags = KVF_NONE;
 	char *framenames[MAX_FRAMES];
 
 	emit = kv_screen_print;
 
-	while ((c = getopt(argc, argv, "j")) != -1) {
+	while ((c = getopt(argc, argv, "ij")) != -1) {
 		switch (c) {
+		case 'i':
+			flags |= KVF_COMPARE_ITEMS;
+			break;
+
 		case 'j':
 			emit = kv_screen_json;
 			break;
@@ -362,7 +367,8 @@ cmd_frames(int argc, char *argv[])
 		return (EXIT_USAGE);
 	}
 
-	if ((kvp = kv_vidctx_init(dirname((char *)kv_arg0), emit, NULL)) == NULL)
+	if ((kvp = kv_vidctx_init(dirname((char *)kv_arg0), emit, NULL,
+	    flags)) == NULL)
 		return (EXIT_FAILURE);
 
 	if ((dirp = opendir(argv[0])) == NULL) {
@@ -471,17 +477,22 @@ cmd_video(int argc, char *argv[])
 	char c;
 	const char *dbgdir = NULL;
 	kv_emit_f emit;
+	kv_flags_t flags = KVF_NONE;
 
 	emit = kv_screen_print;
 
-	while ((c = getopt(argc, argv, "jd:")) != -1) {
+	while ((c = getopt(argc, argv, "d:ij")) != -1) {
 		switch (c) {
-		case 'j':
-			emit = kv_screen_json;
-			break;
-
 		case 'd':
 			dbgdir = optarg;
+			break;
+
+		case 'i':
+			flags |= KVF_COMPARE_ITEMS;
+			break;
+
+		case 'j':
+			emit = kv_screen_json;
 			break;
 
 		case '?':
@@ -509,7 +520,7 @@ cmd_video(int argc, char *argv[])
 		    video_framerate(vp));
 
 	if ((kvp = kv_vidctx_init(dirname((char *)kv_arg0), emit,
-	    dbgdir)) == NULL) {
+	    dbgdir, flags)) == NULL) {
 		video_free(vp);
 		return (EXIT_FAILURE);
 	}

@@ -38,6 +38,7 @@ struct kv_vidctx {
 	kv_screen_t 	kv_raceframe;   /* first frame state for this race */
 	kv_screen_t	kv_startbuffer[KV_STARTFRAMES];
 	int		kv_last_start;
+	kv_flags_t	kv_flags;
 	kv_emit_f	kv_emit;
 	double		kv_framerate;
 	char		kv_dbgdir[PATH_MAX];
@@ -383,7 +384,8 @@ kv_screen_invalid(kv_screen_t *ksp, kv_screen_t *pksp, kv_screen_t *raceksp)
  * changed by looking for the race start event.
  */
 int
-kv_screen_compare(kv_screen_t *ksp, kv_screen_t *pksp, kv_screen_t *raceksp)
+kv_screen_compare(kv_screen_t *ksp, kv_screen_t *pksp, kv_screen_t *raceksp,
+    kv_flags_t flags)
 {
 	int i;
 	kv_player_t *kpp, *pkpp;
@@ -400,11 +402,13 @@ kv_screen_compare(kv_screen_t *ksp, kv_screen_t *pksp, kv_screen_t *raceksp)
 		    kpp->kp_place != pkpp->kp_place))
 			return (1);
 
-		if (kpp->kp_itembox != pkpp->kp_itembox)
-			return (1);
+		if ((flags & KVF_COMPARE_ITEMS) != 0) {
+			if (kpp->kp_itembox != pkpp->kp_itembox)
+				return (1);
 
-		if (kpp->kp_item != pkpp->kp_item)
-			return (1);
+			if (kpp->kp_item != pkpp->kp_item)
+				return (1);
+		}
 	}
 
 	return (0);
@@ -560,7 +564,8 @@ kv_screen_json(const char *source, int frame, int msec, kv_screen_t *ksp,
 }
 
 kv_vidctx_t *
-kv_vidctx_init(const char *rootdir, kv_emit_f emit, const char *dbgdir)
+kv_vidctx_init(const char *rootdir, kv_emit_f emit, const char *dbgdir,
+    kv_flags_t flags)
 {
 	kv_vidctx_t *kvp;
 
@@ -576,6 +581,7 @@ kv_vidctx_init(const char *rootdir, kv_emit_f emit, const char *dbgdir)
 
 	kvp->kv_last_start = -1;
 	kvp->kv_emit = emit;
+	kvp->kv_flags = flags;
 	if (dbgdir != NULL)
 		(void) strlcpy(kvp->kv_dbgdir, dbgdir, sizeof (kvp->kv_dbgdir));
 	return (kvp);
@@ -720,7 +726,7 @@ kv_vidctx_frame(const char *framename, int i, int timems,
 	if (kv_screen_invalid(ksp, pksp, raceksp))
 		return;
 
-	if (kv_screen_compare(ksp, pksp, raceksp) == 0)
+	if (kv_screen_compare(ksp, pksp, raceksp, kvp->kv_flags) == 0)
 		return;
 
 	/*
