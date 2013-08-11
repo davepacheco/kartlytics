@@ -34,7 +34,8 @@ CLEAN_FILES += out/kartvid.o out/img.o out/kv.o out/video.o
 #
 CHARS = mario luigi peach toad yoshi wario dk bowser
 ITEMS = banana banana_bunch blank blue dud ghost green3 green \
-    lightning mushroom mushroom2 mushroom3 red red3 star super_mushroom
+    lightning mushroom mushroom2 mushroom3 red red3 star super_mushroom \
+    box_frame
 # Some of the tracks were manually generated from the char_* sources.
 # The rest are automatically built here.
 GENTRACKS = banshee bowser dk luigi rainbow toad wario yoshi

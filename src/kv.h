@@ -14,16 +14,12 @@
 #define	KV_FRAMERATE		29.97
 #define	KV_THRESHOLD_CHAR	0.23
 #define	KV_THRESHOLD_TRACK	0.20
+#define	KV_THRESHOLD_ITEMFRAME	0.16
 #define	KV_THRESHOLD_ITEM	0.12
 #define	KV_THRESHOLD_LAKITU	0.154
 #define	KV_MIN_RACE_FRAMES	(2 * KV_FRAMERATE)	/* 2 seconds */
 
 #define KV_MAXPLAYERS	4
-
-typedef enum {
-	KVIB_NONE,
-	KVIB_BOX
-} kv_itembox_t;
 
 typedef enum {
 	KVI_NONE,		/* no item box at all */
@@ -55,7 +51,6 @@ typedef struct {
 	short		kp_place;		/* 1-4, 0 = unknown */
 	double		kp_placescore;		/* score for pos match */
 	short		kp_lapnum;		/* 1-3, 0 = unknown, 4 = done */
-	kv_itembox_t	kp_itembox;		/* item box state */
 } kv_player_t;
 
 typedef enum {

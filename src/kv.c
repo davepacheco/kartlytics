@@ -11,8 +11,6 @@
 #include "kv.h"
 extern int kv_debug;
 
-kv_item_t kv_mask_item(const char *mask);
-
 /*
  * All masks are loaded by kv_init() and cached in kv_masks.
  */
@@ -20,6 +18,10 @@ typedef struct {
 	char		km_name[64];
 	img_t		*km_image;
 } kv_mask_t;
+
+kv_item_t kv_mask_item(const char *mask);
+int kv_mask_compare(kv_mask_t *, kv_mask_t *);
+
 
 #define	KV_MAX_MASKS	256
 static kv_mask_t kv_masks[KV_MAX_MASKS];
@@ -29,6 +31,7 @@ static int kv_nmasks = 0;
 #define KV_MASK_TRACK(s)	(s[0] == 't')
 #define	KV_MASK_LAKITU(s)	(s[0] == 'l')
 #define	KV_MASK_ITEM(s)		(s[0] == 'i')
+#define	KV_MASK_POS(s)		(s[0] == 'p')
 
 #define	KV_STARTFRAMES	90
 
@@ -86,8 +89,6 @@ kv_init(const char *dirname)
 		if (strncmp(entp->d_name, "char_", sizeof ("char_") - 1) != 0 &&
 		    strncmp(entp->d_name, "pos", sizeof ("pos") - 1) != 0 &&
 		    strncmp(entp->d_name, "item_", sizeof ("item_") - 1) != 0 &&
-		    strncmp(entp->d_name, "item_box_frame",
-		    sizeof ("item_box_frame") - 1) != 0 &&
 		    strncmp(entp->d_name, "lakitu_start",
 		    sizeof ("lakitu_start") - 1) != 0 &&
 		    strncmp(entp->d_name, "track_", sizeof ("track_") - 1) != 0)
@@ -117,7 +118,25 @@ kv_init(const char *dirname)
 	}
 
 	(void) closedir(maskdir);
+
+	/*
+	 * It's important that we check position masks before others so that
+	 * ks_nplayers is set correctly.
+	 */
+	qsort(kv_masks, kv_nmasks, sizeof (kv_masks[0]), kv_mask_compare);
 	return (0);
+}
+
+int
+kv_mask_compare(kv_mask_t *m1, kv_mask_t *m2)
+{
+	if (KV_MASK_POS(m1->km_name) && !KV_MASK_POS(m2->km_name))
+		return (-1);
+
+	if (!KV_MASK_POS(m1->km_name) && KV_MASK_POS(m2->km_name))
+		return (1);
+
+	return (strcmp(m1->km_name, m2->km_name));
 }
 
 void
@@ -153,6 +172,9 @@ kv_ident(img_t *image, kv_screen_t *ksp, kv_ident_t which)
 			checkthresh = KV_THRESHOLD_CHAR;
 		else if (KV_MASK_LAKITU(kmp->km_name))
 			checkthresh = KV_THRESHOLD_LAKITU;
+		else if (KV_MASK_ITEM(kmp->km_name) &&
+		    strstr(kmp->km_name, "box_frame") != NULL)
+			checkthresh = KV_THRESHOLD_ITEMFRAME;
 		else if (KV_MASK_ITEM(kmp->km_name))
 			checkthresh = KV_THRESHOLD_ITEM;
 		else
@@ -172,12 +194,6 @@ kv_ident(img_t *image, kv_screen_t *ksp, kv_ident_t which)
 
 	if (ndone >= ksp->ks_nplayers - 1)
 		ksp->ks_events |= KVE_RACE_DONE;
-
-	for (i = 0; i < ksp->ks_nplayers; i++) {
-		if (ksp->ks_players[i].kp_item == KVI_NONE &&
-		    (ksp->ks_players[i].kp_itembox & KVIB_BOX) != 0)
-			ksp->ks_players[i].kp_item = KVI_UNKNOWN;
-	}
 }
 
 /*
@@ -189,6 +205,7 @@ kv_ident_matches(kv_screen_t *ksp, const char *mask, double score)
 	unsigned int pos, square;
 	char *p;
 	kv_player_t *kpp;
+	kv_item_t item;
 	char buf[64];
 
 	if (kv_debug > 1)
@@ -263,26 +280,49 @@ kv_ident_matches(kv_screen_t *ksp, const char *mask, double score)
 			return;
 
 		*p = '\0';
-		if (sscanf(p + 1, "%u", &square) != 1 ||
-		    square > KV_MAXPLAYERS)
-			return;
-
-		kpp = &ksp->ks_players[square - 1];
-		if (kpp->kp_item != KVI_NONE && kpp->kp_itemscore < score)
+		if (sscanf(p + 1, "%u", &square) != 1 || square > KV_MAXPLAYERS)
 			return;
 
 		if (square > ksp->ks_nplayers)
 			return;
 
+		/*
+		 * We only want to take the KVI_UNKNOWN match if there's no
+		 * more specific item match (regardless of the score).
+		 */
+		kpp = &ksp->ks_players[square - 1];
+		item = kv_mask_item(buf + sizeof ("item_") - 1);
+		if (item == KVI_UNKNOWN &&
+		    kpp->kp_item != KVI_NONE &&
+		    kpp->kp_item != KVI_BLANK)
+			return;
+
+		/*
+		 * If we have a non-blank item with a worse score than what
+		 * we've already got (and that's not just because the existing
+		 * item is NONE or UNKNOWN), then we'll defer to what we've
+		 * already got.
+		 */
+		if (item != KVI_BLANK &&
+		    kpp->kp_itemscore < score &&
+		    (kpp->kp_item != KVI_NONE && kpp->kp_item != KVI_UNKNOWN) &&
+		    kpp->kp_itemscore < score)
+			return;
+
+		/*
+		 * Similarly, if we have a blank item with a worse score than
+		 * what we've already got and that's not just because the
+		 * existing item is NONE, then we'll defer to what we've already
+		 * got.  This condition differs from the previous because it
+		 * causes UNKNOWN to trump BLANK.
+		 */
+		if (item == KVI_BLANK && 
+		    kpp->kp_item != KVI_NONE &&
+		    kpp->kp_itemscore < score)
+			return;
+
 		kpp->kp_item = kv_mask_item(buf + sizeof ("item_") - 1);
 		kpp->kp_itemscore = score;
-		return;
-	}
-
-	if (strncmp(buf, "item_box_frame",
-	    sizeof ("item_box_frame") - 1) == 0) {
-		kpp = &ksp->ks_players[0];
-		kpp->kp_itembox = KVIB_BOX;
 		return;
 	}
 }
@@ -403,9 +443,6 @@ kv_screen_compare(kv_screen_t *ksp, kv_screen_t *pksp, kv_screen_t *raceksp,
 			return (1);
 
 		if ((flags & KVF_COMPARE_ITEMS) != 0) {
-			if (kpp->kp_itembox != pkpp->kp_itembox)
-				return (1);
-
 			if (kpp->kp_item != pkpp->kp_item)
 				return (1);
 		}
@@ -767,7 +804,7 @@ typedef struct {
 
 static kv_item_info_t kv_items[] = {
     { KVI_NONE,		  NULL,			"none"			},
-    { KVI_UNKNOWN,	  NULL,			"unknown"		},
+    { KVI_UNKNOWN,	  "box_frame",		"unknown"		},
     { KVI_BLANK,	  "blank",		"blank"			},
 
     { KVI_BANANA,	  "banana",		"banana peel"		},

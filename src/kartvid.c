@@ -682,7 +682,7 @@ check_items(video_frame_t *vp, void *rawarg)
 	kv_screen_t ks;
 
 	kv_ident(&vp->vf_image, &ks, KV_IDENT_ITEM);
-	fstate = (ks.ks_players[0].kp_itembox & KVIB_BOX) != 0;
+	fstate = (ks.ks_players[0].kp_item != KVI_NONE);
 	if (statep->ew_state && !fstate)
 		(void) printf("box disappears: %d\n",
 		    (int)(vp->vf_frametime / 1000));
