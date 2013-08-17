@@ -346,7 +346,7 @@ cmd_frames(int argc, char *argv[])
 	while ((c = getopt(argc, argv, "ij")) != -1) {
 		switch (c) {
 		case 'i':
-			flags |= KVF_COMPARE_ITEMS;
+			flags |= KVF_COMPARE_ITEMSTATE;
 			break;
 
 		case 'j':
@@ -488,7 +488,7 @@ cmd_video(int argc, char *argv[])
 			break;
 
 		case 'i':
-			flags |= KVF_COMPARE_ITEMS;
+			flags |= KVF_COMPARE_ITEMSTATE;
 			break;
 
 		case 'j':

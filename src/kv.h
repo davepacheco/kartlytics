@@ -14,8 +14,8 @@
 #define	KV_FRAMERATE		29.97
 #define	KV_THRESHOLD_CHAR	0.23
 #define	KV_THRESHOLD_TRACK	0.20
-#define	KV_THRESHOLD_ITEMFRAME	0.16
-#define	KV_THRESHOLD_ITEM	0.12
+#define	KV_THRESHOLD_ITEMFRAME	0.155
+#define	KV_THRESHOLD_ITEM	0.155
 #define	KV_THRESHOLD_LAKITU	0.154
 #define	KV_MIN_RACE_FRAMES	(2 * KV_FRAMERATE)	/* 2 seconds */
 
@@ -41,7 +41,17 @@ typedef enum {
 	KVI_3REDSHELLS,		/* three red shells */
 	KVI_STAR,		/* star */
 	KVI_SUPER_MUSHROOM,	/* super mushroom */
+
+	KVI_REALITEM_MIN = KVI_BANANA,
 } kv_item_t;
+
+typedef enum {
+	KVS_NONE,		/* player has no item */
+	KVS_SLOTMACHINE,	/* player's box is cycling through choices */
+	KVS_WAIT_ITEM,		/* next frame will show item */
+	KVS_HAVE_ITEM,		/* player has just gotten this item */
+	KVS_WAIT_USE,		/* waiting to use item */
+} kv_itemstate_t;
 
 typedef struct {
 	char		kp_character[32];	/* name, "" = unknown */
@@ -51,6 +61,7 @@ typedef struct {
 	short		kp_place;		/* 1-4, 0 = unknown */
 	double		kp_placescore;		/* score for pos match */
 	short		kp_lapnum;		/* 1-3, 0 = unknown, 4 = done */
+	kv_itemstate_t	kp_itemstate;		/* per-player item state */
 } kv_player_t;
 
 typedef enum {
@@ -78,7 +89,8 @@ typedef enum {
 
 typedef enum {
 	KVF_NONE = 0,
-	KVF_COMPARE_ITEMS = 0x1,
+	KVF_COMPARE_ITEMS = 0x1,	/* include all item box changes */
+	KVF_COMPARE_ITEMSTATE = 0x2,	/* include item state changes */
 } kv_flags_t;
 
 int kv_init(const char *);

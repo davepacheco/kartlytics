@@ -20,7 +20,7 @@ typedef struct {
 } kv_mask_t;
 
 kv_item_t kv_mask_item(const char *mask);
-int kv_mask_compare(kv_mask_t *, kv_mask_t *);
+int kv_mask_compare(const kv_mask_t *, const kv_mask_t *);
 
 
 #define	KV_MAX_MASKS	256
@@ -123,12 +123,13 @@ kv_init(const char *dirname)
 	 * It's important that we check position masks before others so that
 	 * ks_nplayers is set correctly.
 	 */
-	qsort(kv_masks, kv_nmasks, sizeof (kv_masks[0]), kv_mask_compare);
+	qsort(kv_masks, kv_nmasks, sizeof (kv_masks[0]),
+	    (int (*)(const void *, const void *))kv_mask_compare);
 	return (0);
 }
 
 int
-kv_mask_compare(kv_mask_t *m1, kv_mask_t *m2)
+kv_mask_compare(const kv_mask_t *m1, const kv_mask_t *m2)
 {
 	if (KV_MASK_POS(m1->km_name) && !KV_MASK_POS(m2->km_name))
 		return (-1);
@@ -292,9 +293,7 @@ kv_ident_matches(kv_screen_t *ksp, const char *mask, double score)
 		 */
 		kpp = &ksp->ks_players[square - 1];
 		item = kv_mask_item(buf + sizeof ("item_") - 1);
-		if (item == KVI_UNKNOWN &&
-		    kpp->kp_item != KVI_NONE &&
-		    kpp->kp_item != KVI_BLANK)
+		if (item == KVI_UNKNOWN && kpp->kp_item != KVI_NONE)
 			return;
 
 		/*
@@ -303,26 +302,16 @@ kv_ident_matches(kv_screen_t *ksp, const char *mask, double score)
 		 * item is NONE or UNKNOWN), then we'll defer to what we've
 		 * already got.
 		 */
-		if (item != KVI_BLANK &&
-		    kpp->kp_itemscore < score &&
-		    (kpp->kp_item != KVI_NONE && kpp->kp_item != KVI_UNKNOWN) &&
-		    kpp->kp_itemscore < score)
-			return;
-
-		/*
-		 * Similarly, if we have a blank item with a worse score than
-		 * what we've already got and that's not just because the
-		 * existing item is NONE, then we'll defer to what we've already
-		 * got.  This condition differs from the previous because it
-		 * causes UNKNOWN to trump BLANK.
-		 */
-		if (item == KVI_BLANK && 
-		    kpp->kp_item != KVI_NONE &&
-		    kpp->kp_itemscore < score)
+		if (kpp->kp_itemscore < score &&
+		    (kpp->kp_item != KVI_NONE && kpp->kp_item != KVI_UNKNOWN))
 			return;
 
 		kpp->kp_item = kv_mask_item(buf + sizeof ("item_") - 1);
 		kpp->kp_itemscore = score;
+
+		if (kv_debug > 2)
+			(void) printf("player %d: taking item %s\n",
+			    square, kv_item_label(kpp->kp_item));
 		return;
 	}
 }
@@ -404,15 +393,6 @@ kv_screen_invalid(kv_screen_t *ksp, kv_screen_t *pksp, kv_screen_t *raceksp)
 			return (1);
 	}
 
-	/*
-	 * Ignore frames where an item box was misdetected (probably in
-	 * transition).
-	 */
-	for (i = 0; i < ksp->ks_nplayers; i++) {
-		if (ksp->ks_players[i].kp_item == KVI_UNKNOWN)
-			return (1);
-	}
-
 	return (0);
 }
 
@@ -444,6 +424,43 @@ kv_screen_compare(kv_screen_t *ksp, kv_screen_t *pksp, kv_screen_t *raceksp,
 
 		if ((flags & KVF_COMPARE_ITEMS) != 0) {
 			if (kpp->kp_item != pkpp->kp_item)
+				return (1);
+		}
+
+	}
+
+	return (0);
+}
+
+static int
+kv_screen_compare_items(kv_screen_t *ksp, kv_screen_t *pksp, kv_flags_t flags)
+{
+	int i;
+	kv_player_t *kpp, *pkpp;
+	kv_itemstate_t state, pstate;
+
+	for (i = 0; i < ksp->ks_nplayers; i++) {
+		kpp = &ksp->ks_players[i];
+		pkpp = &pksp->ks_players[i];
+
+		if (kv_debug > 2)
+			(void) printf("player %d: pstate %d, state %d\n",
+			    i + 1, pkpp->kp_itemstate, kpp->kp_itemstate);
+
+		if ((flags & KVF_COMPARE_ITEMSTATE) != 0) {
+			pstate = pkpp->kp_itemstate;
+			if (pstate == KVS_WAIT_ITEM)
+				pstate = KVS_SLOTMACHINE;
+			if (pstate == KVS_WAIT_USE)
+				pstate = KVS_NONE;
+
+			state = kpp->kp_itemstate;
+			if (state == KVS_WAIT_ITEM)
+				state = KVS_SLOTMACHINE;
+			if (state == KVS_WAIT_USE)
+				state = KVS_NONE;
+
+			if (state != pstate)
 				return (1);
 		}
 	}
@@ -533,7 +550,29 @@ kv_screen_print(const char *source, int frame, int msec, kv_screen_t *ksp,
 			(void) fprintf(out, "Lap %d/3", kpp->kp_lapnum);
 		}
 
-		(void) fprintf(out, "    %s\n", kv_item_label(kpp->kp_item));
+		(void) fprintf(out, "    ");
+
+		switch (kpp->kp_itemstate) {
+		case KVS_NONE:
+		case KVS_WAIT_USE:
+			(void) fprintf(out, "-");
+			break;
+		case KVS_SLOTMACHINE:
+		case KVS_WAIT_ITEM:
+			(void) fprintf(out, "slotmachine");
+			break;
+		case KVS_HAVE_ITEM:
+			(void) fprintf(out, "got %s",
+			    kv_item_label(kpp->kp_item));
+			break;
+		default:
+			assert(0 && "invalid player flags");
+		}
+
+		if (kv_debug > 0)
+			(void) fprintf(out, " (%s)",
+			    kv_item_label(kpp->kp_item));
+		(void) fprintf(out, "\n");
 	}
 
 	(void) fflush(out);
@@ -658,6 +697,67 @@ kv_vidctx_chars(kv_vidctx_t *kvp, kv_screen_t *ksp, int i)
 	}
 }
 
+static void
+kv_vidctx_items(kv_screen_t *ksp, kv_screen_t *pksp, int i)
+{
+	kv_player_t *pkpp, *kpp;
+	kv_item_t item;
+	kv_itemstate_t state;
+	
+	pkpp = &pksp->ks_players[i];
+	kpp = &ksp->ks_players[i];
+	item = kpp->kp_item;
+	state = pkpp->kp_itemstate;
+
+	switch (pkpp->kp_itemstate) {
+	case KVS_NONE:
+		if (item != KVI_NONE && item != KVI_BLANK) {
+			state = KVS_SLOTMACHINE;
+		}
+		break;
+
+	case KVS_SLOTMACHINE:
+		if (item == KVI_NONE) {
+			state = KVS_NONE;
+			if (kv_debug > 0)
+				warnx("unexpected transition transition from "
+				    "waiting for item box to no item box");
+		} else if (item == KVI_BLANK) {
+			state = KVS_WAIT_ITEM;
+		}
+		break;
+
+	case KVS_WAIT_ITEM:
+		if (item == KVI_NONE) {
+			state = KVS_NONE;
+			if (kv_debug > 0)
+				warnx("unexpected transition transition from "
+				    "waiting for item to no item box");
+		} else if (item >= KVI_REALITEM_MIN) {
+			state = KVS_HAVE_ITEM;
+		}
+		break;
+
+	case KVS_HAVE_ITEM:
+		state = KVS_WAIT_USE;
+		break;
+
+	case KVS_WAIT_USE:
+		if (item == KVI_NONE)
+			state = KVS_NONE;
+		break;
+
+	default:
+		assert(0 && "invalid item state");
+	}
+
+	if (kv_debug > 0 && pkpp->kp_itemstate != state)
+		(void) printf("player %d: got item %s in state %d "
+		    "=> state %d\n", i + 1, kv_item_label(item),
+		    pkpp->kp_itemstate, state);
+	kpp->kp_itemstate = state;
+}
+
 void
 kv_vidctx_frame_emit(kv_vidctx_t *kvp, const char *framename, int i, int timems,
     img_t *img, kv_screen_t *ksp, kv_screen_t *raceksp, FILE *fp)
@@ -678,6 +778,8 @@ kv_vidctx_frame(const char *framename, int i, int timems,
 {
 	int j;
 	kv_screen_t *ksp, *pksp, *raceksp;
+	kv_screen_t ipks;
+	boolean_t itemsdiff, invalid;
 
 	ksp = &kvp->kv_frame;
 	pksp = &kvp->kv_pframe;
@@ -707,6 +809,9 @@ kv_vidctx_frame(const char *framename, int i, int timems,
 		/* Skip the first frames after a start. See above. */
 		return;
 
+	bcopy(ksp, &ipks, sizeof (ipks));
+	if (kv_debug > 0)
+		(void) printf("%s\n", framename);
 	/* XXX why would this include characters? */
 	kv_ident(image, ksp, KV_IDENT_NOTRACK);
 
@@ -760,10 +865,45 @@ kv_vidctx_frame(const char *framename, int i, int timems,
 	    raceksp->ks_track[0] == 'y')
 		ksp->ks_nplayers = raceksp->ks_nplayers;
 
-	if (kv_screen_invalid(ksp, pksp, raceksp))
+	/*
+	 * Update item box state.  This always operates on the immediately
+	 * previous frame (saved at the start of this function), rather than the
+	 * representative frame for the current game state, because there are
+	 * item changes with each frame that don't represent logically different
+	 * game states.  That's also why we do this every frame, not just those
+	 * that we save.
+	 */
+	for (j = 0; j < ksp->ks_nplayers; j++)
+		kv_vidctx_items(ksp, &ipks, j);
+
+	itemsdiff = kv_screen_compare_items(ksp, pksp, kvp->kv_flags) != 0;
+	invalid = kv_screen_invalid(ksp, pksp, raceksp) != 0;
+
+	/*
+	 * Normally we would omit invalid frames, but item detection is
+	 * sensitive to dropping individual frames, and we want to emit state
+	 * changes as soon as they happen, even if the rest of the frame would
+	 * have been invalid.  But we still don't want to emit an invalid frame,
+	 * so for this very specific case, we fake up the state based on the
+	 * last one we saw.
+	 */
+	if (itemsdiff && invalid) {
+		ksp->ks_nplayers = pksp->ks_nplayers;
+		for (j = 0; j < ksp->ks_nplayers; j++) {
+			ksp->ks_players[j].kp_place =
+			    pksp->ks_players[j].kp_place;
+			ksp->ks_players[j].kp_lapnum =
+			    pksp->ks_players[j].kp_lapnum;
+		}
+
+		invalid = B_FALSE;
+	}
+
+	if (invalid)
 		return;
 
-	if (kv_screen_compare(ksp, pksp, raceksp, kvp->kv_flags) == 0)
+	if (itemsdiff == 0 &&
+	    kv_screen_compare(ksp, pksp, raceksp, kvp->kv_flags) == 0)
 		return;
 
 	/*

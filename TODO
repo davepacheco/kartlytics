@@ -19,5 +19,8 @@ Known issues:
     10s, change at 12s?)
   - Not handling pause around 15s
   - Missing "Yoshi finishes" at 2:29 and "Toad finishes" at 2:30
+2013-08-02_0000.mov:
+  - Around 1:21, we miss an item cycle for player 3 because the item box never
+    disappears between one cycle and the next.
 
 - 2012-06-19-01.mov:
