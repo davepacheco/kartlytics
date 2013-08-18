@@ -626,6 +626,13 @@ kv_screen_json(const char *source, int frame, int msec, kv_screen_t *ksp,
 		if (kpp->kp_lapnum != 0)
 			(void) fprintf(out, "\"lap\": %d, ", kpp->kp_lapnum);
 
+		if (kpp->kp_itemstate == KVS_SLOTMACHINE ||
+		    kpp->kp_itemstate == KVS_WAIT_ITEM)
+			(void) fprintf(out, "\"itemstate\": \"slotmachine\", ");
+		else if (kpp->kp_itemstate == KVS_HAVE_ITEM)
+			(void) fprintf(out, "\"itemstate\": \"%s\", ",
+			    kv_item_label(kpp->kp_item));
+
 		(void) fprintf(out, "\"character\": \"%s\" }", charname);
 
 		if (i != ksp->ks_nplayers - 1)

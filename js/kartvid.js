@@ -148,8 +148,8 @@ function parseDate(when)
 function summarize(race)
 {
 	var entries = [];
-	var time = kDuration(race['start_time']);
-	var players = race['results'].slice(0);
+	var time = kDuration(race['vstart']);
+	var players = race['players'].slice(0);
 	var last, seg;
 
 	entries.push(race['players'].length + 'P ' + race['mode'] + ' on ' +
@@ -160,10 +160,10 @@ function summarize(race)
 	if (race['segments'].length > 0) {
 		seg = race['segments'][0];
 
-		seg.players.forEach(function (p) {
-			entries.push('    ' + kDuration(seg['start']) + ': ' +
-			    ucfirst(p['character']) + ' is in ' +
-			    ordinal(p['position']));
+		seg.players.forEach(function (p, i) {
+			entries.push('    ' + kDuration(seg['vstart']) + ': ' +
+			    ucfirst(players[i]['character']) + ' is in ' +
+			    ordinal(p['rank']));
 		});
 
 		last = seg;
@@ -171,17 +171,17 @@ function summarize(race)
 		race['segments'].slice(1).forEach(function (segment) {
 			compareSegments(race, last, segment, function (text) {
 				entries.push('    ' + kDuration(
-				    segment['start']) + ': ' + text);
+				    segment['vstart']) + ': ' + text);
 			});
 
 			last = segment;
 		});
 	}
 
-	entries.push('    ' + kDuration(race['end']) + ': The race is over.');
+	entries.push('    ' + kDuration(race['vend']) + ': The race is over.');
 
 	players.sort(function (p1, p2) {
-		return (p1['position'] - p2['position']);
+		return (p1['rank'] - p2['rank']);
 	});
 
 	entries.push('    Result: ' + players.map(
@@ -202,15 +202,15 @@ function compareSegments(race, last, next, emit)
 	np = next['players'];
 
 	for (i = 0; i < np.length; i++) {
-		inr = np[i]['position'];
-		ilr = lp[i]['position'];
+		inr = np[i]['rank'];
+		ilr = lp[i]['rank'];
 
 		if (!inr || !ilr)
 			continue;
 
 		for (j = i + 1; j < np.length; j++) {
-			jnr = np[j]['position'];
-			jlr = lp[j]['position'];
+			jnr = np[j]['rank'];
+			jlr = lp[j]['rank'];
 
 			if (!jnr || !jlr)
 				continue;
