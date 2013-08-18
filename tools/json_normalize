@@ -68,7 +68,7 @@ function json_normalize(stream)
 		}
 
 		norm = normalize(obj, 0);
-		console.log(JSON.stringify(norm, false, 4));
+		console.log(JSON.stringify(norm, false, 2));
 	});
 }
 
