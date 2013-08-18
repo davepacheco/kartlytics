@@ -15,8 +15,12 @@ function parseKartvid(video)
 	var races = video.races = [];
 	var i = 0;
 	var race, segment, entry;
+	var itemstates;
+	var lastp;
 
 	return (function (line) {
+		var k;
+
 		++i;
 
 		if (line.length === 0)
@@ -51,8 +55,13 @@ function parseKartvid(video)
 				'track': trackName(entry.track),
 				'players': entry.players,
 				'start_source': entry.source,
+				'itemstates': [],
 				'segments': []
 			};
+			itemstates = new Array(entry.players.length);
+			lastp = null;
+			for (k = 0; k < entry.players.length; k++)
+				race['itemstates'].push([]);
 			return;
 		}
 
@@ -61,7 +70,54 @@ function parseKartvid(video)
 			return;
 		}
 
+		entry.players.forEach(function (p, j) {
+			if (p['itemstate'] == 'slotmachine') {
+				if (itemstates[j])
+					return;
+				itemstates[j] = {
+				    'r0': p['position'],
+				    'v0': entry.time,
+				    's0': entry.source
+				};
+			} else if (p['itemstate']) {
+				if (!itemstates[j])
+					return;
+
+				itemstates[j]['r1'] = p['position'];
+				itemstates[j]['v1'] = entry.time;
+				itemstates[j]['s1'] = entry.source;
+				itemstates[j]['item'] = p['itemstate'];
+				race['itemstates'][j].push(itemstates[j]);
+				itemstates[j] = null;
+			} else if (itemstates[j]) {
+				log.warn('p%d: no itemstate after slotmachine',
+				    j + 1);
+				itemstates[j] = null;
+			}
+		});
+
 		if (!entry.done) {
+			/*
+			 * If all players' ranks are the same, this isn't a new
+			 * segment.
+			 */
+			if (lastp) {
+				for (k = 0; k < entry.players.length; k++) {
+					if (lastp[k]['position'] !=
+					    entry.players['position'] ||
+					    lastp[k]['lap'] !=
+					    entry.players['lap'])
+						break;
+				}
+
+				if (k == entry.players.length) {
+					lastp = entry.players;
+					return;
+				}
+			}
+
+			lastp = entry.players;
+
 			if (segment !== undefined) {
 				segment.vend = entry.time;
 				race['segments'].push(segment);
@@ -151,6 +207,8 @@ function summarize(race)
 	var time = kDuration(race['vstart']);
 	var players = race['players'].slice(0);
 	var last, seg;
+	var itemsbyr0 = {}, itemsbyr1 = {}, allitems = {};
+	var items, ranks;
 
 	entries.push(race['players'].length + 'P ' + race['mode'] + ' on ' +
 	    race['track'] + ' (starts at ' + time + ' in video)');
@@ -186,6 +244,57 @@ function summarize(race)
 
 	entries.push('    Result: ' + players.map(
 	    function (p) { return (ucfirst(p['character'])); }).join(', '));
+
+	entries.push('');
+	entries.push('Item events');
+
+	race['itemstates'].forEach(function (events, j) {
+		entries.push('Player ' + (j + 1));
+		entries.push('    R0  R1  ITEM');
+		events.forEach(function (evt) {
+			allitems[evt['item']] = true;
+
+			if (!itemsbyr0[evt['r0']])
+				itemsbyr0[evt['r0']] = {};
+			if (!itemsbyr0[evt['r0']][evt['item']])
+				itemsbyr0[evt['r0']][evt['item']] = 0;
+			itemsbyr0[evt['r0']][evt['item']]++;
+
+			if (!itemsbyr1[evt['r1']])
+				itemsbyr1[evt['r1']] = {};
+			if (!itemsbyr1[evt['r1']][evt['item']])
+				itemsbyr1[evt['r1']][evt['item']] = 0;
+			itemsbyr1[evt['r1']][evt['item']]++;
+
+			entries.push('     ' + evt['r0'] + '   ' + evt['r1'] +
+			    '  ' + evt['item'] + ' (' + evt['s0'] + ' to ' +
+			    evt['s1'] + ')');
+		});
+	});
+
+	items = Object.keys(allitems).sort();
+	ranks = Object.keys(itemsbyr0).sort();
+	entries.push('');
+	entries.push('Items by rank when player hits item block');
+	entries.push(ranks.map(function (r) { return (' ' + r); }).join(' ') +
+	    '  Item');
+	items.forEach(function (it) {
+		entries.push(
+		    ranks.map(function (r) {
+			return (' ' + (itemsbyr0[r][it] || 0));
+		    }).join(' ') + '  ' + it);
+	});
+
+	entries.push('');
+	entries.push('Items by rank when player gets item');
+	entries.push(ranks.map(function (r) { return (' ' + r); }).join(' ') +
+	    '  Item');
+	items.forEach(function (it) {
+		entries.push(
+		    ranks.map(function (r) {
+			return (' ' + (itemsbyr1[r][it] || 0));
+		    }).join(' ') + '  ' + it);
+	});
 
 	return (entries);
 }
