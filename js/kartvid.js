@@ -104,9 +104,9 @@ function parseKartvid(video)
 			if (lastp) {
 				for (k = 0; k < entry.players.length; k++) {
 					if (lastp[k]['position'] !=
-					    entry.players['position'] ||
+					    entry.players[k]['position'] ||
 					    lastp[k]['lap'] !=
-					    entry.players['lap'])
+					    entry.players[k]['lap'])
 						break;
 				}
 
