@@ -14,7 +14,7 @@ function main()
 {
 	var parser, option, video;
 	var raw = false;
-	var log = new mod_bunyan({ 'name': 'kart' });
+	var log = new mod_bunyan({ 'name': 'kart', 'stream': process.stderr });
 
 	parser = new mod_getopt.BasicParser('r', process.argv);
 	while ((option = parser.getopt()) !== undefined) {

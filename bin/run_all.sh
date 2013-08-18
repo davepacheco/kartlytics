@@ -16,10 +16,10 @@ function usage
 {
 	[[ $# -gt 0 ]] && echo "$arg0: $@" >& 2
 	cat <<EOF >&2
-usage: $arg0 [-b BIN_DIRECTORY] [-d VIDEO_DIRECTORY] 
-             [-t TARBALL] -M OUTPUT_DIRECTORY
+usage: $arg0 [-m] [-b BIN_DIRECTORY] [-d VIDEO_DIRECTORY] 
+             [-t TARBALL] OUTPUT_DIRECTORY
 
-Runs the whole kartlytics pipeline on all videos in VIDEO_DIRECTORY, placing the
+Runs the main kartlytics pipeline on all videos in VIDEO_DIRECTORY, placing the
 results into OUTPUT_DIRECTORY.  BIN_DIRECTORY is used to hold the assets.  The
 actual kartlytics code is run from TARBALL.
 
@@ -34,7 +34,7 @@ for OUTPUT_DIRECTORY:
     VIDEO_DIRECTORY defaults to $ra_vidroot
     TARBALL         defaults to $ra_tarball
 
-With -M, skips generating webm clips of each race.  (This is by far the most
+With -m, also generates webm clips of each race.  (This is by far the most
 time-consuming part.)
 
 With -u, uploads job assets to BIN_DIRECTORY before starting.  You must have
@@ -47,14 +47,14 @@ ra_tarball="/dap/public/kartlytics/kartlytics.tgz"
 ra_binroot="/dap/public/kartlytics/bin"
 ra_vidroot="/dap/public/kartlytics/videos"
 ra_outdir=""
-ra_dowebm=true
+ra_dowebm=false
 ra_doupload=false
 
 while getopts ":b:d:Mt:u" c "$@"; do
 	case "$c" in
 	b)	ra_binroot="$OPTARG" ;;
 	d)	ra_vidroot="$OPTARG" ;;
-	M)	ra_dowebm="false"    ;;
+	m)	ra_dowebm="true"    ;;
 	t)	ra_tarball="$OPTARG" ;;
 	u)	ra_doupload="true"   ;;
 	:)	usage "option requires an argument -- $OPTARG"	;;
@@ -64,7 +64,7 @@ done
 
 shift $((OPTIND - 1))
 [[ $# -eq 1 ]] || usage "output directory must be specified"
-ra_outdir="$3"
+ra_outdir="$1"
 
 type mjob > /dev/null 2>&1 || \
     usage "\"mjob\" not found on PATH (are the Manta tools installed?)"
@@ -75,6 +75,7 @@ ra_jobbasedir="$(dirname $0)/../jobs"
 
 if [[ $ra_doupload == "true" ]]; then
 	echo "Uploading assets: "
+	mmkdir -p "$ra_binroot" || fail "failed to mmkdir \"$ra_binroot\""
 	for file in $(ls -1 "$ra_jobbasedir"); do
 		mput -f "$ra_jobbasedir/$file" "$ra_binroot/$file" || \
 		    fail "failed to upload"
