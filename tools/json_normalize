@@ -17,7 +17,7 @@ function main()
 {
 	var parser, option, filename, stream;
 
-	parser = new mod_getopt.BasicParser('abo:(output)', process.argv);
+	parser = new mod_getopt.BasicParser('a:', process.argv);
 
 	while ((option = parser.getopt()) !== undefined) {
 		switch (option.option) {
@@ -67,14 +67,36 @@ function json_normalize(stream)
 			fatal('invalid json: ' + ex.message);
 		}
 
-		norm = normalize(obj);
+		norm = normalize(obj, 0);
 		console.log(JSON.stringify(norm, false, 4));
 	});
 }
 
-function normalize(obj)
+function normalize(obj, array_depth)
 {
-	return (obj);
+	if (obj === null || typeof (obj) != 'object')
+		return (obj);
+
+	if (Array.isArray(obj)) {
+		if (array_depth < sort_keys.length &&
+		    sort_keys[array_depth] !== null) {
+			obj = obj.sort(function (a, b) {
+				var va = a[sort_keys[array_depth]];
+				var vb = b[sort_keys[array_depth]];
+				return (va < vb ? -1 : (vb < va ? 1 : 0));
+			});
+		}
+
+		return (obj.map(function (elt) {
+		    return (normalize(elt, array_depth + 1));
+		}));
+	}
+
+	var rv = {};
+	Object.keys(obj).sort().forEach(function (k) {
+		rv[k] = normalize(obj[k], array_depth);
+	});
+	return (rv);
 }
 
 main();
