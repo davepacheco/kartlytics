@@ -25,7 +25,7 @@ EOF
 	exit 2
 }
 
-[[ $# -eq 1 ]] || usage
+[[ $# -eq 1 ]] || [[ $# -eq 2 ]] || usage
 
 set -o pipefail
 set -o errexit
@@ -36,7 +36,7 @@ export HOME=/root
 cd /var/tmp
 git clone https://github.com/davepacheco/kartlytics
 cd kartlytics
-git checkout base-13.1.0
+[[ -n "$2" ]] && git checkout "$2"
 make
 cd ..
 tar czvf kartlytics.tgz \
