@@ -19,7 +19,7 @@ function parseKartvid(video)
 	var lastp;
 
 	return (function (line) {
-		var k;
+		var k, l;
 
 		++i;
 
@@ -96,13 +96,31 @@ function parseKartvid(video)
 			}
 		});
 
+		/*
+		 * Skip obviously invalid frames.  This logic could be moved
+		 * back into kartvid, but kartvid needs to emit states for item
+		 * information, and sometimes it can't make them actually appear
+		 * valid.
+		 */
 		for (k = 0; k < entry.players.length; k++) {
 			if (entry.players[k]['position'] !== undefined)
 				break;
 		}
 
-		if (k == entry.players.length)
+		if (k == entry.players.length &&
+		    race['track'] != 'Yoshi Valley')
 			return;
+
+		for (k = 0; k < entry.players.length; k++) {
+			if (!entry.players[k]['position'])
+				continue;
+
+			for (l = k + 1; l < entry.players.length; l++) {
+				if (entry.players[k]['position'] ==
+				    entry.players[l]['position'])
+					return;
+			}
+		}
 
 		if (!entry.done) {
 			/*
