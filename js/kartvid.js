@@ -96,6 +96,11 @@ function parseKartvid(video)
 			}
 		});
 
+		for (k = 0; k < entry.players.length; k++) {
+			if (entry.players[k]['position'] === undefined)
+				return;
+		}
+
 		if (!entry.done) {
 			/*
 			 * If all players' ranks are the same, this isn't a new
