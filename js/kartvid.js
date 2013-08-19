@@ -97,9 +97,12 @@ function parseKartvid(video)
 		});
 
 		for (k = 0; k < entry.players.length; k++) {
-			if (entry.players[k]['position'] === undefined)
-				return;
+			if (entry.players[k]['position'] !== undefined)
+				break;
 		}
+
+		if (k == entry.players.length)
+			return;
 
 		if (!entry.done) {
 			/*
