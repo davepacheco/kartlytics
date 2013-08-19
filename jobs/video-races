@@ -1,0 +1,33 @@
+#!/bin/bash
+
+#
+# video-transcribe: given a kartlytics video, run kartvid to produce a race
+# transcript (showing races, characters, tracks, and race events)
+#
+
+set -o pipefail
+arg0="$(basename $0)"
+
+function fail
+{
+	echo "$arg0: $@" >&2
+	exit 1
+}
+
+function usage
+{
+	[[ $# -gt 0 ]] && echo "$arg0: $@" >& 2
+	cat <<EOF >&2
+usage: $arg0 KARTVID_BASE TRANSCRIPT_FILE TRANSCRIPT_OBJECT
+
+Given a kartlytics video transcript, parse out the race events.
+EOF
+	exit 2
+}
+
+[[ $# -eq 3 ]] || usage
+
+t_outdir="$(dirname $3)"
+
+$1/js/kart.js -r < "$2" | \
+    mpipe $t_outdir/races.json || fail "failed to process transcript"

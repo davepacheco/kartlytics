@@ -48,7 +48,5 @@ done
 # Process the raw transcript into discrete races, saving both the transcript and
 # the race details file.
 #
-mput -f "$t_transcript" "$t_outdir/transcript.json" || \
+mpipe -f "$t_transcript" "$t_outdir/transcript.json" || \
     fail "failed to save transcript"
-$1/js/kart.js -r < "$t_transcript" | \
-    mput $t_outdir/races.json || fail "failed to process transcript"
