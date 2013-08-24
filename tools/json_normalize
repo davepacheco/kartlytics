@@ -1,0 +1,102 @@
+#!/usr/bin/env node
+
+var mod_assert = require('assert');
+var mod_path = require('path');
+var mod_fs = require('fs');
+var mod_getopt = require('posix-getopt');
+
+var sort_keys = [];
+
+function fatal(message)
+{
+	console.error(mod_path.basename(process.argv[1]) + ': ' + message);
+	process.exit(1);
+}
+
+function main()
+{
+	var parser, option, filename, stream;
+
+	parser = new mod_getopt.BasicParser('a:', process.argv);
+
+	while ((option = parser.getopt()) !== undefined) {
+		switch (option.option) {
+		case 'a':
+			if (option.optarg == '-')
+				sort_keys.push(null);
+			else
+				sort_keys.push(option.optarg);
+			break;
+
+		default:
+			/* error message already emitted by getopt */
+			mod_assert.equal('?', option.option);
+			break;
+		}
+	}
+
+	if (parser.optind() >= process.argv.length) {
+		json_normalize(process.stdin);
+		process.stdin.resume();
+	} else {
+		filename = process.argv[parser.optind()];
+		stream = mod_fs.createReadStream(filename);
+		stream.on('open', function () {
+			stream.removeAllListeners('error');
+			json_normalize(stream);
+		});
+		stream.on('error', function (err) {
+			fatal('open "' + filename + '": ' + err.message);
+		});
+	}
+}
+
+function json_normalize(stream)
+{
+	var buffer = '';
+	var norm, obj;
+
+	stream.on('data', function (chunk) {
+		buffer += chunk.toString('utf8');
+	});
+
+	stream.on('end', function () {
+		try {
+			obj = JSON.parse(buffer);
+		} catch (ex) {
+			fatal('invalid json: ' + ex.message);
+		}
+
+		norm = normalize(obj, 0);
+		console.log(JSON.stringify(norm, false, 2));
+	});
+}
+
+function normalize(obj, array_depth)
+{
+	if (obj === null || typeof (obj) != 'object')
+		return (obj);
+
+	if (Array.isArray(obj)) {
+		if (array_depth < sort_keys.length &&
+		    sort_keys[array_depth] !== null) {
+			obj = obj.sort(function (a, b) {
+				var va = a[sort_keys[array_depth]];
+				var vb = b[sort_keys[array_depth]];
+				return (va < vb ? -1 : (vb < va ? 1 : 0));
+			});
+		}
+
+		return (obj.map(function (elt) {
+		    return (normalize(elt, array_depth + 1));
+		}));
+	}
+
+	var rv = {};
+	Object.keys(obj).sort().forEach(function (k) {
+		rv[k] = normalize(obj[k], array_depth);
+	});
+	return (rv);
+}
+
+main();

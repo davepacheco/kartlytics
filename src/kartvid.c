@@ -30,6 +30,8 @@ static int ident_frame(video_frame_t *, void *);
 static int cmd_starts(int, char *[]);
 static int check_start_frame(video_frame_t *, void *);
 static int cmd_rgb2hsv(int, char *[]);
+static int cmd_exportitems(int, char *[]);
+static int check_items(video_frame_t *, void *);
 
 #define	MAX_FRAMES	16384
 
@@ -51,13 +53,15 @@ static kv_cmd_t kv_commands[] = {
       "shift the given image using the given x and y offsets" },
     { "ident", cmd_ident, "image",
       "report the current game state for the given image" },
-    { "frames", cmd_frames, "[-j] dir_of_image_files", 
+    { "frames", cmd_frames, "[-ij] dir_of_image_files", 
       "emit race events for a sequence of video frames" },
     { "rgb2hsv", cmd_rgb2hsv, "r g b", "convert rgb value to hsv" },
-    { "video", cmd_video, "[-j] [-d debugdir] video_file",
+    { "video", cmd_video, "[-ij] [-d debugdir] video_file",
       "emit race events for an entire video" },
     { "starts", cmd_starts, "video_file",
       "only scan for \"race start\" events and emit them on stdout" },
+    { "exportitems", cmd_exportitems, "[-d dir] video_file",
+      "export all frames in a video with an item box" },
 };
 
 static int kv_ncommands = sizeof (kv_commands) / sizeof (kv_commands[0]);
@@ -122,7 +126,7 @@ usage(const char *message)
 	name = basename((char *)kv_arg0);
 
 	if (message != NULL)
-		warnx(message);
+		warnx("%s", message);
 
 	for (i = 0; i < kv_ncommands; i++) {
 		kcp = &kv_commands[i];
@@ -132,6 +136,29 @@ usage(const char *message)
 	}
 
 	exit(EXIT_USAGE);
+}
+
+static int
+check_debugdir(const char *dbgdir)
+{
+	struct stat st;
+
+	/*
+	 * This isn't strictly necessary, but is a useful prereq so that we
+	 * don't get partway through the conversion and fail because the user
+	 * forgot to create the directory.
+	 */
+	if (stat(dbgdir, &st) != 0) {
+		warn("stat %s", dbgdir);
+		return (-1);
+	}
+
+	if ((st.st_mode & S_IFDIR) == 0) {
+		warnx("not a directory: %s", dbgdir);
+		return (-1);
+	}
+
+	return (0);
 }
 
 /*
@@ -244,11 +271,11 @@ cmd_translatexy(int argc, char *argv[])
 
 	dx = strtol(argv[2], &q, 0);
 	if (*q != '\0')
-		warnx("x offset value truncated to %d", dx);
+		warnx("x offset value truncated to %ld", dx);
 
 	dy = strtol(argv[3], &q, 0);
 	if (*q != '\0')
-		warnx("y offset value truncated to %d", dy);
+		warnx("y offset value truncated to %ld", dy);
 
 	newimage = img_translatexy(image, dx, dy);
 	if (newimage == NULL) {
@@ -286,7 +313,7 @@ cmd_ident(int argc, char *argv[])
 	}
 
 	kv_ident(image, &info, KV_IDENT_ALL);
-	kv_screen_json(argv[0], 0, 0, &info, NULL, stdout);
+	kv_screen_print(argv[0], 0, 0, &info, NULL, stdout);
 
 	return (EXIT_SUCCESS);
 }
@@ -311,12 +338,17 @@ cmd_frames(int argc, char *argv[])
 	char *q;
 	img_t *image;
 	kv_vidctx_t *kvp;
+	kv_flags_t flags = KVF_NONE;
 	char *framenames[MAX_FRAMES];
 
 	emit = kv_screen_print;
 
-	while ((c = getopt(argc, argv, "j")) != -1) {
+	while ((c = getopt(argc, argv, "ij")) != -1) {
 		switch (c) {
+		case 'i':
+			flags |= KVF_COMPARE_ITEMSTATE;
+			break;
+
 		case 'j':
 			emit = kv_screen_json;
 			break;
@@ -335,7 +367,8 @@ cmd_frames(int argc, char *argv[])
 		return (EXIT_USAGE);
 	}
 
-	if ((kvp = kv_vidctx_init(dirname((char *)kv_arg0), emit, NULL)) == NULL)
+	if ((kvp = kv_vidctx_init(dirname((char *)kv_arg0), emit, NULL,
+	    flags)) == NULL)
 		return (EXIT_FAILURE);
 
 	if ((dirp = opendir(argv[0])) == NULL) {
@@ -444,17 +477,22 @@ cmd_video(int argc, char *argv[])
 	char c;
 	const char *dbgdir = NULL;
 	kv_emit_f emit;
+	kv_flags_t flags = KVF_NONE;
 
 	emit = kv_screen_print;
 
-	while ((c = getopt(argc, argv, "jd:")) != -1) {
+	while ((c = getopt(argc, argv, "d:ij")) != -1) {
 		switch (c) {
-		case 'j':
-			emit = kv_screen_json;
-			break;
-
 		case 'd':
 			dbgdir = optarg;
+			break;
+
+		case 'i':
+			flags |= KVF_COMPARE_ITEMSTATE;
+			break;
+
+		case 'j':
+			emit = kv_screen_json;
 			break;
 
 		case '?':
@@ -471,23 +509,8 @@ cmd_video(int argc, char *argv[])
 		return (EXIT_USAGE);
 	}
 
-	/*
-	 * This isn't strictly necessary, but is a useful prereq so that we
-	 * don't get partway through the conversion and fail because the user
-	 * forgot to create the directory.
-	 */
-	if (dbgdir != NULL) {
-		struct stat st;
-		if (stat(dbgdir, &st) != 0) {
-			warn("stat %s", dbgdir);
-			return (EXIT_USAGE);
-		}
-
-		if ((st.st_mode & S_IFDIR) == 0) {
-			warnx("not a directory: %s", dbgdir);
-			return (EXIT_USAGE);
-		}
-	}
+	if (dbgdir != NULL && check_debugdir(dbgdir) != 0)
+		return (EXIT_USAGE);
 
 	if ((vp = video_open(argv[0])) == NULL)
 		return (EXIT_FAILURE);
@@ -497,7 +520,7 @@ cmd_video(int argc, char *argv[])
 		    video_framerate(vp));
 
 	if ((kvp = kv_vidctx_init(dirname((char *)kv_arg0), emit,
-	    dbgdir)) == NULL) {
+	    dbgdir, flags)) == NULL) {
 		video_free(vp);
 		return (EXIT_FAILURE);
 	}
@@ -587,5 +610,93 @@ check_start_frame(video_frame_t *vp, void *rawarg)
 		(void) fflush(stdout);
 	}
 
+	return (0);
+}
+
+typedef struct {
+	boolean_t ew_state;
+	const char *ew_dbgdir;
+	img_t *ew_mask;
+} expitem_t;
+
+static int
+cmd_exportitems(int argc, char *argv[])
+{
+	video_t *vp;
+	char c;
+	int rv;
+	expitem_t state;
+
+	state.ew_state = B_FALSE;
+	state.ew_dbgdir = NULL;
+
+	while ((c = getopt(argc, argv, "jd:")) != -1) {
+		switch (c) {
+		case 'd':
+			state.ew_dbgdir = optarg;
+			break;
+
+		case '?':
+		default:
+			return (EXIT_USAGE);
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		warnx("missing input file");
+		return (EXIT_USAGE);
+	}
+
+	if (state.ew_dbgdir != NULL && check_debugdir(state.ew_dbgdir) != 0)
+		return (EXIT_USAGE);
+
+	if (kv_init(dirname((char *)kv_arg0)) != 0) {
+		warnx("failed to initialize masks");
+		return (EXIT_FAILURE);
+	}
+
+	/* XXX should be a library function */
+	char buf[PATH_MAX];
+	(void) snprintf(buf, sizeof (buf),
+	    "%s/../assets/masks/item_box_area.png", dirname((char *)kv_arg0));
+	state.ew_mask = img_read(buf);
+	if (state.ew_mask == NULL)
+		return (EXIT_FAILURE);
+
+	if ((vp = video_open(argv[0])) == NULL)
+		return (EXIT_FAILURE);
+
+	rv = video_iter_frames(vp, check_items, &state);
+	video_free(vp);
+	return (rv);
+}
+
+static int
+check_items(video_frame_t *vp, void *rawarg)
+{
+	expitem_t *statep = rawarg;
+	boolean_t fstate;
+	kv_screen_t ks;
+
+	kv_ident(&vp->vf_image, &ks, KV_IDENT_ITEM);
+	fstate = (ks.ks_players[0].kp_item != KVI_NONE);
+	if (statep->ew_state && !fstate)
+		(void) printf("box disappears: %d\n",
+		    (int)(vp->vf_frametime / 1000));
+	else if (!statep->ew_state && fstate)
+		(void) printf("box    appears: %d\n",
+		    (int)(vp->vf_frametime / 1000));
+	statep->ew_state = fstate;
+	if (statep->ew_dbgdir != NULL && fstate) {
+		img_and(&vp->vf_image, statep->ew_mask);
+
+		char buf[PATH_MAX];
+		(void) snprintf(buf, sizeof (buf), "%s/frame %d.png",
+		    statep->ew_dbgdir, vp->vf_framenum);
+		(void) img_write(&vp->vf_image, buf);
+	}
 	return (0);
 }

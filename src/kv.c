@@ -19,6 +19,10 @@ typedef struct {
 	img_t		*km_image;
 } kv_mask_t;
 
+kv_item_t kv_mask_item(const char *mask);
+int kv_mask_compare(const kv_mask_t *, const kv_mask_t *);
+
+
 #define	KV_MAX_MASKS	256
 static kv_mask_t kv_masks[KV_MAX_MASKS];
 static int kv_nmasks = 0;
@@ -26,6 +30,8 @@ static int kv_nmasks = 0;
 #define KV_MASK_CHAR(s)		(s[0] == 'c')
 #define KV_MASK_TRACK(s)	(s[0] == 't')
 #define	KV_MASK_LAKITU(s)	(s[0] == 'l')
+#define	KV_MASK_ITEM(s)		(s[0] == 'i')
+#define	KV_MASK_POS(s)		(s[0] == 'p')
 
 #define	KV_STARTFRAMES	90
 
@@ -35,6 +41,7 @@ struct kv_vidctx {
 	kv_screen_t 	kv_raceframe;   /* first frame state for this race */
 	kv_screen_t	kv_startbuffer[KV_STARTFRAMES];
 	int		kv_last_start;
+	kv_flags_t	kv_flags;
 	kv_emit_f	kv_emit;
 	double		kv_framerate;
 	char		kv_dbgdir[PATH_MAX];
@@ -81,6 +88,7 @@ kv_init(const char *dirname)
 
 		if (strncmp(entp->d_name, "char_", sizeof ("char_") - 1) != 0 &&
 		    strncmp(entp->d_name, "pos", sizeof ("pos") - 1) != 0 &&
+		    strncmp(entp->d_name, "item_", sizeof ("item_") - 1) != 0 &&
 		    strncmp(entp->d_name, "lakitu_start",
 		    sizeof ("lakitu_start") - 1) != 0 &&
 		    strncmp(entp->d_name, "track_", sizeof ("track_") - 1) != 0)
@@ -110,7 +118,26 @@ kv_init(const char *dirname)
 	}
 
 	(void) closedir(maskdir);
+
+	/*
+	 * It's important that we check position masks before others so that
+	 * ks_nplayers is set correctly.
+	 */
+	qsort(kv_masks, kv_nmasks, sizeof (kv_masks[0]),
+	    (int (*)(const void *, const void *))kv_mask_compare);
 	return (0);
+}
+
+int
+kv_mask_compare(const kv_mask_t *m1, const kv_mask_t *m2)
+{
+	if (KV_MASK_POS(m1->km_name) && !KV_MASK_POS(m2->km_name))
+		return (-1);
+
+	if (!KV_MASK_POS(m1->km_name) && KV_MASK_POS(m2->km_name))
+		return (1);
+
+	return (strcmp(m1->km_name, m2->km_name));
 }
 
 void
@@ -134,6 +161,9 @@ kv_ident(img_t *image, kv_screen_t *ksp, kv_ident_t which)
 		if (!(which & KV_IDENT_TRACK) && KV_MASK_TRACK(kmp->km_name))
 			continue;
 
+		if (!(which & KV_IDENT_ITEM) && KV_MASK_ITEM(kmp->km_name))
+			continue;
+
 		score = img_compare(image, kmp->km_image, NULL);
 
 		if (kv_debug > 1)
@@ -143,6 +173,11 @@ kv_ident(img_t *image, kv_screen_t *ksp, kv_ident_t which)
 			checkthresh = KV_THRESHOLD_CHAR;
 		else if (KV_MASK_LAKITU(kmp->km_name))
 			checkthresh = KV_THRESHOLD_LAKITU;
+		else if (KV_MASK_ITEM(kmp->km_name) &&
+		    strstr(kmp->km_name, "box_frame") != NULL)
+			checkthresh = KV_THRESHOLD_ITEMFRAME;
+		else if (KV_MASK_ITEM(kmp->km_name))
+			checkthresh = KV_THRESHOLD_ITEM;
 		else
 			checkthresh = KV_THRESHOLD_TRACK;
 
@@ -171,6 +206,7 @@ kv_ident_matches(kv_screen_t *ksp, const char *mask, double score)
 	unsigned int pos, square;
 	char *p;
 	kv_player_t *kpp;
+	kv_item_t item;
 	char buf[64];
 
 	if (kv_debug > 1)
@@ -236,6 +272,46 @@ kv_ident_matches(kv_screen_t *ksp, const char *mask, double score)
 
 	if (strncmp(buf, "lakitu_start", sizeof ("lakitu_start") - 1) == 0) {
 		ksp->ks_events |= KVE_RACE_START;
+		return;
+	}
+
+	if (strncmp(buf, "item_", sizeof ("item_") - 1) == 0) {
+		p = strrchr(buf, '_');
+		if (p == buf + sizeof ("item_") - 1)
+			return;
+
+		*p = '\0';
+		if (sscanf(p + 1, "%u", &square) != 1 || square > KV_MAXPLAYERS)
+			return;
+
+		if (square > ksp->ks_nplayers)
+			return;
+
+		/*
+		 * We only want to take the KVI_UNKNOWN match if there's no
+		 * more specific item match (regardless of the score).
+		 */
+		kpp = &ksp->ks_players[square - 1];
+		item = kv_mask_item(buf + sizeof ("item_") - 1);
+		if (item == KVI_UNKNOWN && kpp->kp_item != KVI_NONE)
+			return;
+
+		/*
+		 * If we have a non-blank item with a worse score than what
+		 * we've already got (and that's not just because the existing
+		 * item is NONE or UNKNOWN), then we'll defer to what we've
+		 * already got.
+		 */
+		if (kpp->kp_itemscore < score &&
+		    (kpp->kp_item != KVI_NONE && kpp->kp_item != KVI_UNKNOWN))
+			return;
+
+		kpp->kp_item = kv_mask_item(buf + sizeof ("item_") - 1);
+		kpp->kp_itemscore = score;
+
+		if (kv_debug > 2)
+			(void) printf("player %d: taking item %s\n",
+			    square, kv_item_label(kpp->kp_item));
 		return;
 	}
 }
@@ -328,7 +404,8 @@ kv_screen_invalid(kv_screen_t *ksp, kv_screen_t *pksp, kv_screen_t *raceksp)
  * changed by looking for the race start event.
  */
 int
-kv_screen_compare(kv_screen_t *ksp, kv_screen_t *pksp, kv_screen_t *raceksp)
+kv_screen_compare(kv_screen_t *ksp, kv_screen_t *pksp, kv_screen_t *raceksp,
+    kv_flags_t flags)
 {
 	int i;
 	kv_player_t *kpp, *pkpp;
@@ -344,6 +421,48 @@ kv_screen_compare(kv_screen_t *ksp, kv_screen_t *pksp, kv_screen_t *raceksp)
 		    (raceksp->ks_track[0] != 'y' &&
 		    kpp->kp_place != pkpp->kp_place))
 			return (1);
+
+		if ((flags & KVF_COMPARE_ITEMS) != 0) {
+			if (kpp->kp_item != pkpp->kp_item)
+				return (1);
+		}
+
+	}
+
+	return (0);
+}
+
+static int
+kv_screen_compare_items(kv_screen_t *ksp, kv_screen_t *pksp, kv_flags_t flags)
+{
+	int i;
+	kv_player_t *kpp, *pkpp;
+	kv_itemstate_t state, pstate;
+
+	for (i = 0; i < ksp->ks_nplayers; i++) {
+		kpp = &ksp->ks_players[i];
+		pkpp = &pksp->ks_players[i];
+
+		if (kv_debug > 2)
+			(void) printf("player %d: pstate %d, state %d\n",
+			    i + 1, pkpp->kp_itemstate, kpp->kp_itemstate);
+
+		if ((flags & KVF_COMPARE_ITEMSTATE) != 0) {
+			pstate = pkpp->kp_itemstate;
+			if (pstate == KVS_WAIT_ITEM)
+				pstate = KVS_SLOTMACHINE;
+			if (pstate == KVS_WAIT_USE)
+				pstate = KVS_NONE;
+
+			state = kpp->kp_itemstate;
+			if (state == KVS_WAIT_ITEM)
+				state = KVS_SLOTMACHINE;
+			if (state == KVS_WAIT_USE)
+				state = KVS_NONE;
+
+			if (state != pstate)
+				return (1);
+		}
 	}
 
 	return (0);
@@ -382,8 +501,8 @@ kv_screen_print(const char *source, int frame, int msec, kv_screen_t *ksp,
 	if (ksp->ks_nplayers == 0)
 		return;
 
-	(void) fprintf(out, "%-8s    %-32s    %-4s    %-7s\n", "",
-	    "Character", "Posn", "Lap");
+	(void) fprintf(out, "%-8s    %-32s    %-4s    %-7s    %-4s\n", "",
+	    "Character", "Posn", "Lap", "Item");
 
 	for (i = 0; i < ksp->ks_nplayers; i++) {
 		(void) fprintf(out, "Player %d    ", i + 1);
@@ -431,6 +550,28 @@ kv_screen_print(const char *source, int frame, int msec, kv_screen_t *ksp,
 			(void) fprintf(out, "Lap %d/3", kpp->kp_lapnum);
 		}
 
+		(void) fprintf(out, "    ");
+
+		switch (kpp->kp_itemstate) {
+		case KVS_NONE:
+		case KVS_WAIT_USE:
+			(void) fprintf(out, "-");
+			break;
+		case KVS_SLOTMACHINE:
+		case KVS_WAIT_ITEM:
+			(void) fprintf(out, "slotmachine");
+			break;
+		case KVS_HAVE_ITEM:
+			(void) fprintf(out, "got %s",
+			    kv_item_label(kpp->kp_item));
+			break;
+		default:
+			assert(0 && "invalid player flags");
+		}
+
+		if (kv_debug > 0)
+			(void) fprintf(out, " (%s)",
+			    kv_item_label(kpp->kp_item));
 		(void) fprintf(out, "\n");
 	}
 
@@ -485,6 +626,13 @@ kv_screen_json(const char *source, int frame, int msec, kv_screen_t *ksp,
 		if (kpp->kp_lapnum != 0)
 			(void) fprintf(out, "\"lap\": %d, ", kpp->kp_lapnum);
 
+		if (kpp->kp_itemstate == KVS_SLOTMACHINE ||
+		    kpp->kp_itemstate == KVS_WAIT_ITEM)
+			(void) fprintf(out, "\"itemstate\": \"slotmachine\", ");
+		else if (kpp->kp_itemstate == KVS_HAVE_ITEM)
+			(void) fprintf(out, "\"itemstate\": \"%s\", ",
+			    kv_item_label(kpp->kp_item));
+
 		(void) fprintf(out, "\"character\": \"%s\" }", charname);
 
 		if (i != ksp->ks_nplayers - 1)
@@ -499,7 +647,8 @@ kv_screen_json(const char *source, int frame, int msec, kv_screen_t *ksp,
 }
 
 kv_vidctx_t *
-kv_vidctx_init(const char *rootdir, kv_emit_f emit, const char *dbgdir)
+kv_vidctx_init(const char *rootdir, kv_emit_f emit, const char *dbgdir,
+    kv_flags_t flags)
 {
 	kv_vidctx_t *kvp;
 
@@ -515,6 +664,7 @@ kv_vidctx_init(const char *rootdir, kv_emit_f emit, const char *dbgdir)
 
 	kvp->kv_last_start = -1;
 	kvp->kv_emit = emit;
+	kvp->kv_flags = flags;
 	if (dbgdir != NULL)
 		(void) strlcpy(kvp->kv_dbgdir, dbgdir, sizeof (kvp->kv_dbgdir));
 	return (kvp);
@@ -526,7 +676,7 @@ kv_vidctx_init(const char *rootdir, kv_emit_f emit, const char *dbgdir)
  * see a start frame, we call this function to look back at the recent frames
  * and pick the best character match for each square among all of the recent
  * frames.  This technique is important to be able to identify characters in the
- * face of things like smoke that distorts their images
+ * face of things like smoke that distort their images.
  */
 static void
 kv_vidctx_chars(kv_vidctx_t *kvp, kv_screen_t *ksp, int i)
@@ -554,6 +704,67 @@ kv_vidctx_chars(kv_vidctx_t *kvp, kv_screen_t *ksp, int i)
 	}
 }
 
+static void
+kv_vidctx_items(kv_screen_t *ksp, kv_screen_t *pksp, int i)
+{
+	kv_player_t *pkpp, *kpp;
+	kv_item_t item;
+	kv_itemstate_t state;
+	
+	pkpp = &pksp->ks_players[i];
+	kpp = &ksp->ks_players[i];
+	item = kpp->kp_item;
+	state = pkpp->kp_itemstate;
+
+	switch (pkpp->kp_itemstate) {
+	case KVS_NONE:
+		if (item != KVI_NONE && item != KVI_BLANK) {
+			state = KVS_SLOTMACHINE;
+		}
+		break;
+
+	case KVS_SLOTMACHINE:
+		if (item == KVI_NONE) {
+			state = KVS_NONE;
+			if (kv_debug > 0)
+				warnx("unexpected transition transition from "
+				    "waiting for item box to no item box");
+		} else if (item == KVI_BLANK) {
+			state = KVS_WAIT_ITEM;
+		}
+		break;
+
+	case KVS_WAIT_ITEM:
+		if (item == KVI_NONE) {
+			state = KVS_NONE;
+			if (kv_debug > 0)
+				warnx("unexpected transition transition from "
+				    "waiting for item to no item box");
+		} else if (item >= KVI_REALITEM_MIN) {
+			state = KVS_HAVE_ITEM;
+		}
+		break;
+
+	case KVS_HAVE_ITEM:
+		state = KVS_WAIT_USE;
+		break;
+
+	case KVS_WAIT_USE:
+		if (item == KVI_NONE)
+			state = KVS_NONE;
+		break;
+
+	default:
+		assert(0 && "invalid item state");
+	}
+
+	if (kv_debug > 0 && pkpp->kp_itemstate != state)
+		(void) printf("player %d: got item %s in state %d "
+		    "=> state %d\n", i + 1, kv_item_label(item),
+		    pkpp->kp_itemstate, state);
+	kpp->kp_itemstate = state;
+}
+
 void
 kv_vidctx_frame_emit(kv_vidctx_t *kvp, const char *framename, int i, int timems,
     img_t *img, kv_screen_t *ksp, kv_screen_t *raceksp, FILE *fp)
@@ -574,6 +785,8 @@ kv_vidctx_frame(const char *framename, int i, int timems,
 {
 	int j;
 	kv_screen_t *ksp, *pksp, *raceksp;
+	kv_screen_t ipks;
+	boolean_t itemsdiff, invalid;
 
 	ksp = &kvp->kv_frame;
 	pksp = &kvp->kv_pframe;
@@ -603,6 +816,10 @@ kv_vidctx_frame(const char *framename, int i, int timems,
 		/* Skip the first frames after a start. See above. */
 		return;
 
+	bcopy(ksp, &ipks, sizeof (ipks));
+	if (kv_debug > 0)
+		(void) printf("%s\n", framename);
+	/* XXX why would this include characters? */
 	kv_ident(image, ksp, KV_IDENT_NOTRACK);
 
 	if (ksp->ks_events & KVE_RACE_START) {
@@ -655,10 +872,47 @@ kv_vidctx_frame(const char *framename, int i, int timems,
 	    raceksp->ks_track[0] == 'y')
 		ksp->ks_nplayers = raceksp->ks_nplayers;
 
-	if (kv_screen_invalid(ksp, pksp, raceksp))
+	/*
+	 * Update item box state.  This always operates on the immediately
+	 * previous frame (saved at the start of this function), rather than the
+	 * representative frame for the current game state, because there are
+	 * item changes with each frame that don't represent logically different
+	 * game states.  That's also why we do this every frame, not just those
+	 * that we save.
+	 */
+	for (j = 0; j < ksp->ks_nplayers; j++)
+		kv_vidctx_items(ksp, &ipks, j);
+
+	itemsdiff = kv_screen_compare_items(ksp, pksp, kvp->kv_flags) != 0;
+	invalid = kv_screen_invalid(ksp, pksp, raceksp) != 0;
+
+	/*
+	 * Normally we would omit invalid frames, but item detection is
+	 * sensitive to dropping individual frames, and we want to emit state
+	 * changes as soon as they happen, even if the rest of the frame would
+	 * have been invalid.  But we still don't want to emit an invalid frame,
+	 * so for this very specific case, we fake up the state based on the
+	 * last one we saw, but ignoring any events (which are generally
+	 * one-frame-only).
+	 */
+	if (itemsdiff && invalid) {
+		ksp->ks_events = 0;
+		ksp->ks_nplayers = pksp->ks_nplayers;
+		for (j = 0; j < ksp->ks_nplayers; j++) {
+			ksp->ks_players[j].kp_place =
+			    pksp->ks_players[j].kp_place;
+			ksp->ks_players[j].kp_lapnum =
+			    pksp->ks_players[j].kp_lapnum;
+		}
+
+		invalid = B_FALSE;
+	}
+
+	if (invalid)
 		return;
 
-	if (kv_screen_compare(ksp, pksp, raceksp) == 0)
+	if (itemsdiff == 0 &&
+	    kv_screen_compare(ksp, pksp, raceksp, kvp->kv_flags) == 0)
 		return;
 
 	/*
@@ -689,4 +943,65 @@ void
 kv_vidctx_free(kv_vidctx_t *kvp)
 {
 	free(kvp);
+}
+
+typedef struct {
+	kv_item_t kvii_item;		/* item enum value */
+	const char *kvii_mask;		/* mask file name */
+	const char *kvii_label;		/* human-readable label */
+} kv_item_info_t;
+
+static kv_item_info_t kv_items[] = {
+    { KVI_NONE,		  NULL,			"none"			},
+    { KVI_UNKNOWN,	  "box_frame",		"unknown"		},
+    { KVI_BLANK,	  "blank",		"blank"			},
+
+    { KVI_BANANA,	  "banana",		"banana peel"		},
+    { KVI_BANANA_BUNCH,	  "banana_bunch",	"banana bunch"		},
+    { KVI_BLUESHELL,	  "blue",		"blue shell"		},
+    { KVI_FAKE,		  "dud",		"fake item"		},
+    { KVI_GHOST,	  "ghost",		"ghost"			},
+    { KVI_GREENSHELL,	  "green",		"green shell"		},
+    { KVI_3GREENSHELLS,	  "green3",		"three green shells"	},
+    { KVI_LIGHTNING,	  "lightning",		"lightning"		},
+    { KVI_MUSHROOM,	  "mushroom",		"single mushroom"	},
+    { KVI_2MUSHROOMS,	  "mushroom2",		"two mushrooms"		},
+    { KVI_3MUSHROOMS,	  "mushroom3",		"three mushrooms"	},
+    { KVI_REDSHELL,	  "red",		"red shell"		},
+    { KVI_3REDSHELLS,	  "red3",		"three red shells"	},
+    { KVI_STAR,		  "star",		"star"			},
+    { KVI_SUPER_MUSHROOM, "super_mushroom",	"super mushroom"	},
+};
+
+static int kv_nitems = sizeof (kv_items) / sizeof (kv_items[0]);
+
+/*
+ * XXX This could be made faster by computing this once and hanging it off the
+ * mask object itself.  Ditto all of kv_ident_matches().
+ */
+kv_item_t
+kv_mask_item(const char *mask)
+{
+	int i;
+
+	for (i = 0; i < kv_nitems; i++) {
+		if (kv_items[i].kvii_mask != NULL &&
+		    strcmp(mask, kv_items[i].kvii_mask) == 0)
+			return (kv_items[i].kvii_item);
+	}
+
+	return (KVI_NONE);
+}
+
+const char *
+kv_item_label(kv_item_t item)
+{
+	int i;
+
+	for (i = 0; i < kv_nitems; i++) {
+		if (kv_items[i].kvii_item == item)
+			return (kv_items[i].kvii_label);
+	}
+
+	return (kv_item_label(KVI_UNKNOWN));
 }

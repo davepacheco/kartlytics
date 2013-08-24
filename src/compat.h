@@ -23,9 +23,4 @@ typedef enum { B_FALSE, B_TRUE } boolean_t;
 #define	GETOPT_RESET()	
 #endif
 
-/* Older versions of libpng didn't define png_jmpbuf. */
-#ifndef png_jmpbuf
-#define png_jmpbuf(png_ptr) ((png_ptr)->jmpbuf)
-#endif
-
 #endif

@@ -36,7 +36,7 @@ t_framesdir="/var/tmp/pngs"
 
 # Create the raw video transcript, saving PNG screenshots as a side effect.
 mkdir -p "$t_framesdir"
-$1/out/kartvid video -d "$t_framesdir" -j "$3" > $t_transcript || \
+$1/out/kartvid video -i -d "$t_framesdir" -j "$3" > $t_transcript || \
     fail "kartvid failed"
 mmkdir -p "$t_outdir/pngs"
 for file in $t_framesdir/*; do
@@ -48,7 +48,5 @@ done
 # Process the raw transcript into discrete races, saving both the transcript and
 # the race details file.
 #
-mput -f "$t_transcript" "$t_outdir/transcript.json" || \
+mpipe -f "$t_transcript" "$t_outdir/transcript.json" || \
     fail "failed to save transcript"
-$1/js/kart.js -r < "$t_transcript" | \
-    mput $t_outdir/races.json || fail "failed to process transcript"

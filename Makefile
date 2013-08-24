@@ -33,6 +33,9 @@ CLEAN_FILES += out/kartvid.o out/img.o out/kv.o out/video.o
 # mask configuration
 #
 CHARS = mario luigi peach toad yoshi wario dk bowser
+ITEMS = banana banana_bunch blank blue dud ghost green3 green \
+    lightning mushroom mushroom2 mushroom3 red red3 star super_mushroom \
+    box_frame
 # Some of the tracks were manually generated from the char_* sources.
 # The rest are automatically built here.
 GENTRACKS = banshee bowser dk luigi rainbow toad wario yoshi
@@ -43,6 +46,9 @@ MASKS_GENERATED = \
     $(CHARS:%=assets/masks/char_%_3zout.png)	\
     $(CHARS:%=assets/masks/char_%_4.png)	\
     $(CHARS:%=assets/masks/char_%_4zout.png)	\
+    $(ITEMS:%=assets/masks/item_%_2.png)	\
+    $(ITEMS:%=assets/masks/item_%_3.png)	\
+    $(ITEMS:%=assets/masks/item_%_4.png)	\
     assets/masks/pos1_square2_final.png		\
     assets/masks/pos1_square3_final.png		\
     assets/masks/pos1_square4_final.png		\
@@ -66,7 +72,8 @@ NODE_MODULES = node_modules
 
 JSL_CONF_NODE	 = tools/jsl.node.conf
 JSL_CONF_WEB	 = tools/jsl.web.conf
-JSL_FILES_NODE  := $(shell find js test -name '*.js') tools/vsplit
+JSL_FILES_NODE  := $(shell find js test -name '*.js') \
+		   tools/vsplit tools/json_normalize
 JSL_FILES_WEB   := $(shell find www/resources/js -name '*.js')
 JSSTYLE_FILES	:= $(JSL_FILES_NODE) $(JSL_FILES_WEB)
 CSCOPE_DIRS 	+= js www
@@ -101,12 +108,15 @@ $(KARTVID): out/kartvid.o out/img.o out/kv.o out/video.o | out
 #
 #
 #
-# Masks for characters in squares 2, 3, and 4 are generated from the mask for
-# square 1 using known offsets.  See assets/masks/offsets.txt.
+# Masks for characters and items in squares 2, 3, and 4 are generated from the
+# mask for square 1 using known offsets.  See assets/masks/offsets.txt.
 #
 KVCHAR1TO2 = $(KARTVID) translatexy $^ $@ 323 0
 KVCHAR1TO3 = $(KARTVID) translatexy $^ $@ 0   240
 KVCHAR1TO4 = $(KARTVID) translatexy $^ $@ 323 240
+KVITEM1TO2 = $(KARTVID) translatexy $^ $@ 495 0
+KVITEM1TO3 = $(KARTVID) translatexy $^ $@ 0   230
+KVITEM1TO4 = $(KARTVID) translatexy $^ $@ 495 230
 
 assets/masks/char_%_2.png: assets/masks/char_%_1.png
 	$(KVCHAR1TO2)
@@ -125,6 +135,15 @@ assets/masks/char_%_4.png: assets/masks/char_%_1.png
 
 assets/masks/char_%_4zout.png: assets/masks/char_%_1zout.png
 	$(KVCHAR1TO4)
+
+assets/masks/item_%_2.png: assets/masks/item_%_1.png
+	$(KVITEM1TO2)
+
+assets/masks/item_%_3.png: assets/masks/item_%_1.png
+	$(KVITEM1TO3)
+
+assets/masks/item_%_4.png: assets/masks/item_%_1.png
+	$(KVITEM1TO4)
 
 assets/masks/track_%.png: assets/mask_sources/track_%.png
 	$(KARTVID) and $^ assets/masks/gen_track.png $@
