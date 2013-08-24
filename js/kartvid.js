@@ -107,8 +107,7 @@ function parseKartvid(video)
 				break;
 		}
 
-		if (k == entry.players.length &&
-		    race['track'] != 'Yoshi Valley')
+		if (k == entry.players.length)
 			return;
 
 		for (k = 0; k < entry.players.length; k++) {

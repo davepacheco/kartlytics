@@ -892,9 +892,11 @@ kv_vidctx_frame(const char *framename, int i, int timems,
 	 * changes as soon as they happen, even if the rest of the frame would
 	 * have been invalid.  But we still don't want to emit an invalid frame,
 	 * so for this very specific case, we fake up the state based on the
-	 * last one we saw.
+	 * last one we saw, but ignoring any events (which are generally
+	 * one-frame-only).
 	 */
 	if (itemsdiff && invalid) {
+		ksp->ks_events = 0;
 		ksp->ks_nplayers = pksp->ks_nplayers;
 		for (j = 0; j < ksp->ks_nplayers; j++) {
 			ksp->ks_players[j].kp_place =
