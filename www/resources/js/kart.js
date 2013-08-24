@@ -376,7 +376,7 @@ function kScreenSummaryLoad()
 					rlast = i;
 			}
 
-			if (kbyp[rlast] &&
+			if (rlast !== undefined && kbyp[rlast] &&
 			    seg['vstart'] - kbyp[rlast] < kKeithingThreshold) {
 				keithings.push({
 				    'race': race,
@@ -556,7 +556,11 @@ function kScreenPlayerLoad(args)
 	    'extract_args': [ pname ],
 	    'aggregate': {
 	        'Time': function (t1, t2) {
-			return (t1 !== 0 && t1 < t2 ? t1 : t2);
+			if (t1 === 0 || t1 === undefined)
+				return (t2);
+			if (t2 === 0 || t2 === undefined)
+				return (t1);
+			return (t1 < t2 ? t1 : t2);
 		}
 	    },
 	    'options': {

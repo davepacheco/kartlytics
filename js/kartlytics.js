@@ -214,6 +214,7 @@ function fileServer(filename, request, response, next)
 {
 	var file = mod_fs.createReadStream(filename);
 	var headers = {};
+	headers['access-control-allow-origin'] = '*';
 
 	file.on('error', function (err) {
 		if (err['code'] == 'ENOENT') {
