@@ -305,6 +305,9 @@ function kScreenSummaryLoad()
 	var dateraces = {};
 	var keithings = [];
 	var slugfests = [];
+	var allitems = {};
+	var itemsbyr0 = {};
+	var itemsbyr1 = {};
 	var latest;
 	var rows, cols;
 
@@ -394,6 +397,35 @@ function kScreenSummaryLoad()
 		var sf = Object.create(race);
 		race['cpm'] = count / duration;
 		slugfests.push(sf);
+
+		/* update item distribution */
+		/* XXX copied from js/kartvid.js */
+		if (race['itemstates'].length != 4)
+			return;
+
+		race['itemstates'].forEach(function (p) {
+			p.forEach(function (evt) {
+				allitems[evt['item']] = true;
+
+				if (!evt['r0'] || !evt['r1'])
+					/* XXX why not? */
+					return;
+
+				if (!itemsbyr0[evt['r0']])
+					itemsbyr0[evt['r0']] = {};
+				if (!itemsbyr0[evt['r0']][evt['item']])
+					itemsbyr0[evt['r0']][
+					    evt['item']] = 0;
+				itemsbyr0[evt['r0']][evt['item']]++;
+
+				if (!itemsbyr1[evt['r1']])
+					itemsbyr1[evt['r1']] = {};
+				if (!itemsbyr1[evt['r1']][evt['item']])
+					itemsbyr1[
+					    evt['r1']][evt['item']] = 0;
+				itemsbyr1[evt['r1']][evt['item']]++;
+			});
+		});
 	});
 
 	metadata.push([ 'Total races', kmktypelink(nraces, 'races') ]);
@@ -453,6 +485,57 @@ function kScreenSummaryLoad()
 	        'aaSorting': [ [ 5, 'desc' ] ]
 	    }
 	});
+
+	/* item information */
+	kMakeDynamicTable(kDomConsole, 'Item distribution', {
+	    'bSort': false,
+	    'aoColumns': [ {
+		'sTitle': 'Item',
+		'sClass': 'kDataItemLabel'
+	    }, {
+		'sTitle': '1st<br />(box hit)',
+		'sClass': 'kDataItemCount'
+	    }, {
+		'sTitle': '2nd',
+		'sClass': 'kDataItemCount'
+	    }, {
+		'sTitle': '3rd',
+		'sClass': 'kDataItemCount'
+	    }, {
+		'sTitle': '4th',
+		'sClass': 'kDataItemCount'
+	    }, {
+		'sTitle': 'Item',
+		'sClass': 'kDataItemLabel'
+	    }, {
+		'sTitle': '1st<br/>(recv\'d)',
+		'sClass': 'kDataItemCount'
+	    }, {
+		'sTitle': '2nd',
+		'sClass': 'kDataItemCount'
+	    }, {
+		'sTitle': '3rd',
+		'sClass': 'kDataItemCount'
+	    }, {
+		'sTitle': '4th',
+		'sClass': 'kDataItemCount'
+	    } ],
+	    'aaData': Object.keys(allitems).sort().map(function (item) {
+		return ([
+		    ucfirst(item),
+		    itemsbyr0['1'][item] || 0,
+		    itemsbyr0['2'][item] || 0,
+		    itemsbyr0['3'][item] || 0,
+		    itemsbyr0['4'][item] || 0,
+		    ucfirst(item),
+		    itemsbyr1['1'][item] || 0,
+		    itemsbyr1['2'][item] || 0,
+		    itemsbyr1['3'][item] || 0,
+		    itemsbyr1['4'][item] || 0
+		]);
+	    })
+	}, 'Number of items received, by rank ' +
+	    '(when item box hit and when item received)');
 
 	/* keithings table */
 	keithings = keithings.map(function (k) {
@@ -1678,6 +1761,7 @@ function makeRaceObject(video, race, num)
 	    'level': racemeta.level,
 	    'track': race.track,
 	    'players': race.players,
+	    'itemstates': race.itemstates,
 	    'start_source': frameImgHref(video.name, race.start_source),
 	    'end_source': frameImgHref(video.name, race.end_source)
 	};

@@ -330,3 +330,13 @@ th.kDataPlayerNum, th.kDataPlayerTime, th.kDataPlayerPercentage {
 table.kDynamic {
 	margin-bottom: 20px;
 }
+
+/*
+ * Item table
+ */
+table td.kDataItemLabel {
+	font-weight: bold;
+}
+table td.kDataItemCount {
+	text-align: right;
+}
