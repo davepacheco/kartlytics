@@ -332,11 +332,58 @@ table.kDynamic {
 }
 
 /*
- * Item table
+ * Item information
  */
+div.kItemGraphWidget {
+	position: relative;
+	height: 300px;
+}
+
+div.kItemGraphWidget > div.kItemGraph {
+	position: absolute;
+	left: 0px;
+	top: 0px;
+	width: 300px;
+}
+
+div.kItemGraphWidget table.kDataTable {
+	position: absolute;
+	top: 0px;
+	left: 300px;
+}
+
+table th.kDataItemColor,
+table td.kDataItemColor {
+	padding-left: 0px;
+	padding-right: 0px;
+	width: 12px;
+}
+
+div.kItemSquare {
+	height: 10px;
+	width: 10px;
+	border: 1px #666 solid;
+}
+
 table td.kDataItemLabel {
 	font-weight: bold;
+	padding-right: 10px;
 }
 table td.kDataItemCount {
 	text-align: right;
+}
+
+.axis path,
+.axis line {
+	fill: none;
+	stroke: #000;
+	shape-rendering: crispEdges;
+}
+
+.bar {
+	fill: steelblue;
+}
+
+.x axis path {
+	display: none;
 }

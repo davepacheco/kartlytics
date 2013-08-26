@@ -408,7 +408,6 @@ function kScreenSummaryLoad()
 				allitems[evt['item']] = true;
 
 				if (!evt['r0'] || !evt['r1'])
-					/* XXX why not? */
 					return;
 
 				if (!itemsbyr0[evt['r0']])
@@ -464,6 +463,10 @@ function kScreenSummaryLoad()
 	    'options': { 'title': 'Latest session'}
 	});
 
+	/* item information */
+	kMakeItemGraph(kDomConsole, allitems, itemsbyr0, 'item box hit');
+	kMakeItemGraph(kDomConsole, allitems, itemsbyr1, 'item received');
+
 	/* slugfests table */
 	slugfests.sort(function (a, b) { return (b['cpm'] - a['cpm']); });
 	slugfests = slugfests.slice(0, 5);
@@ -485,57 +488,6 @@ function kScreenSummaryLoad()
 	        'aaSorting': [ [ 5, 'desc' ] ]
 	    }
 	});
-
-	/* item information */
-	kMakeDynamicTable(kDomConsole, 'Item distribution', {
-	    'bSort': false,
-	    'aoColumns': [ {
-		'sTitle': 'Item',
-		'sClass': 'kDataItemLabel'
-	    }, {
-		'sTitle': '1st<br />(box hit)',
-		'sClass': 'kDataItemCount'
-	    }, {
-		'sTitle': '2nd',
-		'sClass': 'kDataItemCount'
-	    }, {
-		'sTitle': '3rd',
-		'sClass': 'kDataItemCount'
-	    }, {
-		'sTitle': '4th',
-		'sClass': 'kDataItemCount'
-	    }, {
-		'sTitle': 'Item',
-		'sClass': 'kDataItemLabel'
-	    }, {
-		'sTitle': '1st<br/>(recv\'d)',
-		'sClass': 'kDataItemCount'
-	    }, {
-		'sTitle': '2nd',
-		'sClass': 'kDataItemCount'
-	    }, {
-		'sTitle': '3rd',
-		'sClass': 'kDataItemCount'
-	    }, {
-		'sTitle': '4th',
-		'sClass': 'kDataItemCount'
-	    } ],
-	    'aaData': Object.keys(allitems).sort().map(function (item) {
-		return ([
-		    ucfirst(item),
-		    itemsbyr0['1'][item] || 0,
-		    itemsbyr0['2'][item] || 0,
-		    itemsbyr0['3'][item] || 0,
-		    itemsbyr0['4'][item] || 0,
-		    ucfirst(item),
-		    itemsbyr1['1'][item] || 0,
-		    itemsbyr1['2'][item] || 0,
-		    itemsbyr1['3'][item] || 0,
-		    itemsbyr1['4'][item] || 0
-		]);
-	    })
-	}, 'Number of items received, by rank ' +
-	    '(when item box hit and when item received)');
 
 	/* keithings table */
 	keithings = keithings.map(function (k) {
@@ -572,6 +524,123 @@ function kScreenSummaryLoad()
 	    'title': 'Keithings',
 	    'label': 'Moving from 1st to 4th in less than ' +
 	        (kKeithingThreshold / 1000) + ' seconds'
+	});
+}
+
+function kMakeItemGraph(dom, allitems, itemsbyr, label)
+{
+	var div, id;
+
+	$('<div class="kDynamic kSubHeader">Item distribution by ' +
+	    'player\'s rank when ' + label + '</div>\n').appendTo(dom);
+	div = $('<div class="kDynamic kItemGraphWidget"></div>');
+	div.appendTo(dom);
+	id = 'graph' + kId++;
+	$('<div class="kDynamic kItemGraph" id="' + id + '"></div>').
+	    appendTo(div);
+
+	var margin = {
+	    'top': 20,
+	    'right': 20,
+	    'bottom': 30,
+	    'left': 40
+	};
+	var width = $(div).find('.kItemGraph').width() -
+	    margin['left'] - margin['right'];
+	var height = $(div).height() - margin['top'] - margin['bottom'];
+	var x = d3.scale.ordinal().rangeRoundBands([ 0, width ], 0.1);
+	var y = d3.scale.linear().rangeRound([ height, 0 ]);
+	var color = d3.scale.ordinal().range(
+	    kItems.map(function (i) { return (kItemColors[i]); }));
+	var labels = d3.scale.ordinal().range(kItems.map(ucfirst));
+	var xAxis = d3.svg.axis().scale(x).orient('bottom');
+	var yAxis = d3.svg.axis().scale(y).orient('left').
+	    tickFormat(d3.format('.0%'));
+	var svg = d3.selectAll('#' + id).append('svg').
+	    attr('width', width + margin['left'] + margin['right']).
+	    attr('height', height + margin['top'] + margin['bottom']).
+	    append('g').attr('transform',
+		'translate(' + margin['left'] + ',' + margin['top'] + ')');
+	var data, item, yy, row, r;
+
+	color.domain(kItems);
+
+	data = [];
+	for (r in itemsbyr) {
+		yy = 0;
+		row = {
+		    'Rank': ordinal(r),
+		    'items': []
+		};
+		color.domain().forEach(function (itemname) {
+			var barheight = itemsbyr[r][itemname] || 0;
+			row['items'].push({
+			    'name': itemname,
+			    'y0': yy,
+			    'y1': yy + barheight
+			});
+			yy += barheight;
+		});
+		row['items'].forEach(function (d) {
+			d['y0'] /= yy;
+			d['y1'] /= yy;
+		});
+		data.push(row);
+	}
+
+	x.domain(data.map(function (d) { return (d.Rank); }).sort());
+	svg.append('g').attr('class', 'x axis').
+	    attr('transform', 'translate(0,' + height + ')').call(xAxis);
+	svg.append('g').attr('class', 'y axis').call(yAxis);
+	item = svg.selectAll('.item').data(data).enter().
+	    append('g').attr('class', 'item').attr('transform', function (d) {
+		return ('translate(' + x(d['Rank']) + ',0)');
+	    });
+	item.selectAll('rect').data(function (d) { return (d['items']); }).
+	    enter().append('rect').attr('width', x.rangeBand()).
+	    attr('y', function (d) { return (y(d['y1'])); }).
+	    attr('height', function (d) { return (y(d['y0']) - y(d['y1'])); }).
+	    style('fill', function (d) { return (color(d['name'])); }).
+	    append('svg:title').text(function (d) {
+	        var pct = (100 * (d.y1 - d.y0)).toFixed(1);
+		return (labels(d.name) + ' (' + pct + '%)');
+	    });
+
+	kMakeDynamicTable(div, '', {
+	    'bSort': false,
+	    'aoColumns': [ {
+	        'sClass': 'kDataItemColor'
+	    }, {
+		'sTitle': 'Item',
+		'sClass': 'kDataItemLabel'
+	    }, {
+		'sTitle': '1st',
+		'sClass': 'kDataItemCount'
+	    }, {
+		'sTitle': '2nd',
+		'sClass': 'kDataItemCount'
+	    }, {
+		'sTitle': '3rd',
+		'sClass': 'kDataItemCount'
+	    }, {
+		'sTitle': '4th',
+		'sClass': 'kDataItemCount'
+	    } ],
+	    'aaData': kItems.slice(0).reverse().map(function (itemname) {
+		return ([
+		    '<div class="kItemSquare"></div>',
+		    ucfirst(itemname),
+		    itemsbyr['1'][itemname] || 0,
+		    itemsbyr['2'][itemname] || 0,
+		    itemsbyr['3'][itemname] || 0,
+		    itemsbyr['4'][itemname] || 0,
+		    itemname
+		]);
+	    }),
+	    'fnCreatedRow': function (tr, rowdata) {
+		$(tr).find('.kItemSquare').css('background-color',
+		    kItemColors[rowdata[6].toLowerCase()]);
+	    }
 	});
 }
 
@@ -1654,6 +1723,41 @@ function frameImgHref(vidname, frame)
  * Future revisions may have other events within a race: e.g., slips on a banana
  * peel, rescues, power slide boosts, and so on.
  */
+
+var kItemColors = {
+    'banana bunch': '#E6E600',
+    'banana peel': '#F2F280',
+    'blue shell': '#003399',
+    'fake item': '#9999FF',
+    'ghost': '#B2B2B2',
+    'green shell': '#66C285',
+    'lightning': '#FFD633',
+    'red shell': '#FF3300',
+    'single mushroom': '#FFD6CC',
+    'star': '#FF9900',
+    'super mushroom': '#FFCC66',
+    'three green shells': '#009933',
+    'three mushrooms': '#FF9980',
+    'three red shells': '#CC2900'
+};
+
+/* These are sorted in increasing order of goodness. */
+var kItems = [
+    'banana peel',
+    'green shell',
+    'single mushroom',
+    'fake item',
+    'red shell',
+    'ghost',
+    'banana bunch',
+    'three mushrooms',
+    'three red shells',
+    'star',
+    'super mushroom',
+    'lightning',
+    'three green shells',
+    'blue shell'
+];
 
 /*
  * Given a track name, returns the corresponding cup.
