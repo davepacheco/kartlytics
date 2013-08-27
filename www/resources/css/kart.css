@@ -400,3 +400,17 @@ table td.kDataItemCount {
 .x axis path {
 	display: none;
 }
+
+/*
+ * Race graphs
+ */
+.kRaceGraph {
+	width: 850px;
+	height: 150px;
+}
+
+.line {
+	fill: none;
+	stroke: steelblue;
+	stroke-width: 3px;
+}

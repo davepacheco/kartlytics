@@ -766,6 +766,7 @@ function kScreenRaceLoad(args)
 {
 	var vidid, raceid, racename, filter, video, webmurl, raceobj;
 	var metadata = [], players = [], events = [];
+	var graphrows = [];
 
 	if (args.length < 2) {
 		kScreenDefault();
@@ -813,6 +814,14 @@ function kScreenRaceLoad(args)
 			];
 
 			if (evt['seg']) {
+				var graphrow = {
+				    'rtime': evt['rtime']
+				};
+				evt['seg']['players'].forEach(function (p, i) {
+				    graphrow['P' + (i + 1)] = p['rank'];
+				});
+				graphrows.push(graphrow);
+
 				entry = entry.concat(
 				    evt['seg']['players'].map(function (p) {
 				        return (ordinal(p['rank']) || '?');
@@ -877,6 +886,8 @@ function kScreenRaceLoad(args)
 	    '<source src="' + webmurl + '" type="video/webm" />' +
 	    '</video>');
 
+	kRaceGraph(kDomConsole, raceobj, graphrows);
+
 	var eventCols = [ {
 	    'bVisible': false
 	}, {
@@ -921,6 +932,105 @@ function kScreenRaceLoad(args)
 		    '</a>');
 	    }
 	});
+}
+
+function kRaceGraph(dom, race, data)
+{
+	var div, id;
+
+	$('<div class="kDynamic kSubHeader">Ranks over time</div>').
+	    appendTo(dom);
+	id = 'id' + (kId++);
+	div = $('<div class="kDynamic kRaceGraph" id="' + id + '"></div>');
+	div.appendTo(dom);
+
+	var margin = {
+	    'top': 20,
+	    'right': 80,
+	    'bottom': 30,
+	    'left': 50
+	};
+	var width = $(div).width() - margin['left'] - margin['right'];
+	var height = $(div).height() - margin['top'] - margin['bottom'];
+	var x = d3.scale.linear().range([ 0, width ]);
+	var y = d3.scale.linear().range([ height, 0 ]);
+	var color = d3.scale.category10();
+	var xAxis = d3.svg.axis().scale(x).orient('bottom').
+	    tickFormat(function (d) { return (kDuration(d, false)); });
+	var yAxis = d3.svg.axis().scale(y).orient('left').tickFormat(
+	    function (d) { return (ordinal(Math.round(d).toString())); });
+	var line = d3.svg.line().interpolate(kd3_interpolate_step_angledrisers).
+	    x(function (d) { return (x(d['rtime'])); }).
+	    y(function (d) { return (y(d['rank'])); });
+	var svg = d3.select('#' + id).append('svg').
+	    attr('width', width + margin['left'] + margin['right']).
+	    attr('height', height + margin['top'] + margin['bottom']).
+	    append('g').attr('transform',
+	        'translate(' + margin['left'] + ',' + margin['top'] + ')');
+	var players, player;
+
+	color.domain(d3.keys(data[0]).filter(
+	    function (key) { return (key !== 'rtime'); }));
+	players = color.domain().map(function (name) {
+		return ({
+		    'name': ordinal(name),
+		    'values': data.map(function (d) {
+			return ({ 'rtime': d['rtime'], 'rank': d[name] });
+		    })
+		});
+	});
+	x.domain(d3.extent(data, function (d) { return d['rtime']; }));
+	y.domain([
+	    d3.max(players, function (c) {
+		return (d3.max(c['values'],
+		    function (v) { return (v['rank']); }));
+	    }),
+	    d3.min(players, function (c) {
+		return (d3.min(c['values'],
+		    function (v) { return (v['rank']); }));
+	    })
+	]);
+
+	svg.append('g').attr('class', 'x axis').
+	    attr('transform', 'translate(0,' + height + ')').call(xAxis);
+	svg.append('g').attr('class', 'y axis').call(yAxis).append('text').
+	    attr('transform', 'rotate(-90)').
+	    attr('x', -35). attr('y', -45).attr('dy', '.71em').
+	    style('text-anchor', 'end').text('Rank');
+
+	player = svg.selectAll('.player').data(players).enter().append('g').
+	    attr('class', 'player');
+	player.append('path').attr('class', 'line').
+	    attr('d', function (d) { return line(d['values']); }).
+	    style('stroke', function (d) { return color(d['name']); });
+	player.append('text').datum(function (d) {
+		return ({
+		    'name': d['name'],
+		    'value': {
+			'rtime': d['values'][0]['rtime'],
+			'rank': d['values'][0]['rank']
+		    }
+		});
+	    }).attr('transform', function (d) {
+		return ('translate(' +
+		    x(d.value.rtime) + ',' + y(d.value.rank - 0.3) + ')');
+	    }).attr('x', 3).attr('dy', '.35em').
+	    text(function (d) { return (d['name']); });
+
+	player.append('text').datum(function (d) {
+	        return ({
+		    'name': d['name'],
+		    'value': {
+			'rtime': d['values'][d['values'].length - 1]['rtime'],
+			'rank': d['values'][d['values'].length - 1]['rank']
+		    }
+		});
+	    }).attr('transform', function (d) {
+		return ('translate(' +
+		    x(d['value']['rtime']) + ',' +
+		    y(d['value']['rank'] - 0.3) + ')');
+	    }).attr('x', 3).attr('dy', '.35em').
+	    text(function (d) { return d['name']; });
 }
 
 /*
@@ -2525,6 +2635,43 @@ function kDataTable(args)
 		rows = rows.slice(0, limit);
 
 	kTable(parent, rows, columns, table_options);
+}
+
+/*
+ * Custom d3 line interpolation function which implements a step-after
+ * interpolation, but with no vertical lines.
+ */
+function kd3_interpolate_step_norisers(points)
+{
+	var p = points[0];
+	var path = [ p[0], ',', p[1] ];
+	var i;
+
+	for (i = 1; i < points.length; i++) {
+		p = points[i];
+		path.push('H', p[0], 'M', p[0], ',', p[1]);
+	}
+
+	return (path.join(''));
+}
+
+/*
+ * Custom d3 line interpolation function which implements a step-after
+ * interpolation, but with slightly angled vertical lines for improved clarity
+ * when plotting multiple series.
+ */
+function kd3_interpolate_step_angledrisers(points)
+{
+	var p = points[0];
+	var path = [ p[0], ',', p[1] ];
+	var i;
+
+	for (i = 1; i < points.length; i++) {
+		p = points[i];
+		path.push('H', p[0] - 3, 'L', p[0] + 3, ',', p[1]);
+	}
+
+	return (path.join(''));
 }
 
 /*
