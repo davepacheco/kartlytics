@@ -676,7 +676,8 @@ function kScreenPlayerLoad(args)
 	/* races by char */
 	kDataTable({
 	    'parent': kDomConsole,
-	    'columns': [ 'Char', 'NR', '%', 'N1st', 'N2nd', 'N3rd', 'N4th' ],
+	    'columns': [ 'Char', 'NR', '%', '%V', 'N1st', 'N2nd', 'N3rd',
+	        'N4th' ],
 	    'group_by': [ 'Char' ],
 	    'entries': races,
 	    'extract_args': [ pname, races.length ],
@@ -688,7 +689,7 @@ function kScreenPlayerLoad(args)
 	/* races by character class */
 	kDataTable({
 	    'parent': kDomConsole,
-	    'columns': [ 'CharClass', 'NR', '%', 'N1st', 'N2nd', 'N3rd',
+	    'columns': [ 'CharClass', 'NR', '%', '%V', 'N1st', 'N2nd', 'N3rd',
 	        'N4th' ],
 	    'group_by': [ 'CharClass' ],
 	    'entries': races,
@@ -2147,6 +2148,17 @@ var kColumns = {
 			return (value.toFixed(1));
 		}
 	},
+	'%V': {
+		'sTitle': '',
+		'sClass': 'kDataPlayerPercentageBar',
+		'extract': function (_1, _2, nrows) {
+			return (100 / nrows);
+		},
+		'format': function (value) {
+			return ('<div class="kDataBar" style="width: ' +
+			    Math.round(value) + '%"></div>');
+		}
+	},
 
 	/* Per-race fields */
 	'Cup': {
@@ -2369,7 +2381,7 @@ function kColumnsByName(cols)
 
 		var conf = kColumns[colname];
 		var rv = { '_name': colname, '_conf': conf };
-		if (!conf['sTitle'])
+		if (conf['sTitle'] === undefined)
 			rv['sTitle'] = colname;
 		[ 'mRender', 'sClass', 'sTitle', 'sWidth' ].forEach(
 		    function (n) {

@@ -327,6 +327,19 @@ th.kDataPlayerNum, th.kDataPlayerTime, th.kDataPlayerPercentage {
 	width: 15px;
 }
 
+th.kDataPlayerPercentageBar,
+td.kDataPlayerPercentageBar {
+	width: 50px;
+	padding-left: 0px;
+	padding-right: 0px;
+	vertical-align: middle;
+}
+
+td.kDataPlayerPercentageBar div.kDataBar {
+	height: 10px;
+	background-color: #4682b4;
+}
+
 table.kDynamic {
 	margin-bottom: 20px;
 }
