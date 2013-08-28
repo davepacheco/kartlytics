@@ -305,6 +305,7 @@ function kScreenSummaryLoad()
 	var dateraces = {};
 	var keithings = [];
 	var slugfests = [];
+	var wildfinishes = [];
 	var allitems = {};
 	var itemsbyr0 = {};
 	var itemsbyr1 = {};
@@ -356,7 +357,8 @@ function kScreenSummaryLoad()
 
 		/* Compute keithings and slugfests. */
 		var kbyp = new Array(race['players'].length + 1);
-		var count = 0;
+		var changes = 0;
+		var endchanges = 0;
 		var duration = race['vend'] - race['vstart'];
 
 		kRaceSegments(race, true, function (_, seg) {
@@ -368,7 +370,14 @@ function kScreenSummaryLoad()
 			 * doesn't indicate an exciting race.
 			 */
 			if (seg['vstart'] - race['vstart'] > 30000)
-				count++;
+				changes++;
+
+			/*
+			 * Tally up changes in the last 15 seconds to find
+			 * exciting finishes.
+			 */
+			if (race['vend'] - seg['vend'] < 15000)
+				endchanges++;
 
 			/*
 			 * A "Keithing" is scored when a player moves from 1st
@@ -401,8 +410,10 @@ function kScreenSummaryLoad()
 		});
 
 		var sf = Object.create(race);
-		race['cpm'] = count / duration;
+		race['cpm'] = changes / duration;
+		race['cend'] = endchanges;
 		slugfests.push(sf);
+		wildfinishes.push(sf);
 
 		/* update item distribution */
 		/* XXX copied from js/kartvid.js */
@@ -456,6 +467,29 @@ function kScreenSummaryLoad()
 	        'dtOptions': {
 	            'aaSorting': [ [1, 'desc'] ]
 	        }
+	    }
+	});
+
+	/* wildest finishes table */
+	wildfinishes.sort(function (a, b) { return (b['cend'] - a['cend']); });
+	wildfinishes = wildfinishes.slice(0, 5);
+	cols = kColumnsByName([ 'Date', 'NPl', 'Mode', 'Lvl', 'Track' ]);
+	cols.push({
+	    'sTitle': 'Changes',
+	    'sClass': 'kDataRaceTime',
+	    '_conf': {
+	        'extract': function (race) {
+			return (race['cend']);
+		}
+	    }
+	});
+	rows = wildfinishes.map(kExtractValues.bind(null, cols));
+	kTable(kDomConsole, rows, cols, {
+	    'title': 'Wildest finishes',
+	    'label': 'As determined by number of rank changes in the final ' +
+	        '15 seconds',
+	    'dtOptions': {
+	        'aaSorting': [ [ 5, 'desc' ] ]
 	    }
 	});
 
