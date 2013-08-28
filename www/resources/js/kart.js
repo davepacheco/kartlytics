@@ -362,7 +362,13 @@ function kScreenSummaryLoad()
 		kRaceSegments(race, true, function (_, seg) {
 			var r1, rlast;
 
-			count++;
+			/*
+			 * Only count rank changes after the first 30 seconds,
+			 * since there's often a lot of earlier jockeying that
+			 * doesn't indicate an exciting race.
+			 */
+			if (seg['vstart'] - race['vstart'] > 30000)
+				count++;
 
 			/*
 			 * A "Keithing" is scored when a player moves from 1st
@@ -453,20 +459,6 @@ function kScreenSummaryLoad()
 	    }
 	});
 
-	/* latest session table */
-	latest = Math.max.apply(null, Object.keys(dateraces));
-	kDataTable({
-	    'parent': kDomConsole,
-	    'entries': dateraces[latest],
-	    'columns': [ 'Date', 'NPl', 'Mode', 'Lvl', 'Track', 'WinC',
-	        'WinH' ],
-	    'options': { 'title': 'Latest session'}
-	});
-
-	/* item information */
-	kMakeItemGraph(kDomConsole, allitems, itemsbyr0, 'item box hit');
-	kMakeItemGraph(kDomConsole, allitems, itemsbyr1, 'item received');
-
 	/* slugfests table */
 	slugfests.sort(function (a, b) { return (b['cpm'] - a['cpm']); });
 	slugfests = slugfests.slice(0, 5);
@@ -483,10 +475,25 @@ function kScreenSummaryLoad()
 	rows = slugfests.map(kExtractValues.bind(null, cols));
 	kTable(kDomConsole, rows, cols, {
 	    'title': 'Wildest races',
-	    'label': 'As determined by number of rank changes per minute',
+	    'label': 'As determined by number of rank changes per minute, ' +
+	        'excluding the first 30 seconds',
 	    'dtOptions': {
 	        'aaSorting': [ [ 5, 'desc' ] ]
 	    }
+	});
+
+	/* item information */
+	kMakeItemGraph(kDomConsole, allitems, itemsbyr0, 'item box hit');
+	kMakeItemGraph(kDomConsole, allitems, itemsbyr1, 'item received');
+
+	/* latest session table */
+	latest = Math.max.apply(null, Object.keys(dateraces));
+	kDataTable({
+	    'parent': kDomConsole,
+	    'entries': dateraces[latest],
+	    'columns': [ 'Date', 'NPl', 'Mode', 'Lvl', 'Track', 'WinC',
+	        'WinH' ],
+	    'options': { 'title': 'Latest session'}
 	});
 
 	/* keithings table */
