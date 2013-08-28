@@ -306,6 +306,7 @@ function kScreenSummaryLoad()
 	var keithings = [];
 	var slugfests = [];
 	var wildfinishes = [];
+	var photofinishes = [];
 	var allitems = {};
 	var itemsbyr0 = {};
 	var itemsbyr1 = {};
@@ -344,8 +345,11 @@ function kScreenSummaryLoad()
 		nraces++;
 
 		/* Compute total number of distinct players. */
+		var best;
 		race['players'].forEach(function (p) {
 			players[p['person']] = true;
+			if (p['rank'] == 1 && p['time'] !== undefined)
+				best = p['time'];
 		});
 
 		/* Identify most recent session. */
@@ -396,12 +400,14 @@ function kScreenSummaryLoad()
 
 			if (rlast !== undefined && kbyp[rlast] &&
 			    seg['vstart'] - kbyp[rlast] < kKeithingThreshold) {
-				keithings.push({
-				    'race': race,
-				    'prev': kbyp[rlast],
-				    'segment': seg,
-				    'player': rlast
-				});
+				if (seg['vstart'] - kbyp[rlast] > 0) {
+					keithings.push({
+					    'race': race,
+					    'prev': kbyp[rlast],
+					    'segment': seg,
+					    'player': rlast
+					});
+				}
 
 				kbyp[rlast] = 0;
 			}
@@ -410,10 +416,13 @@ function kScreenSummaryLoad()
 		});
 
 		var sf = Object.create(race);
-		race['cpm'] = changes / duration;
+		race['cpm'] = changes / (duration - 30000);
 		race['cend'] = endchanges;
+		race['finish_delta'] = best !== undefined &&
+		    duration - best > 0 ? duration - best : Infinity;
 		slugfests.push(sf);
 		wildfinishes.push(sf);
+		photofinishes.push(sf);
 
 		/* update item distribution */
 		/* XXX copied from js/kartvid.js */
@@ -493,6 +502,33 @@ function kScreenSummaryLoad()
 	    }
 	});
 
+	/* item information */
+	kMakeItemGraph(kDomConsole, allitems, itemsbyr0, 'item box hit');
+	kMakeItemGraph(kDomConsole, allitems, itemsbyr1, 'item received');
+
+	/* photo finishes */
+	photofinishes.sort(function (a, b) {
+	    return (a['finish_delta'] - b['finish_delta']);
+	});
+	photofinishes = photofinishes.slice(0, 5);
+	cols = kColumnsByName([ 'Date', 'NPl', 'Mode', 'Lvl', 'Track' ]);
+	cols.push({
+	    'sTitle': 'Delta',
+	    'sClass': 'kDataRaceTime',
+	    '_conf': {
+	        'extract': function (race) {
+			return (kDuration(race['finish_delta'], true));
+		}
+	    }
+	});
+	rows = photofinishes.map(kExtractValues.bind(null, cols));
+	kTable(kDomConsole, rows, cols, {
+	    'title': 'Photo finishes',
+	    'dtOptions': {
+	        'aaSorting': [ [ 5, 'asc' ] ]
+	    }
+	});
+
 	/* slugfests table */
 	slugfests.sort(function (a, b) { return (b['cpm'] - a['cpm']); });
 	slugfests = slugfests.slice(0, 5);
@@ -515,10 +551,6 @@ function kScreenSummaryLoad()
 	        'aaSorting': [ [ 5, 'desc' ] ]
 	    }
 	});
-
-	/* item information */
-	kMakeItemGraph(kDomConsole, allitems, itemsbyr0, 'item box hit');
-	kMakeItemGraph(kDomConsole, allitems, itemsbyr1, 'item received');
 
 	/* latest session table */
 	latest = Math.max.apply(null, Object.keys(dateraces));
