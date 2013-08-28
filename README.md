@@ -7,8 +7,7 @@ kartvid (the underlying engine for kartlytics) is a program for processing
 Mario Kart 64 still frames from a screen capture video.  The goal is to take a
 video of a session and extract information about the courses played, the
 characters in each box, each character's position at every point in the race,
-and the final lap times.  Future enhancements could include weapon information,
-too.
+the final lap times, and item box information.
 
 Visit [kartlytics.com](http://kartlytics.com) to see this in action.
 
@@ -206,20 +205,14 @@ software.
 
 This project is just a prototype.  On most input, it's able to identify the
 start of the race, the characters playing, the positions of each player during
-the race, and the end of the race.  It emits both plaintext and JSON, and reads
-PNGs, PPMs, and raw videos.  There's also a primitive Node server that processes
-video uploads.  Remaining items include:
+the race, the end of the race, and item box information.  It emits both
+plaintext and JSON, and reads PNGs, PPMs, and raw videos.  There's also a
+primitive Node server that processes video uploads.  Remaining items include:
 
 - handle aborted races better. (kartvid detects this, but doesn't emit events
   very nicely.)
 - detect pause screen.
 - Detect lap completion (to show lap times).
-- Detect weapons.  The most reliable way to detect weapons gotten is probably to
-  look at the *last* weapon in the weapon box before the box itself disappears.
-  (All the other ideas I've come up with can't really handle the case where a
-  player immediately uses the weapon.)  But even then, you have to worry about
-  super mushrooms (which flash), triple mushrooms (which become 2 or 1 before
-  going away), and people stealing weapons with ghosts.
 - Position along the track for detecting "hot spots" where people tend to get
   slowed down.
 - Detect a "Billing": spending most of the race in 1st place, but losing due to
