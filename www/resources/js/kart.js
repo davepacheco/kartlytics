@@ -971,6 +971,7 @@ function kRaceGraph(dom, race, data)
 
 	color.domain(d3.keys(data[0]).filter(
 	    function (key) { return (key !== 'rtime'); }));
+	yAxis.ticks(color.domain().length - 1);
 	players = color.domain().map(function (name) {
 		return ({
 		    'name': ordinal(name),
