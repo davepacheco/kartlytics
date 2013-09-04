@@ -36,8 +36,6 @@ var mod_kartvid = require('./kartvid');
 
 var klName = 'kartlytics';
 var klPort = 8085;
-var klMantaHost = 'us-east.manta.joyent.com';
-var klDatadir = '/dap/public/kartlytics';
 var klAuthfile;
 var klAuth, klLog, klServer;
 
@@ -47,7 +45,7 @@ function main()
 {
 	var parser, option;
 
-	parser = new mod_getopt.BasicParser('l:d:a:', process.argv);
+	parser = new mod_getopt.BasicParser('l:a:', process.argv);
 
 	while ((option = parser.getopt())) {
 		if (option.error)
@@ -58,10 +56,6 @@ function main()
 			klPort = parseInt(option.optarg, 10);
 			if (isNaN(klPort))
 				usage();
-			break;
-
-		case 'd':
-			klDatadir = option.optarg;
 			break;
 
 		case 'a':
