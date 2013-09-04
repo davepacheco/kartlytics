@@ -703,10 +703,14 @@ function kMakeItemGraph(dom, allitems, itemsbyr, label)
 		return ([
 		    '<div class="kItemSquare"></div>',
 		    ucfirst(itemname),
-		    itemsbyr['1'][itemname] || 0,
-		    itemsbyr['2'][itemname] || 0,
-		    itemsbyr['3'][itemname] || 0,
-		    itemsbyr['4'][itemname] || 0,
+		    itemsbyr['1'] && itemsbyr['1'][itemname] ?
+		        itemsbyr['1'][itemname] : 0,
+		    itemsbyr['2'] && itemsbyr['2'][itemname] ?
+		        itemsbyr['2'][itemname] : 0,
+		    itemsbyr['3'] && itemsbyr['3'][itemname] ?
+		        itemsbyr['3'][itemname] : 0,
+		    itemsbyr['4'] && itemsbyr['4'][itemname] ?
+		        itemsbyr['4'][itemname] : 0,
 		    itemname
 		]);
 	    }),
