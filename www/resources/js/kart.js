@@ -606,6 +606,8 @@ function kMakeItemGraph(dom, allitems, itemsbyr, label)
 
 	$('<div class="kDynamic kSubHeader">Item distribution by ' +
 	    'player\'s rank when ' + label + '</div>\n').appendTo(dom);
+	$('<div class="kDynamic kSubHeaderLabel">For races with ' +
+	    '4 players</div>').appendTo(dom);
 	div = $('<div class="kDynamic kItemGraphWidget"></div>');
 	div.appendTo(dom);
 	id = 'graph' + kId++;
