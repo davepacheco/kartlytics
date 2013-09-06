@@ -20,18 +20,6 @@ Zoomed in views:
     P3 square looks to range from [242, 474] on x-axis and 310 pixels wide
 
 
-NORMAL POSITION NUMBERS
-bottom-right corner of 1 in 1st square: 75 x 225
-bottom-right corner of 1 in 2nd square: 569 x 225
-bottom-right corner of 1 in 3rd square: 75 x 445
-bottom-right corner of 1 in 4th square: 569 x 445
-
-So offsets are:
-569 - 75 = 494
-445 - 225 = 220
-
-
-
 FINAL POSITION NUMBERS
 
 top-left corner of 1 in 1st square: 95 x 110

@@ -3,7 +3,6 @@ cscope.*
 assets/masks/char_*_[234].png
 assets/masks/char_*_[234]zout.png
 assets/masks/item_*_[234].png
-assets/masks/pos[1234]_square[234].png
 assets/masks/pos[1234]_square[234]_final.png
 node_modules
 assets/masks/*.ppm

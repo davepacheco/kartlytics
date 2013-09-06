@@ -49,18 +49,6 @@ MASKS_GENERATED = \
     $(ITEMS:%=assets/masks/item_%_2.png)	\
     $(ITEMS:%=assets/masks/item_%_3.png)	\
     $(ITEMS:%=assets/masks/item_%_4.png)	\
-    assets/masks/pos1_square2.png		\
-    assets/masks/pos1_square3.png		\
-    assets/masks/pos1_square4.png		\
-    assets/masks/pos2_square2.png		\
-    assets/masks/pos2_square3.png		\
-    assets/masks/pos2_square4.png		\
-    assets/masks/pos3_square2.png		\
-    assets/masks/pos3_square3.png		\
-    assets/masks/pos3_square4.png		\
-    assets/masks/pos4_square2.png		\
-    assets/masks/pos4_square3.png		\
-    assets/masks/pos4_square4.png		\
     assets/masks/pos1_square2_final.png		\
     assets/masks/pos1_square3_final.png		\
     assets/masks/pos1_square4_final.png		\
@@ -179,23 +167,6 @@ assets/masks/pos%_square3_final.png: assets/masks/pos%_square1_final.png
 
 assets/masks/pos%_square4_final.png: assets/masks/pos%_square1_final.png
 	$(KVFPOS1TO4)
-
-#
-# Finally, the regular position numbers work similarly.
-#
-KVPOS1TO2 = $(KARTVID) translatexy $^ $@ 494 0
-KVPOS1TO3 = $(KARTVID) translatexy $^ $@ 0 220
-KVPOS1TO4 = $(KARTVID) translatexy $^ $@ 494 220
-
-assets/masks/pos%_square2.png: assets/masks/pos%_square1.png
-	$(KVFPOS1TO2)
-
-assets/masks/pos%_square3.png: assets/masks/pos%_square1.png
-	$(KVFPOS1TO3)
-
-assets/masks/pos%_square4.png: assets/masks/pos%_square1.png
-	$(KVFPOS1TO4)
-
 
 include ./Makefile.targ
 
