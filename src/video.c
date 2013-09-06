@@ -181,8 +181,10 @@ video_iter_frames(video_t *vp, frame_iter_t func, void *arg)
 			continue;
 		}
 
-		(void) sws_scale(swsctx, vp->vf_frame->data,
-		    vp->vf_frame->linesize, 0, height, vp->vf_framergb->data,
+		(void) sws_scale(swsctx,
+		    (const uint8_t *const*)vp->vf_frame->data,
+		    vp->vf_frame->linesize, 0, height,
+		    vp->vf_framergb->data,
 		    vp->vf_framergb->linesize);
 
 		/*
@@ -192,7 +194,7 @@ video_iter_frames(video_t *vp, frame_iter_t func, void *arg)
 		 * pixel-by-pixel copy would keep the abstractions separate, we
 		 * save about 30% of total execution time by skipping the copy.
 		 */
-		frame.vf_image.img_pixels = fp->data[0];
+		frame.vf_image.img_pixels = (img_pixel_t *)fp->data[0];
 		frame.vf_framenum++;
 		frame.vf_frametime = vp->vf_framerate * avp.pts * MILLISEC;
 		rv = func(&frame, arg);
