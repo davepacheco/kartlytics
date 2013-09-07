@@ -365,6 +365,9 @@ kv_screen_invalid(kv_screen_t *ksp, kv_screen_t *pksp, kv_screen_t *raceksp)
 		    ksp->ks_players[i].kp_place == 0)
 			continue;
 
+		if (ksp->ks_players[i].kp_place > ksp->ks_nplayers)
+			return (1);
+
 		for (j = i + 1; j < ksp->ks_nplayers; j++) {
 			if (ksp->ks_players[i].kp_place ==
 			    ksp->ks_players[j].kp_place)
