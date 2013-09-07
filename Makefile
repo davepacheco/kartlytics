@@ -96,6 +96,9 @@ CSCOPE_DIRS 	+= js www
 #
 all: $(KARTVID) $(MASKS_GENERATED) $(NODE_MODULES)
 
+.PHONY: masks
+masks: $(MASKS_GENERATED)
+
 clean-kartvid:
 	-rm -f $(KARTVID) out/*.o
 
@@ -188,13 +191,13 @@ KVPOS1TO3 = $(KARTVID) translatexy $^ $@ 0 220
 KVPOS1TO4 = $(KARTVID) translatexy $^ $@ 494 220
 
 assets/masks/pos%_square2.png: assets/masks/pos%_square1.png
-	$(KVFPOS1TO2)
+	$(KVPOS1TO2)
 
 assets/masks/pos%_square3.png: assets/masks/pos%_square1.png
-	$(KVFPOS1TO3)
+	$(KVPOS1TO3)
 
 assets/masks/pos%_square4.png: assets/masks/pos%_square1.png
-	$(KVFPOS1TO4)
+	$(KVPOS1TO4)
 
 
 include ./Makefile.targ
