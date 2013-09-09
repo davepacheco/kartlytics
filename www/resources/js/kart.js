@@ -30,12 +30,6 @@
 /* jsl:import config.js */
 
 /*
- * TODO:
- * - clean up "upload" dialog
- * - race details screen: add ability to modify human player names
- */
-
-/*
  * Data model.
  */
 var kVideos = {};		/* raw data -- records for all videos */
@@ -59,6 +53,19 @@ var kForceRefresh = false;	/* force refresh on data update */
  * Configuration.
  */
 var kKeithingThreshold = 5000;
+
+/*
+ * In "show" mode, the front page highlights only races within the last
+ * kShowDuration (e.g., two days) of the latest race in the corpus.  Otherwise,
+ * the same blocks show data from all time.  The implementation of these blocks
+ * always uses kShowFilter, which is a filter function in "show" mode and just
+ * "true" (to select all races) otherwise.
+ */
+var kShowMode = true;
+var kShowFilter = true;				/* autoconfigured later */
+var kShowDuration = 48 * 60 * 60 * 1000;	/* 48 hours */
+var kShowSuffix = kShowMode ? ' (recent)' : '';
+var kShowLabel = kShowMode ? 'Last 48 hours' : '';
 
 /*
  * Initialization and data load.  Data is reloaded on page load, after making a
@@ -147,6 +154,21 @@ function kOnData(data, text)
 			continue;
 
 		delete (kVideos[key]);
+	}
+
+	if (kShowMode) {
+		var last = undefined;
+		kEachRace(true, function (race) {
+			if (last === undefined || race['start_time'] > last)
+				last = race['start_time'];
+		});
+
+		if (last !== undefined) {
+			kShowFilter = function (race) {
+				return (last - race['start_time'] <
+				    kShowDuration);
+			};
+		}
 	}
 
 	if (kForceRefresh || kScreenName == 'videos') {
@@ -270,9 +292,7 @@ function kScreenUpdate()
 		args = components.slice(1);
 	}
 
-	if (kScreenCurrent)
-		kRemoveDynamicContent();
-
+	kRemoveDynamicContent();
 	kScreenCurrent = screen;
 	kScreenName = screen.name;
 	kScreenArgs = args;
@@ -386,9 +406,12 @@ function kScreenSummaryLoad()
 		race['cend'] = endchanges;
 		race['finish_delta'] = best !== undefined &&
 		    duration - best > 0 ? duration - best : Infinity;
-		slugfests.push(sf);
-		wildfinishes.push(sf);
-		photofinishes.push(sf);
+
+		if (typeof (kShowFilter) != 'function' || kShowFilter(race)) {
+			slugfests.push(sf);
+			wildfinishes.push(sf);
+			photofinishes.push(sf);
+		}
 
 		/* update item distribution */
 		/* XXX copied from js/kartvid.js */
@@ -432,23 +455,31 @@ function kScreenSummaryLoad()
 	/* popular track table */
 	kDataTable({
 	    'parent': tbldiv,
-	    'entries': kRaces(true),
+	    'entries': kRaces(kShowFilter),
 	    'columns': [ 'Track', 'NR' ],
 	    'group_by': [ 'Track' ],
 	    'sort': function (a, b) { return (b[1] - a[1]); },
-	    'limit': 7,
+	    'limit': kShowMode ? 6 : 7,
 	    'options': {
 		'title': 'Popular tracks',
+		'label': kShowLabel,
 	        'dtOptions': {
 	            'aaSorting': [ [1, 'desc'] ]
 	        }
 	    }
 	});
 
+	toptbl = $('<table class="kDynamic kColumns"></table>');
+	tblrow = $('<tr></tr>');
+	tbldiv = $('<td class="kDynamic"></td>');
+	kDomConsole.append(toptbl);
+	toptbl.append(tblrow);
+	tblrow.append(tbldiv);
+
 	/* wildest finishes table */
 	wildfinishes.sort(function (a, b) { return (b['cend'] - a['cend']); });
 	wildfinishes = wildfinishes.slice(0, 5);
-	cols = kColumnsByName([ 'Date', 'NPl', 'Mode', 'Lvl', 'Track' ]);
+	cols = kColumnsByName([ 'SDate', 'NPl', 'Lvl', 'Track' ]);
 	cols.push({
 	    'sTitle': 'Changes',
 	    'sClass': 'kDataRaceTime',
@@ -459,25 +490,24 @@ function kScreenSummaryLoad()
 	    }
 	});
 	rows = wildfinishes.map(kExtractValues.bind(null, cols));
-	kTable(kDomConsole, rows, cols, {
-	    'title': 'Wildest finishes',
-	    'label': 'As determined by number of rank changes in the final ' +
+	kTable(tbldiv, rows, cols, {
+	    'title': 'Wildest finishes' + kShowSuffix,
+	    'label': 'By number of rank changes in the last ' +
 	        '15 seconds',
 	    'dtOptions': {
-	        'aaSorting': [ [ 5, 'desc' ] ]
+	        'aaSorting': [ [ 4, 'desc' ] ]
 	    }
 	});
 
-	/* item information */
-	kMakeItemGraph(kDomConsole, allitems, itemsbyr0, 'item box hit');
-	kMakeItemGraph(kDomConsole, allitems, itemsbyr1, 'item received');
+	tbldiv = $('<td class="kDynamic"></td>');
+	tblrow.append(tbldiv);
 
 	/* photo finishes */
 	photofinishes.sort(function (a, b) {
 	    return (a['finish_delta'] - b['finish_delta']);
 	});
 	photofinishes = photofinishes.slice(0, 5);
-	cols = kColumnsByName([ 'Date', 'NPl', 'Mode', 'Lvl', 'Track' ]);
+	cols = kColumnsByName([ 'SDate', 'NPl', 'Lvl', 'Track' ]);
 	cols.push({
 	    'sTitle': 'Delta',
 	    'sClass': 'kDataRaceTime',
@@ -488,17 +518,24 @@ function kScreenSummaryLoad()
 	    }
 	});
 	rows = photofinishes.map(kExtractValues.bind(null, cols));
-	kTable(kDomConsole, rows, cols, {
-	    'title': 'Photo finishes',
+	kTable(tbldiv, rows, cols, {
+	    'title': 'Photo finishes' + kShowSuffix,
+	    'label': '&nbsp;',
 	    'dtOptions': {
-	        'aaSorting': [ [ 5, 'asc' ] ]
+	        'aaSorting': [ [ 4, 'asc' ] ]
 	    }
 	});
+
+	tblrow = $('<tr></tr');
+	toptbl.append(tblrow);
+
+	tbldiv = $('<td class="kDynamic"></td>');
+	tblrow.append(tbldiv);
 
 	/* slugfests table */
 	slugfests.sort(function (a, b) { return (b['cpm'] - a['cpm']); });
 	slugfests = slugfests.slice(0, 5);
-	cols = kColumnsByName([ 'Date', 'NPl', 'Mode', 'Lvl', 'Track' ]);
+	cols = kColumnsByName([ 'SDate', 'NPl', 'Lvl', 'Track' ]);
 	cols.push({
 	    'sTitle': 'CPM',
 	    'sClass': 'kDataRaceTime',
@@ -509,24 +546,32 @@ function kScreenSummaryLoad()
 	    }
 	});
 	rows = slugfests.map(kExtractValues.bind(null, cols));
-	kTable(kDomConsole, rows, cols, {
-	    'title': 'Wildest races',
-	    'label': 'As determined by number of rank changes per minute, ' +
-	        'excluding the first 30 seconds',
+	kTable(tbldiv, rows, cols, {
+	    'title': 'Wildest races' + kShowSuffix,
+	    'label': 'By number of rank changes per minute ' +
+	        'after the first 30 seconds',
 	    'dtOptions': {
-	        'aaSorting': [ [ 5, 'desc' ] ]
+	        'aaSorting': [ [ 4, 'desc' ] ]
 	    }
 	});
+
+	tbldiv = $('<td class="kDynamic"></td>');
+	tblrow.append(tbldiv);
 
 	/* latest session table */
 	latest = Math.max.apply(null, Object.keys(dateraces));
 	kDataTable({
-	    'parent': kDomConsole,
-	    'entries': dateraces[latest],
-	    'columns': [ 'Date', 'NPl', 'Mode', 'Lvl', 'Track', 'WinC',
-	        'WinH' ],
-	    'options': { 'title': 'Latest session'}
+	    'parent': tbldiv,
+	    'entries': dateraces[latest].slice(0, 10),
+	    'columns': [ 'SDate', 'NPl', 'Lvl', 'Track', 'WinH' ],
+	    'options': { 'title': 'Latest session', 'label': '&nbsp;' }
 	});
+
+	/* item information */
+	if (!kShowMode)
+		kMakeItemGraph(kDomConsole, allitems, itemsbyr0,
+		    'item box hit');
+	kMakeItemGraph(kDomConsole, allitems, itemsbyr1, 'item received');
 }
 
 function kMakeItemGraph(dom, allitems, itemsbyr, label)
@@ -536,7 +581,7 @@ function kMakeItemGraph(dom, allitems, itemsbyr, label)
 	$('<div class="kDynamic kSubHeader">Item distribution by ' +
 	    'player\'s rank when ' + label + '</div>\n').appendTo(dom);
 	$('<div class="kDynamic kSubHeaderLabel">For races with ' +
-	    '4 players</div>').appendTo(dom);
+	    '4 players, all-time</div>').appendTo(dom);
 	div = $('<div class="kDynamic kItemGraphWidget"></div>');
 	div.appendTo(dom);
 	id = 'graph' + kId++;
@@ -818,7 +863,7 @@ function kScreenPlayersLoad(args)
 		    k['segment']['vstart'] - k['prev'], true);
 		return (rv);
 	});
-	cols = kColumnsByName([ 'Date', 'NPl', 'Mode', 'Lvl', 'Track' ]);
+	cols = kColumnsByName([ 'Date', 'NPl', 'Lvl', 'Track' ]);
 	cols = cols.concat([ {
 	    'sTitle': 'H',
 	    'sClass': 'kDataRaceName',
@@ -2363,6 +2408,16 @@ var kColumns = {
 			return (kTrackToCup(race['track']));
 		}
 	},
+	'SDate': {
+		'sTitle': 'Date',
+		'sClass': 'kDataRaceDate',
+		'extract': function (race) {
+			var text = kDateTime(race['start_time']);
+			if (kShowMode)
+				text = text.substr(5);
+			return (kmklink(text, 'race', race['raceid']));
+		}
+	},
 	'Date': {
 		'sClass': 'kDataRaceDate',
 		'extract': function (race) {
@@ -2372,7 +2427,11 @@ var kColumns = {
 	},
 	'Lvl': {
 		'sClass': 'kDataRaceLvl',
-		'extract': function (race) { return (race['level'] || ''); }
+		'extract': function (race) {
+			if (race['level'] == 'unknown')
+				return ('-');
+			return (race['level'] || '-');
+		}
 	},
 	'Mode': {
 		'sClass': 'kDataRaceMode',
