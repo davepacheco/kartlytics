@@ -18,7 +18,7 @@ function usage
 {
 	[[ $# -gt 0 ]] && echo "$arg0: $@" >& 2
 	cat <<EOF >&2
-usage: $arg0 KARTVID_BASE OUTPUT_BASE VIDEO_FILE
+usage: $arg0 [-f] KARTVID_BASE OUTPUT_BASE VIDEO_FILE
 
 Given a kartlytics video, run kartvid to produce a race transcript (showing
 races, characters, tracks, and race events) and save the results into the
@@ -27,12 +27,24 @@ EOF
 	exit 2
 }
 
+t_force="false"
+if [[ $1 == "-f" ]]; then
+	t_force="true"
+	shift
+fi
+
 [[ $# -eq 3 ]] || usage
 
 t_basename="$(basename $3)"
 t_outdir="$2/$t_basename"
 t_transcript="/var/tmp/transcript"
 t_framesdir="/var/tmp/pngs"
+
+if [[ "$t_force" != "true" ]] && \
+    mls "$t_outdir/transcript.json" > /dev/null; then
+	echo "Skipping transcription (already saved and -f not used)"
+	exit 0
+fi
 
 # Create the raw video transcript, saving PNG screenshots as a side effect.
 mkdir -p "$t_framesdir"

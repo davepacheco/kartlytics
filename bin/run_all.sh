@@ -16,7 +16,7 @@ function usage
 {
 	[[ $# -gt 0 ]] && echo "$arg0: $@" >& 2
 	cat <<EOF >&2
-usage: $arg0 [-mT] [-b BIN_DIRECTORY] [-d VIDEO_DIRECTORY] 
+usage: $arg0 [-mTu] [-b BIN_DIRECTORY] [-d VIDEO_DIRECTORY] 
              [-t TARBALL] OUTPUT_DIRECTORY
 
 Runs the main kartlytics pipeline on all videos in VIDEO_DIRECTORY, placing the
@@ -37,8 +37,8 @@ for OUTPUT_DIRECTORY:
 With -m, also generates webm clips of each race.  (This is by far the most
 time-consuming part.)
 
-With -T, skips processing the raw videos, assuming the raw transcripts have
-already been created.
+With -T, force regenerating race transcripts of races that already have
+transcripts.
 
 With -u, uploads job assets to BIN_DIRECTORY before starting.  You must have
 write access to this directory.
@@ -52,7 +52,7 @@ ra_vidroot="/dap/public/kartlytics/videos"
 ra_outdir=""
 ra_dowebm=false
 ra_doupload=false
-ra_dotranscribe="true"
+ra_forcetranscribe=""
 
 while getopts ":b:d:Mt:Tu" c "$@"; do
 	case "$c" in
@@ -60,7 +60,7 @@ while getopts ":b:d:Mt:Tu" c "$@"; do
 	d)	ra_vidroot="$OPTARG" ;;
 	m)	ra_dowebm="true"    ;;
 	t)	ra_tarball="$OPTARG" ;;
-	T)	ra_dotranscribe="false" ;;
+	T)	ra_forcetranscribe="-f" ;;
 	u)	ra_doupload="true"   ;;
 	:)	usage "option requires an argument -- $OPTARG"	;;
 	*)	usage "invalid option: $OPTARG"	;;
@@ -87,17 +87,15 @@ if [[ $ra_doupload == "true" ]]; then
 	done
 fi
 
-if [[ $ra_dotranscribe == "true" ]]; then
-	echo "Running job to process videos:"
-	echo -n | mjob create -w \
-	    -s $ra_binroot/find-videos \
-	    -r "/assets$ra_binroot/find-videos \"$ra_vidroot\" | xargs mcat" \
-	    -s $ra_binroot/video-transcribe \
-	    -s $ra_tarball \
-	    --init "cd /var/tmp && tar xzf /assets$ra_tarball" \
-	    -m "/assets$ra_binroot/video-transcribe /var/tmp/kartlytics \"$ra_outdir\" "'$MANTA_INPUT_FILE' || \
-	    fail "failed to process videos"
-fi
+echo "Running job to process videos:"
+echo -n | mjob create -w \
+    -s $ra_binroot/find-videos \
+    -r "/assets$ra_binroot/find-videos \"$ra_vidroot\" | xargs mcat" \
+    -s $ra_binroot/video-transcribe \
+    -s $ra_tarball \
+    --init "cd /var/tmp && tar xzf /assets$ra_tarball" \
+    -m "/assets$ra_binroot/video-transcribe $ra_forcetranscribe /var/tmp/kartlytics \"$ra_outdir\" "'$MANTA_INPUT_FILE' || \
+    fail "failed to process videos"
 
 if [[ $ra_dowebm == "true" ]]; then
 	echo "Running job to generate webms:"
