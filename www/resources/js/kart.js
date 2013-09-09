@@ -303,7 +303,6 @@ function kScreenSummaryLoad()
 	var nraces = 0;
 	var players = {};
 	var dateraces = {};
-	var keithings = [];
 	var slugfests = [];
 	var wildfinishes = [];
 	var photofinishes = [];
@@ -359,15 +358,12 @@ function kScreenSummaryLoad()
 			dateraces[key] = [];
 		dateraces[key].push(race);
 
-		/* Compute keithings and slugfests. */
-		var kbyp = new Array(race['players'].length + 1);
+		/* Compute slugfests. */
 		var changes = 0;
 		var endchanges = 0;
 		var duration = race['vend'] - race['vstart'];
 
 		kRaceSegments(race, true, function (_, seg) {
-			var r1, rlast;
-
 			/*
 			 * Only count rank changes after the first 30 seconds,
 			 * since there's often a lot of earlier jockeying that
@@ -383,36 +379,6 @@ function kScreenSummaryLoad()
 			if (race['vend'] - seg['vend'] < 15000)
 				endchanges++;
 
-			/*
-			 * A "Keithing" is scored when a player moves from 1st
-			 * to last place within kKeithingThreshold ms.  We store
-			 * the last segment in which a player was in 1st place
-			 * in "kbyp", then when we find them in last we check
-			 * whether they've been Keithed.
-			 */
-			for (var i = 0; i < seg['players'].length; i++) {
-				if (seg['players'][i]['rank'] == 1)
-					r1 = i;
-				else if (seg['players'][i]['rank'] ==
-				    race['players'].length)
-					rlast = i;
-			}
-
-			if (rlast !== undefined && kbyp[rlast] &&
-			    seg['vstart'] - kbyp[rlast] < kKeithingThreshold) {
-				if (seg['vstart'] - kbyp[rlast] > 0) {
-					keithings.push({
-					    'race': race,
-					    'prev': kbyp[rlast],
-					    'segment': seg,
-					    'player': rlast
-					});
-				}
-
-				kbyp[rlast] = 0;
-			}
-
-			kbyp[r1] = seg['vend'];
 		});
 
 		var sf = Object.create(race);
@@ -560,43 +526,6 @@ function kScreenSummaryLoad()
 	    'columns': [ 'Date', 'NPl', 'Mode', 'Lvl', 'Track', 'WinC',
 	        'WinH' ],
 	    'options': { 'title': 'Latest session'}
-	});
-
-	/* keithings table */
-	keithings = keithings.map(function (k) {
-		var rv = Object.create(k['race']);
-		rv['who'] = kmklink(
-		    rv['players'][k['player']]['person'], 'player');
-		rv['from'] = kDuration(k['prev'] - rv['vstart'], true);
-		rv['to'] = kDuration(
-		    k['segment']['vstart'] - rv['vstart'], true);
-		rv['over'] = kDuration(
-		    k['segment']['vstart'] - k['prev'], true);
-		return (rv);
-	});
-	cols = kColumnsByName([ 'Date', 'NPl', 'Mode', 'Lvl', 'Track' ]);
-	cols = cols.concat([ {
-	    'sTitle': 'H',
-	    'sClass': 'kDataRaceName',
-	    '_conf': { 'extract': function (row) { return (row['who']); } }
-	}, {
-	    'sTitle': 'From',
-	    'sClass': 'kDataRaceTime',
-	    '_conf': { 'extract': function (row) { return (row['from']); } }
-	}, {
-	    'sTitle': 'To',
-	    'sClass': 'kDataRaceTime',
-	    '_conf': { 'extract': function (row) { return (row['to']); } }
-	}, {
-	    'sTitle': 'Over',
-	    'sClass': 'kDataRaceTime',
-	    '_conf': { 'extract': function (row) { return (row['over']); } }
-	} ]);
-	rows = keithings.map(kExtractValues.bind(null, cols));
-	kTable(kDomConsole, rows, cols, {
-	    'title': 'Keithings',
-	    'label': 'Moving from 1st to 4th in less than ' +
-	        (kKeithingThreshold / 1000) + ' seconds'
 	});
 }
 
@@ -821,12 +750,52 @@ function kScreenPlayersLoad(args)
 	kScreenTitle('Players');
 
 	var rows = [];
+	var keithings = [];
+	var cols;
 	kRaces(true).forEach(function (race) {
 		race['players'].forEach(function (p) {
 			var rv = Object.create(race);
 			rv['_player'] = p['person'];
 			rows.push(rv);
 		});
+
+		/* Compute keithings. */
+		var kbyp = new Array(race['players'].length + 1);
+		kRaceSegments(race, true, function (_, seg) {
+			var r1, rlast;
+
+			/*
+			 * A "Keithing" is scored when a player moves from 1st
+			 * to last place within kKeithingThreshold ms.  We store
+			 * the last segment in which a player was in 1st place
+			 * in "kbyp", then when we find them in last we check
+			 * whether they've been Keithed.
+			 */
+			for (var i = 0; i < seg['players'].length; i++) {
+				if (seg['players'][i]['rank'] == 1)
+					r1 = i;
+				else if (seg['players'][i]['rank'] ==
+				    race['players'].length)
+					rlast = i;
+			}
+
+			if (rlast !== undefined && kbyp[rlast] &&
+			    seg['vstart'] - kbyp[rlast] < kKeithingThreshold) {
+				if (seg['vstart'] - kbyp[rlast] > 0) {
+					keithings.push({
+					    'race': race,
+					    'prev': kbyp[rlast],
+					    'segment': seg,
+					    'player': rlast
+					});
+				}
+
+				kbyp[rlast] = 0;
+			}
+
+			kbyp[r1] = seg['vend'];
+		});
+
 	});
 
 	kDataTable({
@@ -835,6 +804,43 @@ function kScreenPlayersLoad(args)
 	    'columns': [ 'H', 'NR', 'N1st', 'N2nd', 'N3rd', 'N4th', 'RTime'],
 	    'group_by': [ 'H' ],
 	    'extract_args': function (race) { return ([ race['_player'] ]); }
+	});
+
+	/* keithings table */
+	keithings = keithings.map(function (k) {
+		var rv = Object.create(k['race']);
+		rv['who'] = kmklink(
+		    rv['players'][k['player']]['person'], 'player');
+		rv['from'] = kDuration(k['prev'] - rv['vstart'], true);
+		rv['to'] = kDuration(
+		    k['segment']['vstart'] - rv['vstart'], true);
+		rv['over'] = kDuration(
+		    k['segment']['vstart'] - k['prev'], true);
+		return (rv);
+	});
+	cols = kColumnsByName([ 'Date', 'NPl', 'Mode', 'Lvl', 'Track' ]);
+	cols = cols.concat([ {
+	    'sTitle': 'H',
+	    'sClass': 'kDataRaceName',
+	    '_conf': { 'extract': function (row) { return (row['who']); } }
+	}, {
+	    'sTitle': 'From',
+	    'sClass': 'kDataRaceTime',
+	    '_conf': { 'extract': function (row) { return (row['from']); } }
+	}, {
+	    'sTitle': 'To',
+	    'sClass': 'kDataRaceTime',
+	    '_conf': { 'extract': function (row) { return (row['to']); } }
+	}, {
+	    'sTitle': 'Over',
+	    'sClass': 'kDataRaceTime',
+	    '_conf': { 'extract': function (row) { return (row['over']); } }
+	} ]);
+	rows = keithings.map(kExtractValues.bind(null, cols));
+	kTable(kDomConsole, rows, cols, {
+	    'title': 'Keithings',
+	    'label': 'Moving from 1st to 4th in less than ' +
+	        (kKeithingThreshold / 1000) + ' seconds'
 	});
 }
 
