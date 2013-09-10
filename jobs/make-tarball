@@ -43,5 +43,6 @@ tar czvf kartlytics.tgz \
     kartlytics/assets \
     kartlytics/out/kartvid \
     kartlytics/node_modules \
+    kartlytics/tools \
     kartlytics/js
 mpipe -f kartlytics.tgz "$1"
