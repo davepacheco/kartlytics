@@ -61,7 +61,7 @@ var kKeithingThreshold = 5000;
  * always uses kShowFilter, which is a filter function in "show" mode and just
  * "true" (to select all races) otherwise.
  */
-var kShowMode = true;
+var kShowMode = false;
 var kShowFilter = true;				/* autoconfigured later */
 var kShowDuration = 48 * 60 * 60 * 1000;	/* 48 hours */
 var kShowSuffix = kShowMode ? ' (recent)' : '';
