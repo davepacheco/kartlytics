@@ -54,7 +54,7 @@ ra_dowebm=false
 ra_doupload=false
 ra_forcetranscribe=""
 
-while getopts ":b:d:Mt:Tu" c "$@"; do
+while getopts ":b:d:mt:Tu" c "$@"; do
 	case "$c" in
 	b)	ra_binroot="$OPTARG" ;;
 	d)	ra_vidroot="$OPTARG" ;;
