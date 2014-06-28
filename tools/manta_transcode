@@ -1,0 +1,48 @@
+#!/bin/bash
+
+#
+# manta_transcode STRIP_PREFIX REPLACE_PREFIX OUTPUT_DIR
+# Given a bunch of movie files in Manta, transcode them for kartlytics-quality.
+# Example:
+#
+#     mfind -t o -n 'Recording_\.*.mov' YOUR_INPUT_DIR |
+#         manta_transcode Recording_ 2014-04-04 YOUR_OUTPUT_DIR
+#
+# This will take all videos found under YOUR_INPUT_DIR, transcode them into new
+# objects in YOUR_OUTPUT_DIR with the "Recording_" prefix replaced with
+# "2014-04-04".
+#
+
+arg0="$(basename $0)"
+
+#
+# fail MESSAGE: print an error message and abort this command
+#
+function fail
+{
+	echo "$arg0: $@" >&2
+	exit 1
+}
+
+if [[ $# -lt 3 ]]; then
+	echo "usage: $arg0 STRIP_PREFIX REPLACE_PREFIX OUTPUT_DIR [MJOB_ARGS]" >&2
+	exit 2
+fi
+
+if [[ -t 0 ]]; then
+	echo "$arg0: refusing to read inputs from a terminal" >&2
+	exit 2
+fi
+
+script=$(cat <<EOF
+b="\$(basename "\$MANTA_INPUT_OBJECT")"
+b="$2-\${b#$1}"
+if ffmpeg -i \$MANTA_INPUT_FILE -b:v 3584k -strict -2 -g 15 -map_metadata 0 tmp.mov < /dev/null; then
+	mpipe -p -f tmp.mov $3/\$b
+else
+	echo "ffmpeg failed" >&2
+	exit 1
+fi
+EOF)
+shift 3
+mjob create -m "$script" "$@"

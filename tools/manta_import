@@ -1,0 +1,145 @@
+#!/bin/bash
+
+#
+# manta_import OUTPUT_DIRECTORY MANTA_OBJECT SPEED NAME1 NAME2 NAME3 [NAME4]:
+# import a video file into Manta with the given player names for metadata.
+#
+
+arg0="$(basename $0)"
+
+#
+# fail MESSAGE: print an error message and abort this command
+#
+function fail
+{
+	echo "$arg0: $@" >&2
+	exit 1
+}
+
+#
+# [private] json_escape STR: escape STR as a JSON string.  This escapes all
+# double-quotes and escape characters.
+# XXX copied from bin/libmjob.sh
+#
+function json_escape
+{
+	local script="$(cat <<-EOF
+	var d = "";
+	process.stdin.on("data", function (c) {
+	    d += c.toString("utf8");
+	});
+	process.stdin.on("end", function () {
+	    console.log(JSON.stringify(d));
+	});
+	EOF)"
+	echo -n "$1" | node -e "$script"
+}
+
+if [[ $# -lt 6 ]]; then
+	echo "usage: $arg0 OUTPUT_DIRECTORY MANTA_OBJECT SPEED NAME1 NAME2 NAME3 [NAME4]" >&2
+	exit 2
+fi
+
+case "$3" in
+50cc|100cc|150cc|extra)
+	;;
+*)
+	echo "$arg0: invalid speed: \"$3\"" >& 2
+	exit 2
+	;;
+esac
+
+mi_outdir="$1"
+mi_objname="$2"
+mi_speed="$3"
+mi_crtime_text=
+mi_script=
+mi_id=
+mi_name="$(basename $mi_objname)"
+mi_crtime=
+mi_uploaded=
+mi_tmpfile="/var/tmp/$arg0.$$"
+shift 3
+
+echo "Using name: $mi_name"
+echo -n "Using upload and \"last update\" time: "
+mi_uploaded="$(node -pe 'new Date().toISOString()')"
+echo "$mi_uploaded"
+
+#
+# Generate an id, the same we node-formidable does (which is how we used to
+# create these).
+#
+echo -n "Assigning random id: "
+mi_id=$(node -e "id = ''; for (i = 0; i < 32; i++) { id += Math.floor(Math.random() * 16).toString(16) } console.log(id);")
+echo "$mi_id"
+
+#
+# Extract the creation time from the video file in Manta.
+#
+echo -n "Extracting creation time of video file: "
+mi_crtime_text=$(echo "$mi_objname" | mjob create 2>/dev/null -o -m \
+    'ffprobe $MANTA_INPUT_FILE 2>&1 | awk '"'"'$1 == "creation_time"{ printf("%sT%sZ\n", $3, $4); exit(0); }'"'") || \
+    fail "ffprobe job failed"
+
+if [[ -n "$mi_crtime_text" ]]; then
+	mi_crtime=$(node -pe "Date.parse('$mi_crtime_text')")
+fi
+
+if [[ -z "$mi_crtime" || "$mi_crtime" == "NaN" ]]; then
+	mi_crtime=$(node -pe 'Date.now()')
+	echo "no valid time found -- using $mi_crtime"
+else
+	echo "$mi_crtime_text ($mi_crtime)"
+fi
+
+cat > $mi_tmpfile <<-EOF
+{
+"id": "$mi_id",
+"name": $(json_escape "$mi_name"),
+"uploaded": "$mi_uploaded",
+"crtime": $mi_crtime,
+"lastUpdated": "$mi_uploaded",
+"metadata": {
+"races": [ {
+    "level": "150cc",
+    "people": []
+} ]
+}
+}
+EOF
+
+for i in "$@"; do
+	json -e "this.metadata.races[0].people.push($(json_escape $i))" \
+	    < $mi_tmpfile > $mi_tmpfile.2 && \
+	    mv $mi_tmpfile.2 $mi_tmpfile || fail "failed"
+done
+
+echo
+echo "Generated metadata:"
+cat $mi_tmpfile
+
+echo
+echo "This can be imported by:"
+echo "  - saving metadata to $mi_outdir/$mi_name.json"
+echo "  - mln \"$mi_objname\" \"$mi_outdir/$mi_name\""
+echo
+
+read -p "Do you want to do that now? (y/n) "
+echo
+if [[ ! ($REPLY =~ ^[Yy]$) ]]; then
+	echo "Okay, I won't do anything."
+	rm -f $mi_tmpfile
+	exit 0
+fi
+
+if mls "$mi_outdir/$mi_name.json" > /dev/null 2>&1; then
+	echo "$arg0: $mi_outdir/$mi_name.json already exists.  Bailing."
+fi
+if mls "$mi_outdir/$mi_name" > /dev/null 2>&1; then
+	echo "$arg0: $mi_outdir/$mi_name already exists.  Bailing."
+fi
+
+mput -f $mi_tmpfile "$mi_outdir/$mi_name.json" || fail "failed to save metadata"
+mln "$mi_objname" "$mi_outdir/$mi_name" || fail "failed to mln"
+echo "Success!"
