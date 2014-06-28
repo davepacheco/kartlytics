@@ -1,0 +1,252 @@
+#!/bin/bash
+
+#
+# kartlytics_run: runs the kartlytics pipeline on one or more videos
+#
+
+set -o pipefail
+arg0="$(basename $0)"
+. $(dirname $BASH_SOURCE[0])/libmjob.sh
+
+#
+# fail MESSAGE: print an error message and abort this command
+#
+function fail
+{
+	echo "$arg0: $@" >&2
+	exit 1
+}
+
+#
+# usage [MESSAGE]: optionally print an error message, then print a usage
+# message, then abort this command.
+#
+function usage
+{
+	[[ $# -gt 0 ]] && echo "$arg0: $@" >& 2
+	cat <<EOF >&2
+usage: $arg0 [-mTu] [-b BIN_DIRECTORY] [-d VIDEO_DIRECTORY] 
+             [-t TARBALL] OUTPUT_DIRECTORY [VIDEO_FILES]
+
+Run the kartlytics pipeline.
+
+    -b BIN_DIRECTORY	Manta path that will store job assets.
+    			[$ra_binroot]
+    -d VIDEO_DIRECTORY	Manta path to the raw video files.
+			[$ra_vidroot]
+    -m			Generate webm videos (takes a long time).
+    -t TARBALL		Manta path to the kartvid tarball.
+    			[$ra_tarball]
+    -T			Re-transcribe videos that have already been transcribed.
+    -u			Upload assets from this repo.
+        
+OUTPUT_DIRECTORY is a Manta path.  To use the public build and dataset, leave
+off everything except for OUTPUT_DIRECTORY.
+
+If VIDEO_FILES are specified, only those videos are processed and the final
+aggregation job is not run.  Otherwise, all videos found under VIDEO_DIRECTORY
+are processed and the final aggregation job is run.
+
+The Manta tools (mjob, mput, and related tools) must be installed and on your
+path.  See http://apidocs.joyent.com/manta/#getting-started for details.
+EOF
+	exit 2
+}
+
+
+#
+# Configuration
+#
+
+# Manta path to the tarball with the kartlytics bits.  See "-t" option.
+ra_tarball="/dap/public/kartlytics/kartlytics.tgz"
+
+# Manta path to the scripts that are used as job assets.  See "-b" option.
+ra_binroot="/dap/public/kartlytics/bin"
+
+# Manta path to the video and JSON metadata files.  See "-d" option.
+ra_vidroot="/dap/public/kartlytics/videos"
+
+# Specific videos to analyze (overrides $ra_vidroot).
+#ra_videos="/dap/public/kartlytics/videos/2013-08-02_0007.mov"
+ra_videos=""
+
+# Manta path for generated results.  There's no default -- always specify this.
+ra_outdir=""
+
+# Create webm versions of the videos for inline display on kartlytics.com.
+ra_dowebm=false
+
+# Use the asset scripts stored in this repo.  (Skipping saves time.)
+ra_doupload=false
+
+# Force each video to be reprocessed even there's already a transcript for it.
+ra_forcetranscribe=""
+
+# Temporary file used for a small tarball.  You shouldn't need to change this.
+ra_tmptar="/var/tmp/kartlytics.$$.tar"
+
+# Directory containing the asset scripts used in jobs.
+ra_jobbasedir="$(dirname $0)/../jobs"
+
+
+#
+# Functions
+#
+
+#
+# upload_assets: upload the latest copes of the assets we're using.  It's much
+# faster to create a tarball and use "muntar" to upload that than to use "mput"
+# for each file separately.
+#
+function upload_assets
+{
+	echo "Uploading assets: "
+	mmkdir -p "$ra_binroot" &&
+	(cd "$ra_jobbasedir" && tar cf "$ra_tmptar" * && \
+	    muntar -f "$ra_tmptar" "$ra_binroot" && rm -f "$ra_tmptar") ||
+	    fail "failed to upload assets"
+}
+
+# run_process_videos: run the job to process videos into transcripts
+function run_process_videos
+{
+	echo -n "Running job to process videos: "
+	gmjob_init 'Kartlytics: process videos'
+	if [[ -z "$ra_videos" ]]; then
+		gmjob_reduce -s "$ra_binroot/find-videos" \
+		    "/assets/$ra_binroot/find-videos \"$ra_vidroot\" | xargs mcat"
+	fi
+
+	gmjob_map -s "$ra_binroot/video-transcribe" -s "$ra_tarball" \
+	    -I "cd /var/tmp && tar xzf /assets$ra_tarball" \
+	    "/assets$ra_binroot/video-transcribe $ra_forcetranscribe /var/tmp/kartlytics \"$ra_outdir\" "'$MANTA_INPUT_FILE'
+
+	if [[ -z "$ra_videos" ]]; then
+		ra_jobid=$(gmjob_submit) || \
+		    fail "failed to submit job: $gmjob_error"
+		echo "$ra_jobid"
+	else
+		ra_jobid=$(gmjob_submit --open) || \
+		    fail "failed to submit job: $gmjob_error"
+		echo "$ra_jobid"
+		(for vid in $ra_videos; do echo "$vid"; done) | \
+		    mjob addinputs $ra_jobid || fail "failed to add inputs"
+	fi
+
+	mjob watch $ra_jobid > /dev/null || fail "failed to wait for job"
+}
+
+# run_webm: run the job to create webms
+function run_webm
+{
+	echo -n "Running job to generate webms: "
+	gmjob_init 'Kartlytics: create webm'
+	if [[ -z "$ra_videos" ]]; then
+		gmjob_reduce -s "$ra_binroot/find-videos" \
+		    "/assets/$ra_binroot/find-videos \"$ra_vidroot\" | xargs mcat"
+	fi
+
+	gmjob_map -s "$ra_binroot/video-webm" \
+	    "/assets$ra_binroot/video-webm \"$ra_outdir\" "'$MANTA_INPUT_FILE'
+
+	if [[ -z "$ra_videos" ]]; then
+		ra_jobid=$(gmjob_submit) || \
+		    fail "failed to submit job: $gmjob_error"
+		echo "$ra_jobid"
+	else
+		ra_jobid=$(gmjob_submit --open) || \
+		    fail "failed to submit job: $gmjob_error"
+		echo "$ra_jobid"
+		(for vid in $ra_videos; do echo "$vid"; done) | \
+		    mjob addinputs $ra_jobid || fail "failed to add inputs"
+	fi
+
+	mjob watch $ra_jobid > /dev/null || fail "failed to wait for job"
+}
+
+# run_process_transcripts: run the job to process transcripts into races
+function run_process_transcripts
+{
+	echo -n "Running job to process video transcripts: "
+	gmjob_init 'Kartlytics: process transcripts'
+
+	if [[ -z "$ra_videos" ]]; then
+		gmjob_reduce -s "$ra_binroot/find-transcripts" \
+		    "/assets/$ra_binroot/find-transcripts \"$ra_outdir\" | xargs mcat"
+	fi
+
+	gmjob_map -s "$ra_tarball" -s "$ra_binroot/video-races" \
+	    -I "cd /var/tmp && tar xzf /assets$ra_tarball" \
+	    "/assets$ra_binroot/video-races /var/tmp/kartlytics "'$MANTA_INPUT_FILE $MANTA_INPUT_OBJECT'
+
+	if [[ -z "$ra_videos" ]]; then
+		ra_jobid=$(gmjob_submit) || \
+		    fail "failed to submit job: $gmjob_error"
+		echo "$ra_jobid"
+	else
+		ra_jobid=$(gmjob_submit --open) || \
+		    fail "failed to submit job: $gmjob_error"
+		echo "$ra_jobid"
+		(for vid in $ra_videos; do
+			echo "$ra_outdir/$(basename $vid)/transcript.json";
+		done) | mjob addinputs $ra_jobid || fail "failed to add inputs"
+	fi
+
+	mjob watch $ra_jobid > /dev/null || fail "failed to wait for job"
+}
+
+# run_aggregate: run the job that aggregates data from all videos
+function run_aggregate
+{
+	echo -n "Running job to aggregate data: "
+	echo -n | mjob create -w \
+	    -s $ra_binroot/find-metadata \
+	    -r "/assets$ra_binroot/find-metadata \"$ra_vidroot\" | xargs mcat" \
+	    -s $ra_binroot/video-metadata \
+	    -m "/assets$ra_binroot/video-metadata \"$ra_outdir\" "'$MANTA_INPUT_FILE' \
+	    -r "json -g | mpipe \"$ra_outdir\"/summary.json" || \
+	    fail "failed to aggregate data"
+}
+
+
+#
+# Mainline
+#
+while getopts ":b:d:mt:Tu" c "$@"; do
+	case "$c" in
+	b)	ra_binroot="$OPTARG" ;;
+	d)	ra_vidroot="$OPTARG" ;;
+	m)	ra_dowebm="true"    ;;
+	t)	ra_tarball="$OPTARG" ;;
+	T)	ra_forcetranscribe="-f" ;;
+	u)	ra_doupload="true"   ;;
+	:)	usage "option requires an argument -- $OPTARG"	;;
+	*)	usage "invalid option: $OPTARG"	;;
+	esac
+done
+
+shift $((OPTIND - 1))
+[[ $# -ge 1 ]] || usage "output directory must be specified"
+ra_outdir="$1"
+
+shift
+if [[ $# -gt 0 ]]; then
+	echo "Only processing videos: "
+	for i in "$@"; do
+		echo "    $i"
+		ra_videos="$ra_videos $i"
+	done
+else
+	echo "Processing all videos under $ra_vidroot."
+fi
+
+# Fail gracefully if the Manta tools aren't installed.
+type mjob > /dev/null 2>&1 || \
+    usage "\"mjob\" not found on PATH (are the Manta tools installed?)"
+
+[[ $ra_doupload == "true" ]] && upload_assets
+run_process_videos
+[[ $ra_dowebm == "true" ]] && run_webm
+run_process_transcripts
+[[ -z "$ra_videos" ]] && run_aggregate
