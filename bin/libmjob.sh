@@ -40,7 +40,7 @@
 function mjob_init
 {
 	if [[ $# -gt 0 ]]; then
-		echo '{ "phases": [] }' | json -e "name='$1'"
+		echo '{ "phases": [] }' | json -e "this.name='$1'"
 	else
 		echo '{ "phases": [] }'
 	fi
@@ -101,7 +101,7 @@ function mjob_phase
 		return 1
 	fi
 	cmds="$cmds; p.exec=$(json_escape "$1")"
-	cmds="$cmds; phases.push(p); p = undefined;"
+	cmds="$cmds; this.phases.push(p); p = undefined;"
 
 	[[ -t 0 ]] && echo "warning: mjob_phase on a terminal" >&2
 	json -e "$cmds"
