@@ -344,13 +344,13 @@ function kScreenSummaryLoad()
 	    '<p class="kBodyText">If you\'re ',
 	    'wondering where to start, check out <a href="#races">the ',
 	    'races</a> or the stats below.</p>',
-	    '<p class="kBodyText">Videos are stored on the ',
+	    '<p class="kBodyText">Historically, videos were stored on the ',
 	    '<a href="http://www.joyent.com/products/manta">Joyent ',
 	    'Manta service</a>.  Video processing and data aggregation ',
-	    'run as compute jobs in Manta without copying the videos.  For ',
-	    'details on how this works, see the ',
+	    'ran as compute jobs in Manta without copying the videos.  For ',
+	    'details on how this worked, see the ',
 	    '<a href="https://github.com/davepacheco/kartlytics">kartlytics ',
-	    'github project</a>.</p>',
+	    'github project</a>.  The content has been moved to S3.</p>',
 	    '</td>'
 	].join(''));
 
