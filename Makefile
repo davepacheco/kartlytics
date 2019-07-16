@@ -86,9 +86,9 @@ JSL_CONF_NODE	 = tools/jsl.node.conf
 JSL_CONF_WEB	 = tools/jsl.web.conf
 JSL_FILES_NODE  := $(shell find js test -name '*.js') \
 		   tools/vsplit tools/json_normalize
-JSL_FILES_WEB   := $(shell find www/resources/js -name '*.js')
+JSL_FILES_WEB   := $(shell find docs/resources/js -name '*.js')
 JSSTYLE_FILES	:= $(JSL_FILES_NODE) $(JSL_FILES_WEB)
-CSCOPE_DIRS 	+= js www
+CSCOPE_DIRS 	+= js docs
 
 
 #

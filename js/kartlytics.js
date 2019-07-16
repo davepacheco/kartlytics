@@ -124,7 +124,7 @@ function initServer()
 	klServer.use(mod_restify.queryParser());
 	klServer.use(mod_restify.urlEncodedBodyParser());
 
-	filespath = mod_path.normalize(mod_path.join(__dirname, '..', 'www'));
+	filespath = mod_path.normalize(mod_path.join(__dirname, '..', 'docs'));
 
 	klServer.get('/', fileServer.bind(
 	    null, mod_path.join(filespath, 'index.htm')));
